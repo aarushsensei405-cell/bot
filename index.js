@@ -1,3 +1,4 @@
+const express = require('express');
 const {
   Client,
   GatewayIntentBits,
@@ -6,6 +7,18 @@ const {
   Routes,
   PermissionFlagsBits
 } = require('discord.js');
+
+// Render port fix
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+  res.send('Bot is online!');
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -23,7 +36,6 @@ client.on('interactionCreate', async interaction => {
 
   if (interaction.commandName === 'announce') {
 
-    // Only admins can use it
     if (!interaction.member.permissions.has(
       PermissionFlagsBits.Administrator
     )) {
@@ -36,7 +48,6 @@ client.on('interactionCreate', async interaction => {
     const message =
       interaction.options.getString('message');
 
-    // Uses current channel
     const channel = interaction.channel;
 
     await channel.send({
@@ -53,7 +64,7 @@ client.on('interactionCreate', async interaction => {
 
 client.login(TOKEN);
 
-// Register slash command
+// Slash command
 const commands = [
   new SlashCommandBuilder()
     .setName('announce')
