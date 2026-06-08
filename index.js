@@ -211,8 +211,6 @@ Click the button below to verify yourself and gain access to the server.`,
   }
 );
 
-client.login(TOKEN);
-
 // Slash Commands
 const commands = [
 
@@ -244,6 +242,7 @@ const rest = new REST({
   version: '10'
 }).setToken(TOKEN);
 
+// Register commands FIRST
 (async () => {
   try {
 
@@ -257,6 +256,9 @@ const rest = new REST({
     console.log(
       'Slash commands registered'
     );
+
+    // Login AFTER registration
+    client.login(TOKEN);
 
   } catch (error) {
     console.error(error);
