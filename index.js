@@ -73,8 +73,8 @@ We're almost there — the IP will be shared here very soon. Stay tuned and keep
 🚧 **Rules will be released very soon!**
 
 Until then:
-✅ Use common sense  
-✅ Respect all players & staff  
+✅ Use common sense
+✅ Respect all players & staff
 ✅ Avoid unfair advantages or exploits
 
 👀 Keep an eye on announcements — the full rulebook is coming soon!`
@@ -108,23 +108,39 @@ client.on(
           });
         }
 
-        const message =
-          interaction.options.getString(
-            'message'
-          );
-
-        await interaction.channel.send({
+        await interaction.reply({
           content:
-`📢 @everyone
-**Announcement**
-${message}`
-        });
-
-        return interaction.reply({
-          content:
-            'Announcement sent!',
+            '📢 Send your announcement message in chat now.',
           ephemeral: true
         });
+
+        const filter = m =>
+          m.author.id ===
+          interaction.user.id;
+
+        const collector =
+          interaction.channel.createMessageCollector({
+            filter,
+            max: 1,
+            time: 60000
+          });
+
+        collector.on(
+          'collect',
+          async message => {
+
+            await interaction.channel.send({
+              content:
+`📢 @everyone
+
+${message.content}`
+            });
+
+            // delete admin message
+            await message.delete()
+              .catch(() => {});
+          }
+        );
       }
 
       // VERIFY PANEL
@@ -218,14 +234,6 @@ const commands = [
     .setName('announce')
     .setDescription(
       'Send announcement'
-    )
-    .addStringOption(option =>
-      option
-        .setName('message')
-        .setDescription(
-          'Announcement text'
-        )
-        .setRequired(true)
     ),
 
   new SlashCommandBuilder()
