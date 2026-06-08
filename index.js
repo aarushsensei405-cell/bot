@@ -23,12 +23,12 @@ client.on('interactionCreate', async interaction => {
 
   if (interaction.commandName === 'announce') {
 
+    // Only admins can use it
     if (!interaction.member.permissions.has(
       PermissionFlagsBits.Administrator
     )) {
       return interaction.reply({
-        content:
-          'Only admins can use this command.',
+        content: 'Only admins can use this command.',
         ephemeral: true
       });
     }
@@ -36,18 +36,8 @@ client.on('interactionCreate', async interaction => {
     const message =
       interaction.options.getString('message');
 
-    const channel =
-      interaction.guild.channels.cache.find(
-        c => c.name === 'announcements'
-      );
-
-    if (!channel) {
-      return interaction.reply({
-        content:
-          'Please create an #announcements channel.',
-        ephemeral: true
-      });
-    }
+    // Uses current channel
+    const channel = interaction.channel;
 
     await channel.send({
       content:
@@ -55,8 +45,7 @@ client.on('interactionCreate', async interaction => {
     });
 
     await interaction.reply({
-      content:
-        'Announcement sent!',
+      content: 'Announcement sent!',
       ephemeral: true
     });
   }
@@ -89,9 +78,7 @@ const rest = new REST({
       { body: commands }
     );
 
-    console.log(
-      'Slash command registered'
-    );
+    console.log('Slash command registered');
   } catch (error) {
     console.error(error);
   }
