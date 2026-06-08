@@ -27,6 +27,7 @@ app.listen(PORT, () => {
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID = '1432272831722553398';
 
 // Role IDs
 const VERIFY_ROLE_ID = '1432277416109281371';
@@ -51,12 +52,12 @@ function saveWarns(data) {
 }
 
 // Timeout durations per warn count (in minutes)
-// Warn 1 = no timeout, Warn 2 = no timeout, Warn 3 = 30min
-// Each warn after 3 adds 15 mins: warn4=45, warn5=60, warn6=75, warn7=90
-// Warn 8+ = permanent mute (very long timeout = 28 days max in Discord)
+// Warn 1-2 = no timeout
+// Warn 3 = 30 min, each warn after adds 15 min
+// Warn 8+ = permanent mute (28 days, Discord max)
 function getTimeoutDuration(warnCount) {
   if (warnCount < 3) return null;
-  if (warnCount >= 8) return 28 * 24 * 60; // 28 days in minutes (Discord max = permanent mute)
+  if (warnCount >= 8) return 28 * 24 * 60;
   return 30 + (warnCount - 3) * 15;
 }
 
@@ -84,7 +85,6 @@ client.on('messageCreate', async message => {
 
   const msg = message.content.toLowerCase();
 
-  // IP reply
   if (msg === 'ip') {
     return message.reply(
 `🚧 **The server IP has not been released yet!**
@@ -93,7 +93,6 @@ We're almost there — the IP will be shared here very soon. Stay tuned and keep
     );
   }
 
-  // Rules reply
   if (msg === 'rules') {
     return message.reply(
 `📜 **Rules Are Being Forged...**
@@ -117,7 +116,7 @@ client.on('interactionCreate', async interaction => {
 
   if (interaction.isChatInputCommand()) {
 
-    // ─── ANNOUNCE ───
+    // ANNOUNCE
     if (interaction.commandName === 'announce') {
 
       if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
@@ -169,7 +168,7 @@ ${message.content}`;
       });
     }
 
-    // ─── VERIFY PANEL ───
+    // VERIFY PANEL
     if (interaction.commandName === 'verifypanel') {
 
       if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
@@ -194,7 +193,7 @@ Click the button below to verify yourself and gain access to the server.`,
       return interaction.reply({ content: 'Verify panel sent!', ephemeral: true });
     }
 
-    // ─── WARN ───
+    // WARN
     if (interaction.commandName === 'warn') {
 
       if (!hasModPermission(interaction.member)) {
@@ -265,7 +264,7 @@ ${warnCount >= 8 ? '> 🔴 Max warns reached — permanent mute applied.' : ''}`
       });
     }
 
-    // ─── UNWARN ───
+    // UNWARN
     if (interaction.commandName === 'unwarn') {
 
       if (!hasModPermission(interaction.member)) {
@@ -303,7 +302,7 @@ ${warnCount >= 8 ? '> 🔴 Max warns reached — permanent mute applied.' : ''}`
       });
     }
 
-    // ─── WARNINGS (check warns) ───
+    // WARNINGS
     if (interaction.commandName === 'warnings') {
 
       if (!hasModPermission(interaction.member)) {
@@ -343,7 +342,7 @@ ${nextTimeout ? `⏭️ Next warn will trigger a **${nextTimeout}-minute timeout
       });
     }
 
-    // ─── CLEARWARNS ───
+    // CLEARWARNS
     if (interaction.commandName === 'clearwarns') {
 
       if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
@@ -366,7 +365,7 @@ ${nextTimeout ? `⏭️ Next warn will trigger a **${nextTimeout}-minute timeout
     }
   }
 
-  // ─── VERIFY BUTTON ───
+  // VERIFY BUTTON
   if (interaction.isButton()) {
     if (interaction.customId === 'verify') {
       try {
@@ -380,7 +379,7 @@ ${nextTimeout ? `⏭️ Next warn will trigger a **${nextTimeout}-minute timeout
   }
 });
 
-// ─── SLASH COMMANDS REGISTRATION ───
+// SLASH COMMANDS REGISTRATION
 const commands = [
 
   new SlashCommandBuilder()
@@ -443,11 +442,12 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
   try {
+    // Guild-specific registration = shows up INSTANTLY
     await rest.put(
-      Routes.applicationCommands(CLIENT_ID),
+      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
       { body: commands }
     );
-    console.log('Slash commands registered');
+    console.log('Slash commands registered (guild)');
     client.login(TOKEN);
   } catch (error) {
     console.error(error);
