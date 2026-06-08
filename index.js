@@ -5,7 +5,10 @@ const {
   SlashCommandBuilder,
   REST,
   Routes,
-  PermissionFlagsBits
+  PermissionFlagsBits,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
 } = require('discord.js');
 
 // Render port fix
@@ -23,60 +26,156 @@ app.listen(PORT, () => {
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 
+// Your Verify Role ID
+const VERIFY_ROLE_ID =
+  '1432277416109281371';
+
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers
+  ]
 });
 
 client.once('ready', () => {
   console.log(`${client.user.tag} is online`);
 });
 
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isChatInputCommand()) return;
+// INTERACTIONS
+client.on('interactionCreate',
+async interaction => {
 
-  if (interaction.commandName === 'announce') {
+  // Slash Commands
+  if (interaction.isChatInputCommand()) {
 
-    if (!interaction.member.permissions.has(
-      PermissionFlagsBits.Administrator
-    )) {
+    // ANNOUNCE
+    if (interaction.commandName ===
+      'announce') {
+
+      if (!interaction.member.permissions.has(
+        PermissionFlagsBits.Administrator
+      )) {
+        return interaction.reply({
+          content:
+            'Only admins can use this command.',
+          ephemeral: true
+        });
+      }
+
+      const message =
+        interaction.options.getString(
+          'message'
+        );
+
+      await interaction.channel.send({
+        content:
+          `📢 @everyone\n**Announcement**\n${message}`
+      });
+
       return interaction.reply({
-        content: 'Only admins can use this command.',
+        content:
+          'Announcement sent!',
         ephemeral: true
       });
     }
 
-    const message =
-      interaction.options.getString('message');
+    // VERIFY PANEL
+    if (interaction.commandName ===
+      'verifypanel') {
 
-    const channel = interaction.channel;
+      if (!interaction.member.permissions.has(
+        PermissionFlagsBits.Administrator
+      )) {
+        return interaction.reply({
+          content:
+            'Admins only.',
+          ephemeral: true
+        });
+      }
 
-    await channel.send({
-      content:
-        `📢 @everyone\n**Announcement**\n${message}`
-    });
+      const row =
+        new ActionRowBuilder()
+          .addComponents(
+            new ButtonBuilder()
+              .setCustomId('verify')
+              .setLabel('✅ Verify')
+              .setStyle(
+                ButtonStyle.Success
+              )
+          );
 
-    await interaction.reply({
-      content: 'Announcement sent!',
-      ephemeral: true
-    });
+      await interaction.channel.send({
+        content:
+          '**Verification**\nClick the button below to verify yourself.',
+        components: [row]
+      });
+
+      return interaction.reply({
+        content:
+          'Verify panel sent!',
+        ephemeral: true
+      });
+    }
+  }
+
+  // VERIFY BUTTON
+  if (interaction.isButton()) {
+
+    if (interaction.customId ===
+      'verify') {
+
+      try {
+
+        await interaction.member.roles.add(
+          VERIFY_ROLE_ID
+        );
+
+        await interaction.reply({
+          content:
+            '✅ You are now verified!',
+          ephemeral: true
+        });
+
+      } catch (error) {
+
+        console.error(error);
+
+        await interaction.reply({
+          content:
+            '❌ Failed to verify.',
+          ephemeral: true
+        });
+      }
+    }
   }
 });
 
 client.login(TOKEN);
 
-// Slash command
+// Slash Commands
 const commands = [
+
   new SlashCommandBuilder()
     .setName('announce')
-    .setDescription('Send announcement')
+    .setDescription(
+      'Send announcement'
+    )
     .addStringOption(option =>
       option
         .setName('message')
-        .setDescription('Announcement text')
+        .setDescription(
+          'Announcement text'
+        )
         .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName('verifypanel')
+    .setDescription(
+      'Send verification panel'
     )
-    .toJSON()
-];
+
+].map(command => command.toJSON());
 
 const rest = new REST({
   version: '10'
@@ -84,12 +183,18 @@ const rest = new REST({
 
 (async () => {
   try {
+
     await rest.put(
-      Routes.applicationCommands(CLIENT_ID),
+      Routes.applicationCommands(
+        CLIENT_ID
+      ),
       { body: commands }
     );
 
-    console.log('Slash command registered');
+    console.log(
+      'Slash commands registered'
+    );
+
   } catch (error) {
     console.error(error);
   }
