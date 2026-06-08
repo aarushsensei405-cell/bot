@@ -163,9 +163,9 @@ client.on('interactionCreate', async interaction => {
       const role = interaction.values[0];
 
       const links = {
-        chatmod: 'http://goldenheartsmp.chickenkiller.com/apply/chatmod',
-        helper: 'http://goldenheartsmp.chickenkiller.com/apply/helper',
-        mcmod: 'http://goldenheartsmp.chickenkiller.com/apply/mcmod',
+        chatmod: 'http://goldenheartsmp.chickenkiller.com/apply',
+        helper: 'http://goldenheartsmp.chickenkiller.com/apply',
+        mcmod: 'http://goldenheartsmp.chickenkiller.com/apply',
       };
 
       return interaction.reply({
