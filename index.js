@@ -26,14 +26,16 @@ app.listen(PORT, () => {
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 
-// Your Verify Role ID
+// Verify Role ID
 const VERIFY_ROLE_ID =
   '1432277416109281371';
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
   ]
 });
 
@@ -41,114 +43,173 @@ client.once('ready', () => {
   console.log(`${client.user.tag} is online`);
 });
 
-// INTERACTIONS
-client.on('interactionCreate',
-async interaction => {
+// AUTO REPLIES
+client.on('messageCreate', async message => {
 
-  // Slash Commands
-  if (interaction.isChatInputCommand()) {
+  // Ignore bot messages
+  if (message.author.bot) return;
 
-    // ANNOUNCE
-    if (interaction.commandName ===
-      'announce') {
+  const msg =
+    message.content.toLowerCase();
 
-      if (!interaction.member.permissions.has(
-        PermissionFlagsBits.Administrator
-      )) {
-        return interaction.reply({
-          content:
-            'Only admins can use this command.',
-          ephemeral: true
-        });
-      }
+  // IP reply
+  if (msg === 'ip') {
 
-      const message =
-        interaction.options.getString(
-          'message'
-        );
+    return message.reply(
+`🚧 **The server IP has not been released yet!**
 
-      await interaction.channel.send({
-        content:
-          `📢 @everyone\n**Announcement**\n${message}`
-      });
-
-      return interaction.reply({
-        content:
-          'Announcement sent!',
-        ephemeral: true
-      });
-    }
-
-    // VERIFY PANEL
-    if (interaction.commandName ===
-      'verifypanel') {
-
-      if (!interaction.member.permissions.has(
-        PermissionFlagsBits.Administrator
-      )) {
-        return interaction.reply({
-          content:
-            'Admins only.',
-          ephemeral: true
-        });
-      }
-
-      const row =
-        new ActionRowBuilder()
-          .addComponents(
-            new ButtonBuilder()
-              .setCustomId('verify')
-              .setLabel('✅ Verify')
-              .setStyle(
-                ButtonStyle.Success
-              )
-          );
-
-      await interaction.channel.send({
-        content:
-          '**Verification**\nClick the button below to verify yourself.',
-        components: [row]
-      });
-
-      return interaction.reply({
-        content:
-          'Verify panel sent!',
-        ephemeral: true
-      });
-    }
+We're almost there — the IP will be shared here very soon. Stay tuned and keep an eye on this channel so you don't miss it!`
+    );
   }
 
-  // VERIFY BUTTON
-  if (interaction.isButton()) {
+  // Rules reply
+  if (msg === 'rules') {
 
-    if (interaction.customId ===
-      'verify') {
+    return message.reply(
+`📜 **Rules Are Being Forged...**
 
-      try {
+⚒️ Our official server rules are currently being updated to make the experience fair, fun, and balanced for everyone.
 
-        await interaction.member.roles.add(
-          VERIFY_ROLE_ID
-        );
+🚧 **Rules will be released very soon!**
 
-        await interaction.reply({
-          content:
-            '✅ You are now verified!',
-          ephemeral: true
-        });
+Until then:
+✅ Use common sense  
+✅ Respect all players & staff  
+✅ Avoid unfair advantages or exploits
 
-      } catch (error) {
-
-        console.error(error);
-
-        await interaction.reply({
-          content:
-            '❌ Failed to verify.',
-          ephemeral: true
-        });
-      }
-    }
+👀 Keep an eye on announcements — the full rulebook is coming soon!`
+    );
   }
 });
+
+// INTERACTIONS
+client.on(
+  'interactionCreate',
+  async interaction => {
+
+    // Slash commands
+    if (interaction.isChatInputCommand()) {
+
+      // ANNOUNCE
+      if (
+        interaction.commandName ===
+        'announce'
+      ) {
+
+        if (
+          !interaction.member.permissions.has(
+            PermissionFlagsBits.Administrator
+          )
+        ) {
+          return interaction.reply({
+            content:
+              'Only admins can use this command.',
+            ephemeral: true
+          });
+        }
+
+        const message =
+          interaction.options.getString(
+            'message'
+          );
+
+        await interaction.channel.send({
+          content:
+`📢 @everyone
+**Announcement**
+${message}`
+        });
+
+        return interaction.reply({
+          content:
+            'Announcement sent!',
+          ephemeral: true
+        });
+      }
+
+      // VERIFY PANEL
+      if (
+        interaction.commandName ===
+        'verifypanel'
+      ) {
+
+        if (
+          !interaction.member.permissions.has(
+            PermissionFlagsBits.Administrator
+          )
+        ) {
+          return interaction.reply({
+            content:
+              'Admins only.',
+            ephemeral: true
+          });
+        }
+
+        const row =
+          new ActionRowBuilder()
+            .addComponents(
+              new ButtonBuilder()
+                .setCustomId(
+                  'verify'
+                )
+                .setLabel(
+                  '✅ Verify'
+                )
+                .setStyle(
+                  ButtonStyle.Success
+                )
+            );
+
+        await interaction.channel.send({
+          content:
+`🔐 **Verification Required**
+
+Click the button below to verify yourself and gain access to the server.`,
+          components: [row]
+        });
+
+        return interaction.reply({
+          content:
+            'Verify panel sent!',
+          ephemeral: true
+        });
+      }
+    }
+
+    // VERIFY BUTTON
+    if (interaction.isButton()) {
+
+      if (
+        interaction.customId ===
+        'verify'
+      ) {
+
+        try {
+
+          await interaction.member.roles.add(
+            VERIFY_ROLE_ID
+          );
+
+          await interaction.reply({
+            content:
+              '✅ You are now verified!',
+            ephemeral: true
+          });
+
+        } catch (error) {
+
+          console.error(error);
+
+          await interaction.reply({
+            content:
+              '❌ Failed to verify.',
+            ephemeral: true
+          });
+        }
+      }
+    }
+  }
+);
 
 client.login(TOKEN);
 
@@ -175,7 +236,9 @@ const commands = [
       'Send verification panel'
     )
 
-].map(command => command.toJSON());
+].map(command =>
+  command.toJSON()
+);
 
 const rest = new REST({
   version: '10'
