@@ -73,8 +73,8 @@ We're almost there — the IP will be shared here very soon. Stay tuned and keep
 🚧 **Rules will be released very soon!**
 
 Until then:
-✅ Use common sense
-✅ Respect all players & staff
+✅ Use common sense  
+✅ Respect all players & staff  
 ✅ Avoid unfair advantages or exploits
 
 👀 Keep an eye on announcements — the full rulebook is coming soon!`
@@ -96,6 +96,7 @@ client.on(
         'announce'
       ) {
 
+        // Admin only
         if (
           !interaction.member.permissions.has(
             PermissionFlagsBits.Administrator
@@ -108,9 +109,17 @@ client.on(
           });
         }
 
+        // Optional title
+        const title =
+          interaction.options.getString(
+            'title'
+          );
+
         await interaction.reply({
           content:
-            '📢 Send your announcement message in chat now.',
+            title
+              ? `📢 Title set: **${title}**\n\nNow send your announcement message in chat.`
+              : '📢 Send your announcement message in chat now.',
           ephemeral: true
         });
 
@@ -129,14 +138,37 @@ client.on(
           'collect',
           async message => {
 
-            await interaction.channel.send({
-              content:
+            let announcement;
+
+            // WITH TITLE
+            if (title) {
+
+              announcement =
 `📢 @everyone
 
-${message.content}`
+━━━━━━━━━━━━━━━
+# **${title.toUpperCase()}**
+━━━━━━━━━━━━━━━
+
+${message.content}
+
+━━━━━━━━━━━━━━━`;
+
+            } else {
+
+              // WITHOUT TITLE
+              announcement =
+`📢 @everyone
+
+${message.content}`;
+            }
+
+            await interaction.channel.send({
+              content:
+                announcement
             });
 
-            // delete admin message
+            // Delete admin message
             await message.delete()
               .catch(() => {});
           }
@@ -227,13 +259,21 @@ Click the button below to verify yourself and gain access to the server.`,
   }
 );
 
-// Slash Commands
+// SLASH COMMANDS
 const commands = [
 
   new SlashCommandBuilder()
     .setName('announce')
     .setDescription(
       'Send announcement'
+    )
+    .addStringOption(option =>
+      option
+        .setName('title')
+        .setDescription(
+          'Optional announcement title'
+        )
+        .setRequired(false)
     ),
 
   new SlashCommandBuilder()
@@ -243,14 +283,13 @@ const commands = [
     )
 
 ].map(command =>
-  command.toJSON()
-);
+  command.toJSON());
 
 const rest = new REST({
   version: '10'
 }).setToken(TOKEN);
 
-// Register commands FIRST
+// Register commands first
 (async () => {
   try {
 
@@ -265,7 +304,6 @@ const rest = new REST({
       'Slash commands registered'
     );
 
-    // Login AFTER registration
     client.login(TOKEN);
 
   } catch (error) {
