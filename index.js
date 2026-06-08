@@ -442,6 +442,10 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
   try {
+    // Wipe all global commands (fixes duplicates) — safe to remove after one deploy
+    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: [] });
+    console.log('Global commands cleared');
+
     // Guild-specific registration = shows up INSTANTLY
     await rest.put(
       Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
