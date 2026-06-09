@@ -155,25 +155,21 @@ client.on('messageCreate', async message => {
     const msg = message.content.toLowerCase();
     if (msg === 'ip') {
       return message.reply(
-`🚧 **The server IP has not been released yet!**
+💛 **GoldenHeart SMP** is now online!
+🌍 **IP:** `goldenheartsmp.minecraftnoob.com:25565`
+⚔️ Join now and start your journey!
 
-We're almost there — the IP will be shared here very soon. Stay tuned and keep an eye on this channel so you don't miss it!`
       );
     }
     if (msg === 'rules') {
       return message.reply(
-`📜 **Rules Are Being Forged...**
+📜 **Rules Reminder:**
 
-⚒️ Our official server rules are currently being updated to make the experience fair, fun, and balanced for everyone.
+Please read the rules before playing. Breaking rules can result in warnings or bans.
 
-🚧 **Rules will be released very soon!**
+📌 Check: <#1432277447440597028> 
 
-Until then:
-✅ Use common sense  
-✅ Respect all players & staff  
-✅ Avoid unfair advantages or exploits
-
-👀 Keep an eye on announcements — the full rulebook is coming soon!`
+**“I didn’t know” is not an excuse.**
       );
     }
     return;
