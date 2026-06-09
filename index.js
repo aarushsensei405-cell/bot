@@ -120,12 +120,28 @@ const QUESTIONS = {
 // ─────────────────────────────────────────
 function getTimeoutDuration(warnCount) {
   if (warnCount < 3) return null;
-  if (warnCount >= 8) return 28 * 24 * 60;
+  if (warnCount >= 8) return 28 * 24 * 60; // 40320 minutes = 28 days (Discord max)
   return 30 + (warnCount - 3) * 15;
 }
 function hasModPermission(member) {
   if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
   return MOD_ROLE_IDS.some(id => member.roles.cache.has(id));
+}
+
+// Build a fully-disabled accept/reject row (used after accept or reject)
+function buildDisabledRow(accepted) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('_noop_accept')
+      .setLabel('✅ Accept')
+      .setStyle(ButtonStyle.Success)
+      .setDisabled(!accepted || true), // always disabled
+    new ButtonBuilder()
+      .setCustomId('_noop_reject')
+      .setLabel('❌ Reject')
+      .setStyle(ButtonStyle.Danger)
+      .setDisabled(true),
+  );
 }
 
 // ─────────────────────────────────────────
@@ -139,7 +155,7 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
   ],
-  partials: ['CHANNEL'],
+  partials: ['CHANNEL', 'MESSAGE'],
 });
 
 client.once('ready', () => console.log(`${client.user.tag} is online`));
@@ -155,21 +171,12 @@ client.on('messageCreate', async message => {
     const msg = message.content.toLowerCase();
     if (msg === 'ip') {
       return message.reply(
-💛 **GoldenHeart SMP** is now online!
-🌍 **IP:** `goldenheartsmp.minecraftnoob.com:25565`
-⚔️ Join now and start your journey!
-
+        `💛 **GoldenHeart SMP** is now online!\n🌍 **IP:** \`goldenheartsmp.minecraftnoob.com:25565\`\n⚔️ Join now and start your journey!`
       );
     }
     if (msg === 'rules') {
       return message.reply(
-📜 **Rules Reminder:**
-
-Please read the rules before playing. Breaking rules can result in warnings or bans.
-
-📌 Check: <#1432277447440597028> 
-
-**“I didn’t know” is not an excuse.**
+        `📜 **Rules Reminder:**\n\nPlease read the rules before playing. Breaking rules can result in warnings or bans.\n\n📌 Check: <#1432277447440597028>\n\n**"I didn't know" is not an excuse.**`
       );
     }
     return;
@@ -214,12 +221,7 @@ Please read the rules before playing. Breaking rules can result in warnings or b
 
   // Confirm to applicant
   await message.channel.send(
-`✅ **Application submitted!**
-
-Your **${APP_NAMES[session.role]}** application has been received.
-📋 Application ID: \`${appId}\`
-
-You'll receive a DM when the staff team has reviewed it. Thanks for applying!`
+    `✅ **Application submitted!**\n\nYour **${APP_NAMES[session.role]}** application has been received.\n📋 Application ID: \`${appId}\`\n\nYou'll receive a DM when the staff team has reviewed it. Thanks for applying!`
   );
 
   // Build embed for staff log
@@ -338,6 +340,12 @@ You'll receive the questions in your **DMs** — make sure they're open!
         await interaction.channel.send({ content: announcement });
         await message.delete().catch(() => {});
       });
+
+      collector.on('end', (collected, reason) => {
+        if (reason === 'time' && collected.size === 0) {
+          interaction.followUp({ content: '⏰ Announcement timed out — no message received within 60 seconds.', ephemeral: true }).catch(() => {});
+        }
+      });
     }
 
     // ── VERIFY PANEL ──
@@ -425,8 +433,9 @@ ${warnCount >= 8  ? '\n> 🔴 Max warns reached — permanent mute applied.' : '
       if (warns[userId].warns.length === 0) delete warns[userId];
       saveWarns(warns);
 
+      const remaining = warns[userId]?.warns.length ?? 0;
       return interaction.reply({
-        content: `✅ Removed latest warn from **${target.tag}**.\n🔢 **Remaining warns:** ${warns[userId]?.warns.length ?? 0}`,
+        content: `✅ Removed latest warn from **${target.tag}**.\n🔢 **Remaining warns:** ${remaining}`,
       });
     }
 
@@ -520,6 +529,8 @@ ${QUESTIONS[role][0].q}`
         });
 
       } catch {
+        // Clean up session if DM fails
+        activeSessions.delete(userId);
         return interaction.reply({
           content: `❌ I couldn't DM you! Please enable **Direct Messages** from server members in your Privacy Settings and try again.`,
           ephemeral: true,
@@ -540,7 +551,7 @@ ${QUESTIONS[role][0].q}`
         return interaction.reply({ content: '✅ You are now verified!', ephemeral: true });
       } catch (err) {
         console.error(err);
-        return interaction.reply({ content: '❌ Failed to verify.', ephemeral: true });
+        return interaction.reply({ content: '❌ Failed to verify. Please contact a staff member.', ephemeral: true });
       }
     }
 
@@ -552,12 +563,21 @@ ${QUESTIONS[role][0].q}`
         return interaction.reply({ content: '❌ No permission.', ephemeral: true });
       }
 
-      // Disable buttons on the log message
+      // Defer to avoid interaction timeout during role assignment + DM
+      await interaction.deferReply({ ephemeral: true });
+
+      // Build disabled row + updated embed in one edit
       const disabledRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('_accepted').setLabel('✅ Accepted').setStyle(ButtonStyle.Success).setDisabled(true),
-        new ButtonBuilder().setCustomId('_rej').setLabel('❌ Reject').setStyle(ButtonStyle.Danger).setDisabled(true),
+        new ButtonBuilder().setCustomId('_noop_accept').setLabel('✅ Accepted').setStyle(ButtonStyle.Success).setDisabled(true),
+        new ButtonBuilder().setCustomId('_noop_reject').setLabel('❌ Reject').setStyle(ButtonStyle.Danger).setDisabled(true),
       );
-      await interaction.message.edit({ components: [disabledRow] });
+
+      const oldEmbed = interaction.message.embeds[0];
+      const updatedEmbed = EmbedBuilder.from(oldEmbed)
+        .setColor(0x3dd68c)
+        .setFooter({ text: `✅ Accepted by ${interaction.user.tag}` });
+
+      await interaction.message.edit({ embeds: [updatedEmbed], components: [disabledRow] });
 
       // Give role
       try {
@@ -584,14 +604,7 @@ You've been given the role in the server. Welcome to the team! 🏆
         console.log('Could not DM applicant');
       }
 
-      // Update embed color to green
-      const oldEmbed = interaction.message.embeds[0];
-      const updatedEmbed = EmbedBuilder.from(oldEmbed)
-        .setColor(0x3dd68c)
-        .setFooter({ text: `✅ Accepted by ${interaction.user.tag}` });
-      await interaction.message.edit({ embeds: [updatedEmbed], components: [disabledRow] });
-
-      return interaction.reply({ content: `✅ Application **${appId}** accepted. Role assigned and applicant notified.`, ephemeral: true });
+      return interaction.editReply({ content: `✅ Application **${appId}** accepted. Role assigned and applicant notified.` });
     }
 
     // ── REJECT APPLICATION ──
@@ -602,11 +615,21 @@ You've been given the role in the server. Welcome to the team! 🏆
         return interaction.reply({ content: '❌ No permission.', ephemeral: true });
       }
 
-      // Disable buttons
+      // Defer to avoid interaction timeout during DM
+      await interaction.deferReply({ ephemeral: true });
+
+      // Build disabled row + updated embed in one edit
       const disabledRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('_acc').setLabel('✅ Accept').setStyle(ButtonStyle.Success).setDisabled(true),
-        new ButtonBuilder().setCustomId('_rejected').setLabel('❌ Rejected').setStyle(ButtonStyle.Danger).setDisabled(true),
+        new ButtonBuilder().setCustomId('_noop_accept').setLabel('✅ Accept').setStyle(ButtonStyle.Success).setDisabled(true),
+        new ButtonBuilder().setCustomId('_noop_rejected').setLabel('❌ Rejected').setStyle(ButtonStyle.Danger).setDisabled(true),
       );
+
+      const oldEmbed = interaction.message.embeds[0];
+      const updatedEmbed = EmbedBuilder.from(oldEmbed)
+        .setColor(0xe05c5c)
+        .setFooter({ text: `❌ Rejected by ${interaction.user.tag}` });
+
+      await interaction.message.edit({ embeds: [updatedEmbed], components: [disabledRow] });
 
       // DM applicant
       try {
@@ -624,14 +647,7 @@ Don't be discouraged — you're welcome to apply again in the future! Keep being
         console.log('Could not DM applicant');
       }
 
-      // Update embed color to red
-      const oldEmbed = interaction.message.embeds[0];
-      const updatedEmbed = EmbedBuilder.from(oldEmbed)
-        .setColor(0xe05c5c)
-        .setFooter({ text: `❌ Rejected by ${interaction.user.tag}` });
-      await interaction.message.edit({ embeds: [updatedEmbed], components: [disabledRow] });
-
-      return interaction.reply({ content: `❌ Application **${appId}** rejected. Applicant notified.`, ephemeral: true });
+      return interaction.editReply({ content: `❌ Application **${appId}** rejected. Applicant notified.` });
     }
   }
 });
