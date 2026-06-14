@@ -429,9 +429,122 @@ client.on('messageReactionAdd', async (reaction, user) => {
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
-  // ── Guild auto-replies ──
+  // ── Guild auto-replies & auto-moderation ──
   if (message.guild) {
-    const msg = message.content.toLowerCase();
+    const msg     = message.content.toLowerCase();
+    const content = message.content;
+
+    // ── Auto-mod: Cultural / country jokes → instant 1-day timeout ──
+    const culturalPatterns = [
+      /\b(country|nation|race|ethnic|culture|religion|caste)\s*(joke|meme|humor|banter)/i,
+      /\b(indian|pakistani|chinese|american|african|arab|mexican|white|black|asian|jewish|muslim|hindu|christian)\s*(joke|meme|people are|folks are)/i,
+      /\byou (indians?|pakistanis?|chinese|africans?|arabs?|mexicans?|whites?|blacks?|asians?)\b/i,
+      /\ball (indians?|pakistanis?|chinese|africans?|arabs?|mexicans?|whites?|blacks?|asians?)\b/i,
+      /\b(stereotype|stereotyping)\b.*\b(race|country|culture|nation|religion|ethnic)/i,
+    ];
+
+    const isCulturalJoke = culturalPatterns.some(p => p.test(content));
+
+    if (isCulturalJoke) {
+      try {
+        await message.delete();
+        // 1-day timeout = 24 * 60 * 60 * 1000 ms
+        await message.member.timeout(24 * 60 * 60 * 1000, 'Severe violation: Cultural/country/race joke or remark');
+
+        const warnEmbed = new EmbedBuilder()
+          .setTitle('🚨 Severe Violation — Immediate Timeout')
+          .setColor(0xff0000)
+          .setDescription(
+            `<@${message.author.id}>, your message was removed and you have been **timed out for 24 hours**.\n\n` +
+            `> **Reason:** Jokes, stereotypes, or remarks targeting a country, culture, race, or religion are **strictly prohibited** on this server and are treated as a severe violation.\n\n` +
+            `Further violations will result in an immediate ban.`
+          )
+          .setFooter({ text: 'GoldenHeart SMP — Zero Tolerance Policy' })
+          .setTimestamp();
+
+        await message.channel.send({ embeds: [warnEmbed] });
+
+        // Log it
+        const logEmbed = new EmbedBuilder()
+          .setTitle('🚨 Auto-Mod: Cultural Joke — 1-Day Timeout')
+          .setColor(0xff0000)
+          .addFields(
+            { name: 'User',    value: `<@${message.author.id}> (${message.author.tag})`, inline: true },
+            { name: 'Channel', value: `<#${message.channelId}>`, inline: true },
+            { name: 'Message', value: content.slice(0, 1024), inline: false },
+          )
+          .setTimestamp();
+        await sendLog(client, logEmbed);
+      } catch (err) {
+        console.error('Cultural joke auto-mod error:', err);
+      }
+      return;
+    }
+
+    // ── Auto-mod: Swearing AT a person (not about a situation) ──
+    const personalSwearPatterns = [
+      /\b(fuck|shit|bitch|bastard|asshole|ass hole|dick|cunt|idiot|moron|dumbass|retard)\s*(you|u|ur|your|him|her|them|he|she|they)\b/i,
+      /\byou\s*(fucking?|fuckin|shit(ty)?|stupid|dumb|idiot|moron|bitch|asshole|dick|cunt|retard)\b/i,
+      /\b(fuck|shit|bitch)\s+off\b/i,
+    ];
+
+    const isPersonalSwear = personalSwearPatterns.some(p => p.test(content));
+
+    if (isPersonalSwear) {
+      try {
+        await message.delete();
+
+        const warns  = loadWarns();
+        const userId = message.author.id;
+        if (!warns[userId]) warns[userId] = { username: message.author.tag, warns: [] };
+        warns[userId].warns.push({
+          reason:    'Using swear words directed at another person',
+          warnedBy:  'AutoMod',
+          timestamp: new Date().toISOString(),
+        });
+        saveWarns(warns);
+
+        const warnCount   = warns[userId].warns.length;
+        const timeoutMins = getTimeoutDuration(warnCount);
+
+        if (timeoutMins) {
+          try {
+            await message.member.timeout(timeoutMins * 60 * 1000, `AutoMod Warn #${warnCount}: Swearing at a person`);
+          } catch { /* bot role too low */ }
+        }
+
+        const warnEmbed = new EmbedBuilder()
+          .setTitle('⚠️ Warning Issued — Personal Swearing')
+          .setColor(0xffa500)
+          .setDescription(
+            `<@${message.author.id}>, your message was removed and you received **Warn #${warnCount}/8**.\n\n` +
+            `> **Reason:** Using swear words directly at another person is **prohibited**.\n` +
+            `> Swearing about a situation or comment is allowed — but never at someone.\n\n` +
+            `${timeoutMins ? `⏱️ You have been timed out for **${timeoutMins} minutes**.` : '⚠️ Next warns will result in timeouts.'}`
+          )
+          .setFooter({ text: 'GoldenHeart SMP — Community Rules' })
+          .setTimestamp();
+
+        await message.channel.send({ embeds: [warnEmbed] });
+
+        // Log it
+        const logEmbed = new EmbedBuilder()
+          .setTitle('⚠️ Auto-Mod: Personal Swear — Warn Issued')
+          .setColor(0xffa500)
+          .addFields(
+            { name: 'User',     value: `<@${message.author.id}> (${message.author.tag})`, inline: true },
+            { name: 'Channel',  value: `<#${message.channelId}>`, inline: true },
+            { name: 'Warns',    value: `${warnCount}/8`, inline: true },
+            { name: 'Message',  value: content.slice(0, 1024), inline: false },
+          )
+          .setTimestamp();
+        await sendLog(client, logEmbed);
+      } catch (err) {
+        console.error('Personal swear auto-mod error:', err);
+      }
+      return;
+    }
+
     if (msg === 'ip') {
       return message.reply(
         `💛 **GoldenHeart SMP** is now online!\n🌍 **IP:** \`goldenheartsmp.minecraftnoob.com:25565\`\n⚔️ Join now and start your journey!`
@@ -439,8 +552,11 @@ client.on('messageCreate', async message => {
     }
     if (msg === 'rules') {
       return message.reply(
-        `📜 **Rules Reminder:**\n\nPlease read the rules before playing. Breaking rules can result in warnings or bans.\n\n📌 Check: <#1432277447440597028>\n\n**"I didn't know" is not an excuse.**`
+        `📜 Use \`/rules\` to see the full server rules!\n\n📌 Or check: <#1432277447440597028>`
       );
+    }
+    if (msg === 'features') {
+      return message.reply(`📋 Use \`/features\` to see everything you can do as a member!`);
     }
     return;
   }
@@ -561,6 +677,133 @@ client.on('messageCreate', async message => {
 client.on('interactionCreate', async interaction => {
 
   if (interaction.isChatInputCommand()) {
+
+    // ─── FEATURES ───
+    if (interaction.commandName === 'features') {
+      const embed = new EmbedBuilder()
+        .setTitle('✨ GoldenHeart SMP — Member Features')
+        .setColor(0xf0b429)
+        .setDescription('Here\'s everything available to you as a member of GoldenHeart SMP!')
+        .addFields(
+          {
+            name: '🔐 Verification',
+            value: 'Click the **Verify** button in the verification channel to unlock full server access.',
+            inline: false,
+          },
+          {
+            name: '📋 Staff Applications',
+            value: 'Want to join the team? Use the **Staff Application panel** to apply for:\n> 🛡️ Chat Moderator\n> 🤝 Helper\n> ⛏️ Minecraft Chat Moderator\n\nApplications are reviewed within **48 hours** and you\'ll be notified by DM.',
+            inline: false,
+          },
+          {
+            name: '⭐ Staff Feedback',
+            value: 'Use `/feedback` to rate any staff member out of 5 stars. You\'ll get a DM with the full list — just react to pick who you want to rate. All feedback is **anonymous**.',
+            inline: false,
+          },
+          {
+            name: '💡 Suggestions',
+            value: 'Have an idea for the server or the Minecraft world? Use `/suggest` to submit it. It will appear in the suggestions channel with **👍 / 👎** voting.',
+            inline: false,
+          },
+          {
+            name: '🌍 Minecraft Server',
+            value: 'Type `ip` in any channel to get the **GoldenHeart SMP** Minecraft server IP instantly.\n> `goldenheartsmp.minecraftnoob.com:25565`',
+            inline: false,
+          },
+          {
+            name: '📜 Rules',
+            value: 'Use `/rules` to view the full server rule set including the warning system, at any time.',
+            inline: false,
+          },
+          {
+            name: '🗳️ Polls',
+            value: 'Staff may create polls in the server — react with the emoji letter to cast your vote!',
+            inline: false,
+          },
+          {
+            name: '📢 Announcements',
+            value: 'Keep an eye on the announcements channel for server news, events, and updates.',
+            inline: false,
+          },
+        )
+        .setFooter({ text: 'GoldenHeart SMP — Glad to have you here! 💛' })
+        .setTimestamp();
+
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    // ─── RULES ───
+    if (interaction.commandName === 'rules') {
+      const embed = new EmbedBuilder()
+        .setTitle('📜 GoldenHeart SMP — Server Rules')
+        .setColor(0xed4245)
+        .setDescription('Please read all rules carefully. **"I didn\'t know" is not an excuse.**\nBreaking any rule will result in warnings or immediate action.')
+        .addFields(
+          {
+            name: '🌍 Rule 1 — Cultural & Country Respect  🚨 SEVERE',
+            value:
+              'Jokes, memes, stereotypes, or remarks that mock or target any **country, culture, race, ethnicity, or religion** are **strictly prohibited**.\n\n' +
+              '> ❌ This includes "harmless" jokes, banter, or ironic remarks.\n' +
+              '> ❌ Targeting any nationality, religion, or ethnic group in any negative way.\n\n' +
+              '**Punishment:** Message deleted + **immediate 24-hour timeout** — no prior warnings needed.\n' +
+              '**Repeat offence:** Permanent ban.',
+            inline: false,
+          },
+          {
+            name: '🤬 Rule 2 — Swearing Policy',
+            value:
+              'Swearing is **allowed** when expressing a feeling, reacting to a situation, or in general comments.\n\n' +
+              '> ✅ *"That was so damn unlucky!"* — allowed\n' +
+              '> ✅ *"What the hell happened?!"* — allowed\n' +
+              '> ❌ *"You\'re a stupid bitch"* — **NOT allowed**\n' +
+              '> ❌ *"Fuck you / Fuck off [person]"* — **NOT allowed**\n\n' +
+              '**Directing swear words at another person will result in 1 warn + timeout (see warning system below).**',
+            inline: false,
+          },
+          {
+            name: '🔇 Rule 3 — No Harassment or Hate',
+            value: 'Harassment, threats, doxxing, or hate speech of any kind will not be tolerated. Staff will take immediate action.',
+            inline: false,
+          },
+          {
+            name: '🔞 Rule 4 — Keep It Appropriate',
+            value: 'No NSFW content, graphic violence, or disturbing material anywhere in the server.',
+            inline: false,
+          },
+          {
+            name: '🔗 Rule 5 — No Spam or Self-Promotion',
+            value: 'No spam, repeated messages, or unsolicited server/product promotion without staff permission.',
+            inline: false,
+          },
+          {
+            name: '🛡️ Rule 6 — Respect Staff',
+            value: 'Follow staff instructions. Arguing with or disrespecting staff decisions publicly may result in additional warnings.',
+            inline: false,
+          },
+          {
+            name: '⚠️ Warning System — Warn → Timeout Table',
+            value:
+              '```\n' +
+              'Warn 1  →  ⚠️  Warning only\n' +
+              'Warn 2  →  ⚠️  Warning only\n' +
+              'Warn 3  →  ⏱️  30-minute timeout\n' +
+              'Warn 4  →  ⏱️  45-minute timeout\n' +
+              'Warn 5  →  ⏱️  60-minute timeout\n' +
+              'Warn 6  →  ⏱️  75-minute timeout\n' +
+              'Warn 7  →  ⏱️  90-minute timeout\n' +
+              'Warn 8  →  🔴  28-day (permanent) mute\n' +
+              '```\n' +
+              '> Each timeout increases by **+15 minutes** per warn from Warn 3 onwards.\n' +
+              '> **Cultural/country jokes** apply a **direct 24-hour timeout** without using the warn counter.\n' +
+              '> **Swearing at a person** costs **1 warn** and may trigger a timeout based on your current warn count.',
+            inline: false,
+          },
+        )
+        .setFooter({ text: 'GoldenHeart SMP — Breaking rules affects everyone. Be kind. 💛' })
+        .setTimestamp();
+
+      return interaction.reply({ embeds: [embed] });
+    }
 
     // ─── APPLY PANEL ───
     if (interaction.commandName === 'applypanel') {
@@ -1162,6 +1405,14 @@ const staffChoices = Object.entries(STAFF_MEMBERS).map(([key, info]) => ({
 }));
 
 const commands = [
+
+  new SlashCommandBuilder()
+    .setName('features')
+    .setDescription('See all features available to members'),
+
+  new SlashCommandBuilder()
+    .setName('rules')
+    .setDescription('View the full server rules and warning system'),
 
   new SlashCommandBuilder()
     .setName('applypanel')
