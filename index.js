@@ -32,22 +32,19 @@ const TOKEN     = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID  = '1432272831722553398';
 
-const STAFF_LOG_CHANNEL       = '1432277470878498866'; // staff logs + server logs
-const SUGGESTIONS_CHANNEL_ID  = '1432277470878498866'; // reuse same or set a different channel ID
+const STAFF_LOG_CHANNEL       = '1432277470878498866';
+const SUGGESTIONS_CHANNEL_ID  = '1432277470878498866';
 
 const VERIFY_ROLE_ID = '1432277416109281371';
 const MOD_ROLE_IDS   = ['1432277404864483390', '1432277404046331984'];
 
 // Named staff members for feedback (username → Discord user ID)
 const STAFF_MEMBERS = {
-  // Chat Moderators
-  gray:      { id: '935050795299250197',  label: 'Gray',      type: 'Chat Moderator' },
-  // Helpers
-  mayehm:    { id: '750704207434088489',  label: 'Mayehm',    type: 'Helper' },
-  iceflows:  { id: '1394287232029954108', label: 'IceFlows',  type: 'Helper' },
-  // MC Chat Moderators
-  mncikdb:   { id: '1092762008371339365', label: 'MNCIKDB',   type: 'MC Chat Moderator' },
-  viking2001:{ id: '1215370954709008385', label: 'Viking2001', type: 'MC Chat Moderator' },
+  gray:      { id: '935050795299250197',  label: 'Gray',       type: 'Chat Moderator' },
+  mayehm:    { id: '750704207434088489',  label: 'Mayehm',     type: 'Helper' },
+  iceflows:  { id: '1394287232029954108', label: 'IceFlows',   type: 'Helper' },
+  mncikdb:   { id: '1092762008371339365', label: 'MNCIKDB',    type: 'MC Chat Moderator' },
+  viking2001:{ id: '1215370954709008385', label: 'Viking2001',  type: 'MC Chat Moderator' },
 };
 
 // Role given on acceptance per application type
@@ -65,9 +62,9 @@ const APP_NAMES = {
 // ─────────────────────────────────────────
 // FILE STORAGE HELPERS
 // ─────────────────────────────────────────
-const WARNS_FILE      = path.join(__dirname, 'warns.json');
-const FEEDBACK_FILE   = path.join(__dirname, 'feedback.json');
-const SUGGESTIONS_FILE= path.join(__dirname, 'suggestions.json');
+const WARNS_FILE       = path.join(__dirname, 'warns.json');
+const FEEDBACK_FILE    = path.join(__dirname, 'feedback.json');
+const SUGGESTIONS_FILE = path.join(__dirname, 'suggestions.json');
 
 const APP_FILES = {
   chatmod: path.join(__dirname, 'applicationforchatmod.json'),
@@ -102,6 +99,15 @@ function saveApp(role, entry)  {
 
 // Active DM sessions: userId → { role, step, answers }
 const activeSessions = new Map();
+
+// ─────────────────────────────────────────
+// FEEDBACK SESSION TRACKING
+// pendingFeedback: userId → { staffKey, messageId, dmChannelId, awaitingComment }
+// ─────────────────────────────────────────
+const pendingFeedback = new Map();
+
+// Star emojis used as reactions for rating
+const STAR_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
 
 // ─────────────────────────────────────────
 // APPLICATION QUESTIONS
@@ -151,7 +157,7 @@ function starsDisplay(n) {
 }
 
 // ─────────────────────────────────────────
-// LOG HELPER — sends embed to staff log channel
+// LOG HELPER
 // ─────────────────────────────────────────
 async function sendLog(client, embed) {
   try {
@@ -174,8 +180,10 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.DirectMessageReactions,
   ],
-  partials: ['CHANNEL', 'MESSAGE'],
+  partials: ['CHANNEL', 'MESSAGE', 'REACTION'],
 });
 
 client.once('ready', () => console.log(`✅ ${client.user.tag} is online`));
@@ -184,7 +192,6 @@ client.once('ready', () => console.log(`✅ ${client.user.tag} is online`));
 // ██  SERVER EVENT LOGGING  ██
 // ═══════════════════════════════════════════════════════════════
 
-// ── Member join ──
 client.on('guildMemberAdd', async member => {
   if (member.guild.id !== GUILD_ID) return;
   const embed = new EmbedBuilder()
@@ -200,7 +207,6 @@ client.on('guildMemberAdd', async member => {
   await sendLog(client, embed);
 });
 
-// ── Member leave ──
 client.on('guildMemberRemove', async member => {
   if (member.guild.id !== GUILD_ID) return;
   const embed = new EmbedBuilder()
@@ -208,15 +214,14 @@ client.on('guildMemberRemove', async member => {
     .setColor(0xed4245)
     .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
     .addFields(
-      { name: 'User',    value: `${member.user.tag}`, inline: true },
-      { name: 'Joined',  value: member.joinedAt ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>` : 'Unknown', inline: true },
+      { name: 'User',   value: `${member.user.tag}`, inline: true },
+      { name: 'Joined', value: member.joinedAt ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>` : 'Unknown', inline: true },
     )
     .setFooter({ text: `ID: ${member.id}` })
     .setTimestamp();
   await sendLog(client, embed);
 });
 
-// ── Message delete ──
 client.on('messageDelete', async message => {
   if (!message.guild || message.guild.id !== GUILD_ID) return;
   if (message.author?.bot) return;
@@ -233,7 +238,6 @@ client.on('messageDelete', async message => {
   await sendLog(client, embed);
 });
 
-// ── Message edit ──
 client.on('messageUpdate', async (oldMsg, newMsg) => {
   if (!oldMsg.guild || oldMsg.guild.id !== GUILD_ID) return;
   if (oldMsg.author?.bot) return;
@@ -252,54 +256,43 @@ client.on('messageUpdate', async (oldMsg, newMsg) => {
   await sendLog(client, embed);
 });
 
-// ── Member timeout / ban via audit log ──
 client.on('guildAuditLogEntryCreate', async (entry, guild) => {
   if (guild.id !== GUILD_ID) return;
 
-  // Ban
   if (entry.action === AuditLogEvent.MemberBanAdd) {
     const embed = new EmbedBuilder()
-      .setTitle('🔨 Member Banned')
-      .setColor(0xed4245)
+      .setTitle('🔨 Member Banned').setColor(0xed4245)
       .addFields(
         { name: 'Banned User', value: `${entry.target?.tag ?? 'Unknown'} (<@${entry.targetId}>)`, inline: true },
         { name: 'By',          value: `<@${entry.executorId}>`, inline: true },
         { name: 'Reason',      value: entry.reason ?? 'No reason provided', inline: false },
       )
-      .setFooter({ text: `Target ID: ${entry.targetId}` })
-      .setTimestamp();
+      .setFooter({ text: `Target ID: ${entry.targetId}` }).setTimestamp();
     await sendLog(client, embed);
   }
 
-  // Unban
   if (entry.action === AuditLogEvent.MemberBanRemove) {
     const embed = new EmbedBuilder()
-      .setTitle('🔓 Member Unbanned')
-      .setColor(0x57f287)
+      .setTitle('🔓 Member Unbanned').setColor(0x57f287)
       .addFields(
-        { name: 'User',  value: `${entry.target?.tag ?? 'Unknown'} (<@${entry.targetId}>)`, inline: true },
-        { name: 'By',    value: `<@${entry.executorId}>`, inline: true },
-      )
-      .setTimestamp();
+        { name: 'User', value: `${entry.target?.tag ?? 'Unknown'} (<@${entry.targetId}>)`, inline: true },
+        { name: 'By',   value: `<@${entry.executorId}>`, inline: true },
+      ).setTimestamp();
     await sendLog(client, embed);
   }
 
-  // Kick
   if (entry.action === AuditLogEvent.MemberKick) {
     const embed = new EmbedBuilder()
-      .setTitle('👢 Member Kicked')
-      .setColor(0xffa500)
+      .setTitle('👢 Member Kicked').setColor(0xffa500)
       .addFields(
         { name: 'Kicked User', value: `${entry.target?.tag ?? 'Unknown'} (<@${entry.targetId}>)`, inline: true },
         { name: 'By',          value: `<@${entry.executorId}>`, inline: true },
         { name: 'Reason',      value: entry.reason ?? 'No reason provided', inline: false },
       )
-      .setFooter({ text: `Target ID: ${entry.targetId}` })
-      .setTimestamp();
+      .setFooter({ text: `Target ID: ${entry.targetId}` }).setTimestamp();
     await sendLog(client, embed);
   }
 
-  // Timeout (member update with communicationDisabledUntil)
   if (entry.action === AuditLogEvent.MemberUpdate) {
     const timedOut = entry.changes?.find(c => c.key === 'communication_disabled_until');
     if (!timedOut) return;
@@ -312,12 +305,10 @@ client.on('guildAuditLogEntryCreate', async (entry, guild) => {
         { name: 'By',   value: `<@${entry.executorId}>`, inline: true },
         ...(isTimeout ? [{ name: 'Until', value: `<t:${Math.floor(new Date(timedOut.new).getTime() / 1000)}:F>`, inline: true }] : []),
         { name: 'Reason', value: entry.reason ?? 'No reason provided', inline: false },
-      )
-      .setTimestamp();
+      ).setTimestamp();
     await sendLog(client, embed);
   }
 
-  // Role updates
   if (entry.action === AuditLogEvent.MemberRoleUpdate) {
     const added   = entry.changes?.filter(c => c.key === '$add').flatMap(c => c.new) ?? [];
     const removed = entry.changes?.filter(c => c.key === '$remove').flatMap(c => c.new) ?? [];
@@ -327,45 +318,36 @@ client.on('guildAuditLogEntryCreate', async (entry, guild) => {
     ].join('\n');
     if (!lines) return;
     const embed = new EmbedBuilder()
-      .setTitle('🎭 Member Roles Updated')
-      .setColor(0x9b59b6)
+      .setTitle('🎭 Member Roles Updated').setColor(0x9b59b6)
       .addFields(
         { name: 'User',    value: `<@${entry.targetId}>`, inline: true },
         { name: 'By',      value: `<@${entry.executorId}>`, inline: true },
         { name: 'Changes', value: lines, inline: false },
-      )
-      .setTimestamp();
+      ).setTimestamp();
     await sendLog(client, embed);
   }
 
-  // Channel create
   if (entry.action === AuditLogEvent.ChannelCreate) {
     const embed = new EmbedBuilder()
-      .setTitle('📢 Channel Created')
-      .setColor(0x57f287)
+      .setTitle('📢 Channel Created').setColor(0x57f287)
       .addFields(
         { name: 'Name', value: `#${entry.target?.name ?? 'unknown'}`, inline: true },
         { name: 'By',   value: `<@${entry.executorId}>`, inline: true },
-      )
-      .setTimestamp();
+      ).setTimestamp();
     await sendLog(client, embed);
   }
 
-  // Channel delete
   if (entry.action === AuditLogEvent.ChannelDelete) {
     const embed = new EmbedBuilder()
-      .setTitle('🗑️ Channel Deleted')
-      .setColor(0xed4245)
+      .setTitle('🗑️ Channel Deleted').setColor(0xed4245)
       .addFields(
         { name: 'Name', value: `#${entry.target?.name ?? 'unknown'}`, inline: true },
         { name: 'By',   value: `<@${entry.executorId}>`, inline: true },
-      )
-      .setTimestamp();
+      ).setTimestamp();
     await sendLog(client, embed);
   }
 });
 
-// ── Voice state (join / leave / move) ──
 client.on('voiceStateUpdate', async (oldState, newState) => {
   if (oldState.guild.id !== GUILD_ID) return;
   const member = newState.member || oldState.member;
@@ -387,18 +369,62 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   } else return;
 
   const embed = new EmbedBuilder()
-    .setTitle(title)
-    .setColor(color)
+    .setTitle(title).setColor(color)
     .addFields(
       { name: 'User', value: `<@${member.id}> (${member.user.tag})`, inline: true },
       ...fields,
-    )
-    .setTimestamp();
+    ).setTimestamp();
   await sendLog(client, embed);
 });
 
 // ═══════════════════════════════════════════════════════════════
-// ██  DM HANDLER — application question flow  ██
+// ██  REACTION HANDLER — star feedback  ██
+// ═══════════════════════════════════════════════════════════════
+client.on('messageReactionAdd', async (reaction, user) => {
+  // Ignore bot reactions
+  if (user.bot) return;
+
+  // Fetch partial reaction/message if needed
+  if (reaction.partial) {
+    try { await reaction.fetch(); } catch { return; }
+  }
+  if (reaction.message.partial) {
+    try { await reaction.message.fetch(); } catch { return; }
+  }
+
+  // Only care about DM reactions
+  if (reaction.message.guild) return;
+
+  const session = pendingFeedback.get(user.id);
+  if (!session) return;
+
+  // Make sure this reaction is on the right message
+  if (reaction.message.id !== session.messageId) return;
+
+  // Check if reaction is one of our number emojis
+  const starIndex = STAR_EMOJIS.indexOf(reaction.emoji.name);
+  if (starIndex === -1) return;
+
+  const rating = starIndex + 1; // 1-5
+
+  // Store rating, now await a comment
+  session.rating   = rating;
+  session.awaitingComment = true;
+  pendingFeedback.set(user.id, session);
+
+  // Ask for optional comment
+  try {
+    const dmChannel = reaction.message.channel;
+    await dmChannel.send(
+      `${starsDisplay(rating)} Got it — **${rating}/5** for **${STAFF_MEMBERS[session.staffKey].label}**!\n\n💬 **Optional:** Type a short comment about them, or type \`skip\` to submit now.`
+    );
+  } catch (err) {
+    console.error('Could not send comment prompt:', err);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// ██  DM HANDLER — application flow + feedback comment  ██
 // ═══════════════════════════════════════════════════════════════
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
@@ -419,8 +445,52 @@ client.on('messageCreate', async message => {
     return;
   }
 
-  // ── DM application flow ──
-  const userId  = message.author.id;
+  // ── DM: Feedback comment collection ──
+  const userId = message.author.id;
+  const fbSession = pendingFeedback.get(userId);
+  if (fbSession?.awaitingComment) {
+    pendingFeedback.delete(userId);
+
+    const comment   = message.content.trim().toLowerCase() === 'skip' ? null : message.content.trim();
+    const staffKey  = fbSession.staffKey;
+    const staffInfo = STAFF_MEMBERS[staffKey];
+    const rating    = fbSession.rating;
+
+    // Save to file
+    const feedbackData = loadFeedback();
+    if (!feedbackData[staffKey]) feedbackData[staffKey] = { label: staffInfo.label, type: staffInfo.type, entries: [] };
+    feedbackData[staffKey].entries.push({
+      from:      message.author.tag,
+      fromId:    message.author.id,
+      rating,
+      comment:   comment || '',
+      timestamp: new Date().toISOString(),
+    });
+    saveFeedback(feedbackData);
+
+    // DM the staff member
+    try {
+      const staffUser = await client.users.fetch(staffInfo.id);
+      const dmEmbed = new EmbedBuilder()
+        .setTitle('📬 You received new feedback!')
+        .setColor(0xf0b429)
+        .addFields(
+          { name: 'Rating',  value: `${starsDisplay(rating)} (${rating}/5)`, inline: true },
+          { name: 'From',    value: `Anonymous`,                              inline: true },
+          { name: 'Comment', value: comment || '*No comment provided.*',     inline: false },
+        )
+        .setTimestamp();
+      await staffUser.send({ embeds: [dmEmbed] });
+    } catch {
+      console.log(`Could not DM staff member ${staffInfo.label}`);
+    }
+
+    return message.channel.send(
+      `✅ **Feedback submitted!**\n\n${starsDisplay(rating)} **(${rating}/5)** for **${staffInfo.label}** (${staffInfo.type})${comment ? `\n💬 *"${comment}"*` : ''}\n\nThank you for your feedback!`
+    );
+  }
+
+  // ── DM: Application question flow ──
   const session = activeSessions.get(userId);
   if (!session) return;
 
@@ -490,9 +560,6 @@ client.on('messageCreate', async message => {
 // ═══════════════════════════════════════════════════════════════
 client.on('interactionCreate', async interaction => {
 
-  // ════════════════════════════════════════
-  // SLASH COMMANDS
-  // ════════════════════════════════════════
   if (interaction.isChatInputCommand()) {
 
     // ─── APPLY PANEL ───
@@ -667,7 +734,7 @@ client.on('interactionCreate', async interaction => {
       await interaction.deferReply({ ephemeral: true });
 
       const guild = interaction.guild;
-      await guild.members.fetch(); // ensure cache is fresh
+      await guild.members.fetch();
 
       const allMembers    = guild.members.cache;
       const totalMembers  = allMembers.filter(m => !m.user.bot).size;
@@ -675,13 +742,10 @@ client.on('interactionCreate', async interaction => {
       const onlineMembers = allMembers.filter(m => !m.user.bot && m.presence?.status && m.presence.status !== 'offline').size;
       const totalAll      = allMembers.size;
 
-      // Warn stats
-      const warns    = loadWarns();
+      const warns        = loadWarns();
       const warnedUsers  = Object.keys(warns).length;
       const totalWarns   = Object.values(warns).reduce((acc, u) => acc + u.warns.length, 0);
-      const highestWarn  = Object.entries(warns).sort((a, b) => b[1].warns.length - a[1].warns.length)[0];
 
-      // Build per-user warn list (top 10)
       const warnList = Object.entries(warns)
         .sort((a, b) => b[1].warns.length - a[1].warns.length)
         .slice(0, 10)
@@ -700,8 +764,8 @@ client.on('interactionCreate', async interaction => {
           { name: '📅 Server Created',  value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:D>`, inline: true },
           { name: '👑 Owner',           value: `<@${guild.ownerId}>`, inline: true },
           { name: '\u200b', value: '\u200b', inline: false },
-          { name: '⚠️ Total Warns Issued',  value: `${totalWarns}`, inline: true },
-          { name: '👤 Warned Users',        value: `${warnedUsers}`, inline: true },
+          { name: '⚠️ Total Warns Issued', value: `${totalWarns}`,  inline: true },
+          { name: '👤 Warned Users',       value: `${warnedUsers}`, inline: true },
           { name: '\u200b', value: '\u200b', inline: false },
           { name: '📋 Top Warned Members (max 10)', value: warnList, inline: false },
         )
@@ -711,48 +775,83 @@ client.on('interactionCreate', async interaction => {
       return interaction.editReply({ embeds: [embed] });
     }
 
-    // ─── FEEDBACK ───
+    // ═══════════════════════════════════════════════════════════════
+    // ── FEEDBACK (NEW DM STAR REACTION FLOW) ──
+    // ═══════════════════════════════════════════════════════════════
     if (interaction.commandName === 'feedback') {
-      const staffKey = interaction.options.getString('staff');
-      const rating   = interaction.options.getInteger('rating');
-      const comment  = interaction.options.getString('comment');
-
-      const staffInfo = STAFF_MEMBERS[staffKey];
-      if (!staffInfo) return interaction.reply({ content: '❌ Unknown staff member.', ephemeral: true });
-
-      const feedbackData = loadFeedback();
-      if (!feedbackData[staffKey]) feedbackData[staffKey] = { label: staffInfo.label, type: staffInfo.type, entries: [] };
-
-      feedbackData[staffKey].entries.push({
-        from:      interaction.user.tag,
-        fromId:    interaction.user.id,
-        rating,
-        comment,
-        timestamp: new Date().toISOString(),
-      });
-      saveFeedback(feedbackData);
-
-      // DM the staff member
-      try {
-        const staffUser = await client.users.fetch(staffInfo.id);
-        const dmEmbed = new EmbedBuilder()
-          .setTitle('📬 You received new feedback!')
-          .setColor(0xf0b429)
-          .addFields(
-            { name: 'Rating',  value: `${starsDisplay(rating)} (${rating}/5)`, inline: true },
-            { name: 'From',    value: `Anonymous (staff team)`,                 inline: true },
-            { name: 'Comment', value: comment || '*No comment provided.*',      inline: false },
-          )
-          .setTimestamp();
-        await staffUser.send({ embeds: [dmEmbed] });
-      } catch {
-        console.log(`Could not DM staff member ${staffInfo.label}`);
-      }
-
-      return interaction.reply({
-        content: `✅ Feedback for **${staffInfo.label}** (${staffInfo.type}) submitted!\n${starsDisplay(rating)} (${rating}/5)`,
+      // Reply ephemerally so it stays in the server
+      await interaction.reply({
+        content: `📬 Check your **DMs** — I've sent you the staff list to rate!`,
         ephemeral: true,
       });
+
+      // Build the staff list embed grouped by role type
+      const typeOrder = ['Chat Moderator', 'Helper', 'MC Chat Moderator'];
+      const grouped = {};
+      for (const [key, info] of Object.entries(STAFF_MEMBERS)) {
+        if (!grouped[info.type]) grouped[info.type] = [];
+        grouped[info.type].push({ key, ...info });
+      }
+
+      // Build display lines per type
+      const descriptionLines = [];
+      for (const type of typeOrder) {
+        if (!grouped[type]) continue;
+        descriptionLines.push(`**━━ ${type}s ━━**`);
+        for (const member of grouped[type]) {
+          descriptionLines.push(`> **${member.label}** — React below with their number`);
+        }
+        descriptionLines.push('');
+      }
+
+      // Build the numbered member map for this DM message
+      const staffList = Object.entries(STAFF_MEMBERS);
+
+      // Create one line per staff member with their assigned number emoji
+      const memberLines = staffList.map(([key, info], i) => {
+        return `${STAR_EMOJIS[i]}  **${info.label}** — ${info.type}`;
+      });
+
+      const dmEmbed = new EmbedBuilder()
+        .setTitle('⭐ Staff Feedback — Who do you want to rate?')
+        .setColor(0xf0b429)
+        .setDescription(
+          `React with the **number** next to the staff member you'd like to rate!\n\n` +
+          memberLines.join('\n') +
+          `\n\n> After reacting, I'll ask for a **1–5 star rating** and an optional comment.`
+        )
+        .setFooter({ text: 'Your feedback is anonymous and sent directly to the staff member.' })
+        .setTimestamp();
+
+      let dmMsg;
+      try {
+        const dm = await interaction.user.createDM();
+
+        // Send a picker message — which staff member?
+        dmMsg = await dm.send({ embeds: [dmEmbed] });
+
+        // Add number reactions (one per staff member, max 5 here)
+        for (let i = 0; i < staffList.length && i < 5; i++) {
+          await dmMsg.react(STAR_EMOJIS[i]);
+        }
+
+        // Store a "staff picker" pending session
+        // We'll handle number emoji → staff member selection in reactionAdd
+        pendingFeedback.set(interaction.user.id, {
+          stage:     'pick_staff', // picking which staff member
+          messageId: dmMsg.id,
+          staffList, // ordered list for index lookup
+        });
+
+      } catch (err) {
+        console.error('Could not DM user for feedback:', err);
+        await interaction.followUp({
+          content: `❌ I couldn't DM you! Please enable **Direct Messages** from server members in your Privacy Settings.`,
+          ephemeral: true,
+        });
+      }
+
+      return;
     }
 
     // ─── VIEW FEEDBACK ───
@@ -760,11 +859,10 @@ client.on('interactionCreate', async interaction => {
       if (!hasModPermission(interaction.member))
         return interaction.reply({ content: '❌ No permission.', ephemeral: true });
 
-      const staffKey = interaction.options.getString('staff');
+      const staffKey     = interaction.options.getString('staff');
       const feedbackData = loadFeedback();
 
       if (staffKey) {
-        // Single staff view
         const staffInfo = STAFF_MEMBERS[staffKey];
         const data      = feedbackData[staffKey];
 
@@ -783,13 +881,11 @@ client.on('interactionCreate', async interaction => {
             { name: '⭐ Average Rating', value: `${avgRating}/5`, inline: true },
             { name: '📝 Total Reviews',  value: `${data.entries.length}`, inline: true },
             { name: '🕐 Recent Feedback (last 5)', value: recentList || 'None', inline: false },
-          )
-          .setTimestamp();
+          ).setTimestamp();
 
         return interaction.reply({ embeds: [embed], ephemeral: true });
 
       } else {
-        // All staff overview
         const lines = Object.entries(STAFF_MEMBERS).map(([key, info]) => {
           const data = feedbackData[key];
           if (!data || data.entries.length === 0) return `**${info.label}** (${info.type}) — No feedback yet`;
@@ -809,8 +905,7 @@ client.on('interactionCreate', async interaction => {
 
     // ─── SUGGEST ───
     if (interaction.commandName === 'suggest') {
-      const text = interaction.options.getString('suggestion');
-
+      const text   = interaction.options.getString('suggestion');
       const suggId = 'SUG-' + Date.now().toString(36).toUpperCase();
       saveSuggestion({ id: suggId, from: interaction.user.tag, fromId: interaction.user.id, text, timestamp: new Date().toISOString() });
 
@@ -847,10 +942,8 @@ client.on('interactionCreate', async interaction => {
       const optB     = interaction.options.getString('option_b');
       const optC     = interaction.options.getString('option_c');
       const optD     = interaction.options.getString('option_d');
-
       const options  = [optA, optB, optC, optD].filter(Boolean);
       const emojis   = ['🇦', '🇧', '🇨', '🇩'];
-
       const optionLines = options.map((o, i) => `${emojis[i]} ${o}`).join('\n');
 
       const embed = new EmbedBuilder()
@@ -862,9 +955,7 @@ client.on('interactionCreate', async interaction => {
         .setTimestamp();
 
       const pollMsg = await interaction.channel.send({ embeds: [embed] });
-      for (let i = 0; i < options.length; i++) {
-        await pollMsg.react(emojis[i]);
-      }
+      for (let i = 0; i < options.length; i++) await pollMsg.react(emojis[i]);
 
       return interaction.reply({ content: '✅ Poll posted!', ephemeral: true });
     }
@@ -902,7 +993,6 @@ client.on('interactionCreate', async interaction => {
   // ════════════════════════════════════════
   if (interaction.isButton()) {
 
-    // ── VERIFY ──
     if (interaction.customId === 'verify') {
       try {
         await interaction.member.roles.add(VERIFY_ROLE_ID);
@@ -912,7 +1002,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ── ACCEPT APPLICATION ──
     if (interaction.customId.startsWith('app_accept:')) {
       const [, role, userId, appId] = interaction.customId.split(':');
       if (!hasModPermission(interaction.member))
@@ -942,7 +1031,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.editReply({ content: `✅ Application **${appId}** accepted. Role assigned and applicant notified.` });
     }
 
-    // ── REJECT APPLICATION ──
     if (interaction.customId.startsWith('app_reject:')) {
       const [, role, userId, appId] = interaction.customId.split(':');
       if (!hasModPermission(interaction.member))
@@ -965,6 +1053,102 @@ client.on('interactionCreate', async interaction => {
       } catch { console.log('Could not DM applicant'); }
 
       return interaction.editReply({ content: `❌ Application **${appId}** rejected. Applicant notified.` });
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// ██  REACTION HANDLER (updated — two-stage feedback)  ██
+// ═══════════════════════════════════════════════════════════════
+// We override the earlier simple handler with a two-stage one:
+// Stage 1 — pick_staff: number emoji → which staff member
+// Stage 2 — pick_rating: number emoji → star rating 1-5
+client.removeAllListeners('messageReactionAdd'); // Remove the earlier listener we defined above
+
+client.on('messageReactionAdd', async (reaction, user) => {
+  if (user.bot) return;
+
+  if (reaction.partial) {
+    try { await reaction.fetch(); } catch { return; }
+  }
+  if (reaction.message.partial) {
+    try { await reaction.message.fetch(); } catch { return; }
+  }
+
+  // DM only
+  if (reaction.message.guild) return;
+
+  const session = pendingFeedback.get(user.id);
+  if (!session) return;
+  if (reaction.message.id !== session.messageId) return;
+
+  const emojiIndex = STAR_EMOJIS.indexOf(reaction.emoji.name);
+  if (emojiIndex === -1) return;
+
+  // ── Stage 1: pick which staff member ──
+  if (session.stage === 'pick_staff') {
+    const staffList = session.staffList;
+    if (emojiIndex >= staffList.length) return;
+
+    const [staffKey, staffInfo] = staffList[emojiIndex];
+
+    // Now send a star rating message
+    const ratingEmbed = new EmbedBuilder()
+      .setTitle(`⭐ Rate ${staffInfo.label}`)
+      .setColor(0xf0b429)
+      .setDescription(
+        `You selected **${staffInfo.label}** (${staffInfo.type}).\n\n` +
+        `React with a number to give your rating:\n\n` +
+        `1️⃣ ⭐ — Poor\n` +
+        `2️⃣ ⭐⭐ — Fair\n` +
+        `3️⃣ ⭐⭐⭐ — Good\n` +
+        `4️⃣ ⭐⭐⭐⭐ — Great\n` +
+        `5️⃣ ⭐⭐⭐⭐⭐ — Excellent`
+      )
+      .setFooter({ text: 'React with 1️⃣ through 5️⃣ to rate.' })
+      .setTimestamp();
+
+    try {
+      const dm      = reaction.message.channel;
+      const rateMsg = await dm.send({ embeds: [ratingEmbed] });
+
+      // Add 1-5 reactions
+      for (const emoji of STAR_EMOJIS) await rateMsg.react(emoji);
+
+      // Update session to stage 2
+      pendingFeedback.set(user.id, {
+        stage:     'pick_rating',
+        staffKey,
+        messageId: rateMsg.id,
+      });
+    } catch (err) {
+      console.error('Could not send rating message:', err);
+    }
+    return;
+  }
+
+  // ── Stage 2: pick star rating ──
+  if (session.stage === 'pick_rating') {
+    const rating   = emojiIndex + 1; // 1-5
+    const staffKey = session.staffKey;
+
+    // Move to comment stage
+    pendingFeedback.set(user.id, {
+      stage:          'await_comment',
+      staffKey,
+      rating,
+      awaitingComment: true,
+      messageId:       session.messageId,
+    });
+
+    try {
+      const dm = reaction.message.channel;
+      await dm.send(
+        `${starsDisplay(rating)} Got it — **${rating}/5** for **${STAFF_MEMBERS[staffKey].label}**!\n\n` +
+        `💬 **Optional:** Type a comment about them, or type \`skip\` to submit now.`
+      );
+    } catch (err) {
+      console.error('Could not send comment prompt:', err);
     }
   }
 });
@@ -1013,32 +1197,15 @@ const commands = [
     .setDescription('Clear ALL warns for a member (admin only)')
     .addUserOption(o => o.setName('user').setDescription('Member').setRequired(true)),
 
-  // ── NEW: Server Info ──
   new SlashCommandBuilder()
     .setName('serverinfo')
     .setDescription('Show server stats: total members, bots, active users & all warn records'),
 
-  // ── NEW: Feedback ──
+  // ── FEEDBACK: no options — all done via DM reactions ──
   new SlashCommandBuilder()
     .setName('feedback')
-    .setDescription('Submit feedback for a staff member (sent to their DMs)')
-    .addStringOption(o =>
-      o.setName('staff').setDescription('Which staff member?').setRequired(true)
-        .addChoices(...staffChoices)
-    )
-    .addIntegerOption(o =>
-      o.setName('rating').setDescription('Rating 1–5').setRequired(true)
-        .addChoices(
-          { name: '⭐ 1 - Poor',      value: 1 },
-          { name: '⭐⭐ 2 - Fair',   value: 2 },
-          { name: '⭐⭐⭐ 3 - Good', value: 3 },
-          { name: '⭐⭐⭐⭐ 4 - Great', value: 4 },
-          { name: '⭐⭐⭐⭐⭐ 5 - Excellent', value: 5 },
-        )
-    )
-    .addStringOption(o => o.setName('comment').setDescription('Optional comment').setRequired(false)),
+    .setDescription('Rate a staff member — you\'ll receive a DM with the full staff list!'),
 
-  // ── NEW: View Feedback ──
   new SlashCommandBuilder()
     .setName('viewfeedback')
     .setDescription('View feedback for staff members (mod only)')
@@ -1047,13 +1214,11 @@ const commands = [
         .addChoices(...staffChoices)
     ),
 
-  // ── NEW: Suggest ──
   new SlashCommandBuilder()
     .setName('suggest')
     .setDescription('Submit a suggestion for the server')
     .addStringOption(o => o.setName('suggestion').setDescription('Your suggestion').setRequired(true)),
 
-  // ── NEW: Poll ──
   new SlashCommandBuilder()
     .setName('poll')
     .setDescription('Create a poll (mod only)')
