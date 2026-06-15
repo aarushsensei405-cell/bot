@@ -1233,7 +1233,7 @@ client.on('interactionCreate', async interaction => {
         // Use Discord native Poll API — content field pings @everyone once
         const answers = rawOptions.map(text => ({ poll_media: { text } }));
 
-        await interaction.rest.post(
+        await client.rest.post(
           Routes.channelMessages(interaction.channelId),
           {
             body: {
