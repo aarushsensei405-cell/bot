@@ -1181,26 +1181,69 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: '❌ No permission.', ephemeral: true });
 
       const question = interaction.options.getString('question');
+      const durationHours   = interaction.options.getInteger('duration') || 0;
+      const durationMinutes = interaction.options.getInteger('minutes') || 0;
+      // Discord poll API requires duration in whole hours (minimum 1)
+      // Convert minutes to fractional hours then ceil, with a floor of 1
+      let duration = durationHours + (durationMinutes / 60);
+      if (duration <= 0) duration = 24; // default 24h if nothing provided
+      // Discord requires integer hours, so round up to nearest hour (min 1)
+      const durationFinal = Math.max(1, Math.ceil(duration));
+      // Human-readable label
+      const durationLabel = durationHours > 0 && durationMinutes > 0
+        ? `${durationHours}h ${durationMinutes}m`
+        : durationMinutes > 0
+          ? `${durationMinutes} minute${durationMinutes !== 1 ? 's' : ''}`
+          : `${durationHours} hour${durationHours !== 1 ? 's' : ''}`;
       const optA     = interaction.options.getString('option_a');
       const optB     = interaction.options.getString('option_b');
       const optC     = interaction.options.getString('option_c');
       const optD     = interaction.options.getString('option_d');
-      const options  = [optA, optB, optC, optD].filter(Boolean);
-      const emojis   = ['🇦', '🇧', '🇨', '🇩'];
-      const optionLines = options.map((o, i) => `${emojis[i]} ${o}`).join('\n');
+      const rawOptions = [optA, optB, optC, optD].filter(Boolean);
 
-      const embed = new EmbedBuilder()
-        .setTitle(`📊 Poll: ${question}`)
-        .setColor(0x5865f2)
-        .setDescription(optionLines)
-        .addFields({ name: '🗳️ How to vote', value: 'React with the emoji for your choice!', inline: false })
-        .setFooter({ text: `Poll by ${interaction.user.tag}` })
-        .setTimestamp();
+      try {
+        // Ping @everyone first
+        await interaction.channel.send({ content: '@everyone 📊 A new poll is live — cast your vote!' });
 
-      const pollMsg = await interaction.channel.send({ embeds: [embed] });
-      for (let i = 0; i < options.length; i++) await pollMsg.react(emojis[i]);
+        // Use Discord native Poll API (requires discord.js v14.16+ / API v10)
+        const answers = rawOptions.map(text => ({ poll_media: { text } }));
 
-      return interaction.reply({ content: '✅ Poll posted!', ephemeral: true });
+        await interaction.rest.post(
+          Routes.channelMessages(interaction.channelId),
+          {
+            body: {
+              poll: {
+                question:          { text: question },
+                answers,
+                duration: durationFinal,
+                allow_multiselect: false,
+              },
+            },
+          }
+        );
+
+        return interaction.reply({ content: '✅ Poll posted with @everyone ping!', ephemeral: true });
+
+      } catch (err) {
+        console.error('Native poll failed, falling back to embed poll:', err);
+
+        // Fallback: embed + letter reactions
+        const emojis      = ['🇦', '🇧', '🇨', '🇩'];
+        const optionLines = rawOptions.map((o, i) => `${emojis[i]} **${o}**`).join('\n\n');
+
+        const embed = new EmbedBuilder()
+          .setTitle(`📊 ${question}`)
+          .setColor(0x5865f2)
+          .setDescription(optionLines)
+          .addFields({ name: '🗳️ How to vote', value: 'React with the letter emoji for your choice!', inline: false })
+          .setFooter({ text: `Poll by ${interaction.user.tag} • Closes in ${durationLabel}` })
+          .setTimestamp();
+
+        const pollMsg = await interaction.channel.send({ content: '@everyone', embeds: [embed] });
+        for (let i = 0; i < rawOptions.length; i++) await pollMsg.react(emojis[i]);
+
+        return interaction.reply({ content: '✅ Poll posted!', ephemeral: true });
+      }
     }
   }
 
@@ -1477,7 +1520,9 @@ const commands = [
     .addStringOption(o => o.setName('option_a').setDescription('Option A').setRequired(true))
     .addStringOption(o => o.setName('option_b').setDescription('Option B').setRequired(true))
     .addStringOption(o => o.setName('option_c').setDescription('Option C').setRequired(false))
-    .addStringOption(o => o.setName('option_d').setDescription('Option D').setRequired(false)),
+    .addStringOption(o => o.setName('option_d').setDescription('Option D').setRequired(false))
+    .addIntegerOption(o => o.setName('duration').setDescription('Hours the poll runs (default: 24h if neither is set)').setRequired(false).setMinValue(0).setMaxValue(168))
+    .addIntegerOption(o => o.setName('minutes').setDescription('Extra minutes on top of hours (e.g. 30 = 30 extra mins)').setRequired(false).setMinValue(1).setMaxValue(59)),
 
 ].map(c => c.toJSON());
 
