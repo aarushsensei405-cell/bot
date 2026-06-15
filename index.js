@@ -106,6 +106,9 @@ const activeSessions = new Map();
 // ─────────────────────────────────────────
 const pendingFeedback = new Map();
 
+// pollVotes: messageId → Set of userIds who have already voted (fallback embed polls only)
+const pollVotes = new Map();
+
 // Star emojis used as reactions for rating
 const STAR_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
 
@@ -378,13 +381,11 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// ██  REACTION HANDLER — star feedback  ██
+// ██  REACTION HANDLER — poll one-vote + star feedback  ██
 // ═══════════════════════════════════════════════════════════════
 client.on('messageReactionAdd', async (reaction, user) => {
-  // Ignore bot reactions
   if (user.bot) return;
 
-  // Fetch partial reaction/message if needed
   if (reaction.partial) {
     try { await reaction.fetch(); } catch { return; }
   }
@@ -392,27 +393,54 @@ client.on('messageReactionAdd', async (reaction, user) => {
     try { await reaction.message.fetch(); } catch { return; }
   }
 
-  // Only care about DM reactions
-  if (reaction.message.guild) return;
+  // ── Guild: fallback poll one-vote enforcement ──
+  if (reaction.message.guild) {
+    const msgId = reaction.message.id;
+    if (!pollVotes.has(msgId)) return; // not a tracked poll
 
+    const voteMap    = pollVotes.get(msgId);
+    const pollEmojis = ['🇦', '🇧', '🇨', '🇩'];
+    if (!pollEmojis.includes(reaction.emoji.name)) return; // not a vote emoji
+
+    if (voteMap.has(user.id)) {
+      // Already voted — remove this reaction and DM warn
+      try { await reaction.users.remove(user.id); } catch { /* permissions */ }
+
+      try {
+        const dmUser = await user.createDM();
+        await dmUser.send(
+          `⚠️ **GoldenHeart SMP — Poll Warning**
+
+` +
+          `You tried to vote more than once on a poll. **Only one vote per person is allowed.**
+
+` +
+          `Your extra vote has been removed. Please do not attempt to vote again.`
+        );
+      } catch { /* user has DMs closed */ }
+    } else {
+      // First vote — register it
+      voteMap.set(user.id, reaction.emoji.name);
+      pollVotes.set(msgId, voteMap);
+    }
+    return;
+  }
+
+  // ── DM: feedback star reactions ──
   const session = pendingFeedback.get(user.id);
   if (!session) return;
 
-  // Make sure this reaction is on the right message
   if (reaction.message.id !== session.messageId) return;
 
-  // Check if reaction is one of our number emojis
   const starIndex = STAR_EMOJIS.indexOf(reaction.emoji.name);
   if (starIndex === -1) return;
 
-  const rating = starIndex + 1; // 1-5
+  const rating = starIndex + 1;
 
-  // Store rating, now await a comment
-  session.rating   = rating;
+  session.rating          = rating;
   session.awaitingComment = true;
   pendingFeedback.set(user.id, session);
 
-  // Ask for optional comment
   try {
     const dmChannel = reaction.message.channel;
     await dmChannel.send(
@@ -1202,32 +1230,30 @@ client.on('interactionCreate', async interaction => {
       const rawOptions = [optA, optB, optC, optD].filter(Boolean);
 
       try {
-        // Ping @everyone first
-        await interaction.channel.send({ content: '@everyone 📊 A new poll is live — cast your vote!' });
-
-        // Use Discord native Poll API (requires discord.js v14.16+ / API v10)
+        // Use Discord native Poll API — content field pings @everyone once
         const answers = rawOptions.map(text => ({ poll_media: { text } }));
 
         await interaction.rest.post(
           Routes.channelMessages(interaction.channelId),
           {
             body: {
+              content: '@everyone 📊 A new poll is live — cast your vote!',
               poll: {
                 question:          { text: question },
                 answers,
-                duration: durationFinal,
+                duration:          durationFinal,
                 allow_multiselect: false,
               },
             },
           }
         );
 
-        return interaction.reply({ content: '✅ Poll posted with @everyone ping!', ephemeral: true });
+        return interaction.reply({ content: '✅ Poll posted!', ephemeral: true });
 
       } catch (err) {
         console.error('Native poll failed, falling back to embed poll:', err);
 
-        // Fallback: embed + letter reactions
+        // Fallback: embed + letter reactions with one-vote enforcement
         const emojis      = ['🇦', '🇧', '🇨', '🇩'];
         const optionLines = rawOptions.map((o, i) => `${emojis[i]} **${o}**`).join('\n\n');
 
@@ -1235,12 +1261,16 @@ client.on('interactionCreate', async interaction => {
           .setTitle(`📊 ${question}`)
           .setColor(0x5865f2)
           .setDescription(optionLines)
-          .addFields({ name: '🗳️ How to vote', value: 'React with the letter emoji for your choice!', inline: false })
+          .addFields({ name: '🗳️ How to vote', value: 'React with **one** letter emoji for your choice. You may only vote once!', inline: false })
           .setFooter({ text: `Poll by ${interaction.user.tag} • Closes in ${durationLabel}` })
           .setTimestamp();
 
+        // Single @everyone ping embedded in the message itself — no separate ping message
         const pollMsg = await interaction.channel.send({ content: '@everyone', embeds: [embed] });
         for (let i = 0; i < rawOptions.length; i++) await pollMsg.react(emojis[i]);
+
+        // Register this poll for one-vote tracking
+        pollVotes.set(pollMsg.id, new Map()); // messageId → Map<userId, emojiName>
 
         return interaction.reply({ content: '✅ Poll posted!', ephemeral: true });
       }
