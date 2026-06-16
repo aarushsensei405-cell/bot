@@ -174,6 +174,16 @@ async function sendLog(client, embed) {
 // ─────────────────────────────────────────
 // CLIENT
 // ─────────────────────────────────────────
+// ─────────────────────────────────────────
+// GLOBAL ERROR HANDLERS — surface silent crashes in Render logs
+// ─────────────────────────────────────────
+process.on('unhandledRejection', err => {
+  console.error('❌ UNHANDLED REJECTION:', err);
+});
+process.on('uncaughtException', err => {
+  console.error('❌ UNCAUGHT EXCEPTION:', err);
+});
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -185,11 +195,15 @@ const client = new Client({
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.DirectMessageReactions,
+    GatewayIntentBits.GuildPresences,
   ],
   partials: ['CHANNEL', 'MESSAGE', 'REACTION'],
 });
 
 client.once('ready', () => console.log(`✅ ${client.user.tag} is online`));
+client.on('error', err => console.error('❌ CLIENT ERROR:', err));
+client.on('shardError', err => console.error('❌ SHARD ERROR:', err));
+client.on('shardDisconnect', () => console.warn('⚠️ Shard disconnected'));
 
 // ═══════════════════════════════════════════════════════════════
 // ██  SERVER EVENT LOGGING  ██
@@ -1558,14 +1572,19 @@ const commands = [
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
+// Log in to Discord FIRST — this must succeed independently of command registration
+client.login(TOKEN).catch(err => {
+  console.error('❌ FAILED TO LOG IN TO DISCORD:', err);
+});
+
+// Register slash commands separately — failures here won't block the bot from being online
 (async () => {
   try {
     await rest.put(Routes.applicationCommands(CLIENT_ID), { body: [] });
     console.log('Global commands cleared');
     await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
     console.log('✅ Slash commands registered (guild)');
-    client.login(TOKEN);
   } catch (err) {
-    console.error(err);
+    console.error('❌ FAILED TO REGISTER SLASH COMMANDS:', err);
   }
 })();
