@@ -175,6 +175,14 @@ function hasModPermission(member) {
   return MOD_ROLE_IDS.some(id => member.roles.cache.has(id));
 }
 
+// Auto-delete a bot-sent message after `ms` milliseconds (default 10s)
+function autoDelete(sentMessage, ms = 10000) {
+  if (!sentMessage) return;
+  setTimeout(() => {
+    sentMessage.delete().catch(() => {});
+  }, ms);
+}
+
 // ─────────────────────────────────────────
 // SPAM / FLOOD DETECTION
 // Returns null if no violation, or a violation object { type, detail }
@@ -187,13 +195,13 @@ function checkSpam(message) {
   // ── Link spam check (instant) ──
   const linkMatches = content.match(/https?:\/\/\S+/gi) || [];
   if (linkMatches.length >= SPAM_SETTINGS.linkSpamLimit) {
-    return { type: 'link_spam', detail: `${linkMatches.length} links in one message` };
+    return { type: 'link_spam', detail: `${linkMatches.length} links in one message`, matchedMessages: [message] };
   }
 
-  // ── Update message history for this user ──
+  // ── Update message history for this user (store message object too) ──
   if (!messageHistory.has(userId)) messageHistory.set(userId, []);
   const history = messageHistory.get(userId);
-  history.push({ content, timestamp: now });
+  history.push({ content, timestamp: now, message });
 
   // Trim history to keep only recent entries (last 15s window covers both checks)
   const trimmed = history.filter(m => now - m.timestamp <= 15000);
@@ -202,14 +210,22 @@ function checkSpam(message) {
   // ── Rapid message (flooding) check ──
   const recentRapid = trimmed.filter(m => now - m.timestamp <= SPAM_SETTINGS.rapidWindowMs);
   if (recentRapid.length >= SPAM_SETTINGS.rapidMessageLimit) {
-    return { type: 'rapid_flood', detail: `${recentRapid.length} messages within ${SPAM_SETTINGS.rapidWindowMs / 1000}s` };
+    return {
+      type: 'rapid_flood',
+      detail: `${recentRapid.length} messages within ${SPAM_SETTINGS.rapidWindowMs / 1000}s`,
+      matchedMessages: recentRapid.map(m => m.message),
+    };
   }
 
   // ── Duplicate message check ──
   const recentDup = trimmed.filter(m => now - m.timestamp <= SPAM_SETTINGS.duplicateWindowMs);
-  const sameContentCount = recentDup.filter(m => m.content === content && content.length > 0).length;
-  if (sameContentCount >= SPAM_SETTINGS.duplicateMessageLimit) {
-    return { type: 'duplicate_spam', detail: `Same message repeated ${sameContentCount} times within ${SPAM_SETTINGS.duplicateWindowMs / 1000}s` };
+  const sameContent = recentDup.filter(m => m.content === content && content.length > 0);
+  if (sameContent.length >= SPAM_SETTINGS.duplicateMessageLimit) {
+    return {
+      type: 'duplicate_spam',
+      detail: `Same message repeated ${sameContent.length} times within ${SPAM_SETTINGS.duplicateWindowMs / 1000}s`,
+      matchedMessages: sameContent.map(m => m.message),
+    };
   }
 
   return null;
@@ -705,7 +721,8 @@ client.on('messageCreate', async message => {
           .setFooter({ text: 'GoldenHeart SMP — Zero Tolerance Policy' })
           .setTimestamp();
 
-        await message.channel.send({ embeds: [warnEmbed] });
+        const sentCulturalWarning = await message.channel.send({ embeds: [warnEmbed] });
+        autoDelete(sentCulturalWarning, 10000);
 
         // Log it
         const logEmbed = new EmbedBuilder()
@@ -768,7 +785,8 @@ client.on('messageCreate', async message => {
           .setFooter({ text: 'GoldenHeart SMP — Community Rules' })
           .setTimestamp();
 
-        await message.channel.send({ embeds: [warnEmbed] });
+        const sentSwearWarning = await message.channel.send({ embeds: [warnEmbed] });
+        autoDelete(sentSwearWarning, 10000);
 
         // Log it
         const logEmbed = new EmbedBuilder()
@@ -799,15 +817,16 @@ client.on('messageCreate', async message => {
           spamCooldown.set(message.author.id, Date.now());
 
           try {
-            await message.delete().catch(() => {});
+            // Delete all matched spam messages EXCEPT the most recent one (keep 1)
+            const matched = violation.matchedMessages || [message];
+            const toDelete = matched.slice(0, -1); // everything except the last (most recent)
+
+            for (const m of toDelete) {
+              await m.delete().catch(() => {});
+            }
 
             // Clear this user's recent history so the same burst doesn't re-trigger
             messageHistory.set(message.author.id, []);
-
-            await message.member.timeout(
-              SPAM_SETTINGS.timeoutMinutes * 60 * 1000,
-              `AutoMod: Spam detected (${violation.type})`
-            );
 
             const labelMap = {
               link_spam:      'Link Spam',
@@ -816,22 +835,23 @@ client.on('messageCreate', async message => {
             };
 
             const warnEmbed = new EmbedBuilder()
-              .setTitle('🚫 Spam Detected — Timeout Applied')
-              .setColor(0xff4444)
+              .setTitle('⚠️ Spam Detected — Warning')
+              .setColor(0xffa500)
               .setDescription(
-                `<@${message.author.id}>, you have been timed out for **${SPAM_SETTINGS.timeoutMinutes} minutes**.\n\n` +
+                `<@${message.author.id}>, please slow down!\n\n` +
                 `> **Reason:** ${labelMap[violation.type] || 'Spam'}\n` +
                 `> ${violation.detail}\n\n` +
-                `Please avoid spamming, flooding chat, mass-pinging, or posting excessive links.`
+                `Your extra messages have been removed. Please avoid spamming or flooding chat.`
               )
               .setFooter({ text: 'GoldenHeart SMP — AutoMod' })
               .setTimestamp();
 
-            await message.channel.send({ embeds: [warnEmbed] });
+            const sentWarning = await message.channel.send({ embeds: [warnEmbed] });
+            autoDelete(sentWarning, 10000); // auto-delete this warning after 10s
 
             const logEmbed = new EmbedBuilder()
-              .setTitle('🚫 Auto-Mod: Spam — Timeout Applied')
-              .setColor(0xff4444)
+              .setTitle('⚠️ Auto-Mod: Spam — Warning Issued')
+              .setColor(0xffa500)
               .addFields(
                 { name: 'User',    value: `<@${message.author.id}> (${message.author.tag})`, inline: true },
                 { name: 'Channel', value: `<#${message.channelId}>`, inline: true },
