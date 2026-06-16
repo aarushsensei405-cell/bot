@@ -16,6 +16,8 @@ const {
 } = require('discord.js');
 const fs   = require('fs');
 const path = require('path');
+const { createCanvas, loadImage, registerFont } = require('canvas');
+const { AttachmentBuilder } = require('discord.js');
 
 // ─────────────────────────────────────────
 // EXPRESS (keep-alive for Render)
@@ -34,8 +36,19 @@ const GUILD_ID  = '1432272831722553398';
 
 const STAFF_LOG_CHANNEL       = '1432277470878498866';
 const SUGGESTIONS_CHANNEL_ID  = '1515769765514313819';
+const WELCOME_CHANNEL_ID      = '1516255117060341790';
 
 const VERIFY_ROLE_ID = '1432277416109281371';
+
+// ── Spam / flood protection settings ──
+const SPAM_SETTINGS = {
+  duplicateMessageLimit: 4,     // same message repeated this many times = flagged
+  duplicateWindowMs:     10000, // within this time window (10s)
+  rapidMessageLimit:     10,    // this many messages...
+  rapidWindowMs:         5000,  // ...within this time window (5s) = flooding
+  linkSpamLimit:         3,     // this many links in one message = flagged
+  timeoutMinutes:        10,    // timeout duration for spam violations
+};
 const MOD_ROLE_IDS   = ['1432277404864483390', '1432277404046331984'];
 
 // Named staff members for feedback (username → Discord user ID)
@@ -109,6 +122,12 @@ const pendingFeedback = new Map();
 // pollVotes: messageId → Set of userIds who have already voted (fallback embed polls only)
 const pollVotes = new Map();
 
+// ── Spam / flood tracking ──
+// messageHistory: userId → [{ content, timestamp }] (recent messages, trimmed continuously)
+const messageHistory = new Map();
+// spamCooldown: userId → timestamp (prevents re-triggering while a punishment is already applied)
+const spamCooldown = new Map();
+
 // Star emojis used as reactions for rating
 const STAR_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
 
@@ -155,8 +174,161 @@ function hasModPermission(member) {
   if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
   return MOD_ROLE_IDS.some(id => member.roles.cache.has(id));
 }
+
+// ─────────────────────────────────────────
+// SPAM / FLOOD DETECTION
+// Returns null if no violation, or a violation object { type, detail }
+// ─────────────────────────────────────────
+function checkSpam(message) {
+  const userId = message.author.id;
+  const now    = Date.now();
+  const content = message.content;
+
+  // ── Link spam check (instant) ──
+  const linkMatches = content.match(/https?:\/\/\S+/gi) || [];
+  if (linkMatches.length >= SPAM_SETTINGS.linkSpamLimit) {
+    return { type: 'link_spam', detail: `${linkMatches.length} links in one message` };
+  }
+
+  // ── Update message history for this user ──
+  if (!messageHistory.has(userId)) messageHistory.set(userId, []);
+  const history = messageHistory.get(userId);
+  history.push({ content, timestamp: now });
+
+  // Trim history to keep only recent entries (last 15s window covers both checks)
+  const trimmed = history.filter(m => now - m.timestamp <= 15000);
+  messageHistory.set(userId, trimmed);
+
+  // ── Rapid message (flooding) check ──
+  const recentRapid = trimmed.filter(m => now - m.timestamp <= SPAM_SETTINGS.rapidWindowMs);
+  if (recentRapid.length >= SPAM_SETTINGS.rapidMessageLimit) {
+    return { type: 'rapid_flood', detail: `${recentRapid.length} messages within ${SPAM_SETTINGS.rapidWindowMs / 1000}s` };
+  }
+
+  // ── Duplicate message check ──
+  const recentDup = trimmed.filter(m => now - m.timestamp <= SPAM_SETTINGS.duplicateWindowMs);
+  const sameContentCount = recentDup.filter(m => m.content === content && content.length > 0).length;
+  if (sameContentCount >= SPAM_SETTINGS.duplicateMessageLimit) {
+    return { type: 'duplicate_spam', detail: `Same message repeated ${sameContentCount} times within ${SPAM_SETTINGS.duplicateWindowMs / 1000}s` };
+  }
+
+  return null;
+}
 function starsDisplay(n) {
   return '⭐'.repeat(n) + '☆'.repeat(5 - n);
+}
+
+// ─────────────────────────────────────────
+// WELCOME CARD IMAGE GENERATOR
+// ─────────────────────────────────────────
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y,     x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x,     y + h, r);
+  ctx.arcTo(x,     y + h, x,     y,     r);
+  ctx.arcTo(x,     y,     x + w, y,     r);
+  ctx.closePath();
+}
+
+function circleClip(ctx, cx, cy, r) {
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.clip();
+}
+
+async function generateWelcomeCard(member) {
+  const width  = 900;
+  const height = 320;
+  const canvas = createCanvas(width, height);
+  const ctx    = canvas.getContext('2d');
+
+  // Background gradient
+  const bgGradient = ctx.createLinearGradient(0, 0, width, height);
+  bgGradient.addColorStop(0, '#1a1a2e');
+  bgGradient.addColorStop(1, '#2d1b4e');
+  ctx.fillStyle = bgGradient;
+  ctx.fillRect(0, 0, width, height);
+
+  // Decorative gold accent bar at top
+  const accentGradient = ctx.createLinearGradient(0, 0, width, 0);
+  accentGradient.addColorStop(0, '#f0b429');
+  accentGradient.addColorStop(1, '#ffd76e');
+  ctx.fillStyle = accentGradient;
+  ctx.fillRect(0, 0, width, 8);
+
+  // Subtle decorative circles in background
+  ctx.globalAlpha = 0.07;
+  ctx.fillStyle = '#f0b429';
+  ctx.beginPath(); ctx.arc(820, 60, 90, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(60, 280, 70, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Card panel
+  roundRect(ctx, 30, 30, width - 60, height - 60, 20);
+  ctx.fillStyle = 'rgba(255,255,255,0.04)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(240,180,41,0.4)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Avatar
+  const avatarSize = 150;
+  const avatarX = 80;
+  const avatarY = height / 2 - avatarSize / 2;
+
+  try {
+    const avatarURL = member.user.displayAvatarURL({ extension: 'png', size: 256 });
+    const avatarImg = await loadImage(avatarURL);
+
+    // Glow ring
+    ctx.save();
+    ctx.shadowColor = '#f0b429';
+    ctx.shadowBlur = 25;
+    ctx.beginPath();
+    ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#f0b429';
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    circleClip(ctx, avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2);
+    ctx.drawImage(avatarImg, avatarX, avatarY, avatarSize, avatarSize);
+    ctx.restore();
+  } catch (err) {
+    console.error('Could not load avatar for welcome card:', err);
+    // Fallback circle
+    ctx.beginPath();
+    ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#444';
+    ctx.fill();
+  }
+
+  // Text area
+  const textX = avatarX + avatarSize + 50;
+
+  ctx.fillStyle = '#f0b429';
+  ctx.font = 'bold 28px sans-serif';
+  ctx.fillText('WELCOME TO', textX, 110);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 40px sans-serif';
+  let displayName = member.user.username;
+  if (displayName.length > 18) displayName = displayName.slice(0, 16) + '…';
+  ctx.fillText(displayName, textX, 160);
+
+  ctx.fillStyle = '#cfcfe0';
+  ctx.font = '24px sans-serif';
+  ctx.fillText('GoldenHeart SMP', textX, 200);
+
+  // Member count
+  const memberCount = member.guild.memberCount;
+  ctx.fillStyle = '#9d9db8';
+  ctx.font = '20px sans-serif';
+  ctx.fillText(`You are member #${memberCount}`, textX, 240);
+
+  return canvas.toBuffer('image/png');
 }
 
 // ─────────────────────────────────────────
@@ -205,12 +377,27 @@ client.on('error', err => console.error('❌ CLIENT ERROR:', err));
 client.on('shardError', err => console.error('❌ SHARD ERROR:', err));
 client.on('shardDisconnect', () => console.warn('⚠️ Shard disconnected'));
 
+// Periodic cleanup of spam-tracking maps to prevent memory growth over long uptime
+setInterval(() => {
+  const now = Date.now();
+  for (const [userId, history] of messageHistory.entries()) {
+    const trimmed = history.filter(m => now - m.timestamp <= 15000);
+    if (trimmed.length === 0) messageHistory.delete(userId);
+    else messageHistory.set(userId, trimmed);
+  }
+  for (const [userId, ts] of spamCooldown.entries()) {
+    if (now - ts > 15000) spamCooldown.delete(userId);
+  }
+}, 30000);
+
 // ═══════════════════════════════════════════════════════════════
 // ██  SERVER EVENT LOGGING  ██
 // ═══════════════════════════════════════════════════════════════
 
 client.on('guildMemberAdd', async member => {
   if (member.guild.id !== GUILD_ID) return;
+
+  // Staff log embed (existing behavior)
   const embed = new EmbedBuilder()
     .setTitle('📥 Member Joined')
     .setColor(0x57f287)
@@ -222,6 +409,20 @@ client.on('guildMemberAdd', async member => {
     .setFooter({ text: `ID: ${member.id}` })
     .setTimestamp();
   await sendLog(client, embed);
+
+  // Public welcome card image
+  try {
+    const cardBuffer = await generateWelcomeCard(member);
+    const attachment  = new AttachmentBuilder(cardBuffer, { name: 'welcome.png' });
+
+    const welcomeChannel = await client.channels.fetch(WELCOME_CHANNEL_ID);
+    await welcomeChannel.send({
+      content: `🎉 Welcome <@${member.id}> to **GoldenHeart SMP**!`,
+      files: [attachment],
+    });
+  } catch (err) {
+    console.error('Could not send welcome card:', err);
+  }
 });
 
 client.on('guildMemberRemove', async member => {
@@ -585,6 +786,66 @@ client.on('messageCreate', async message => {
         console.error('Personal swear auto-mod error:', err);
       }
       return;
+    }
+
+    // ── Auto-mod: Spam / flooding detection ──
+    // Skip if user has mod permission (staff testing, pinned info, etc.)
+    if (!hasModPermission(message.member)) {
+      const onCooldown = spamCooldown.get(message.author.id);
+      if (!onCooldown || Date.now() - onCooldown > 15000) {
+        const violation = checkSpam(message);
+
+        if (violation) {
+          spamCooldown.set(message.author.id, Date.now());
+
+          try {
+            await message.delete().catch(() => {});
+
+            // Clear this user's recent history so the same burst doesn't re-trigger
+            messageHistory.set(message.author.id, []);
+
+            await message.member.timeout(
+              SPAM_SETTINGS.timeoutMinutes * 60 * 1000,
+              `AutoMod: Spam detected (${violation.type})`
+            );
+
+            const labelMap = {
+              link_spam:      'Link Spam',
+              rapid_flood:    'Message Flooding',
+              duplicate_spam: 'Duplicate Message Spam',
+            };
+
+            const warnEmbed = new EmbedBuilder()
+              .setTitle('🚫 Spam Detected — Timeout Applied')
+              .setColor(0xff4444)
+              .setDescription(
+                `<@${message.author.id}>, you have been timed out for **${SPAM_SETTINGS.timeoutMinutes} minutes**.\n\n` +
+                `> **Reason:** ${labelMap[violation.type] || 'Spam'}\n` +
+                `> ${violation.detail}\n\n` +
+                `Please avoid spamming, flooding chat, mass-pinging, or posting excessive links.`
+              )
+              .setFooter({ text: 'GoldenHeart SMP — AutoMod' })
+              .setTimestamp();
+
+            await message.channel.send({ embeds: [warnEmbed] });
+
+            const logEmbed = new EmbedBuilder()
+              .setTitle('🚫 Auto-Mod: Spam — Timeout Applied')
+              .setColor(0xff4444)
+              .addFields(
+                { name: 'User',    value: `<@${message.author.id}> (${message.author.tag})`, inline: true },
+                { name: 'Channel', value: `<#${message.channelId}>`, inline: true },
+                { name: 'Type',    value: labelMap[violation.type] || violation.type, inline: true },
+                { name: 'Detail',  value: violation.detail, inline: false },
+              )
+              .setTimestamp();
+            await sendLog(client, logEmbed);
+          } catch (err) {
+            console.error('Spam auto-mod error:', err);
+          }
+          return;
+        }
+      }
     }
 
     if (msg === 'ip') {
