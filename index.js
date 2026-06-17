@@ -1,6 +1,7 @@
 const express = require('express');
 const {
   Client,
+  ActivityType,
   GatewayIntentBits,
   SlashCommandBuilder,
   REST,
@@ -388,7 +389,17 @@ const client = new Client({
   partials: ['CHANNEL', 'MESSAGE', 'REACTION'],
 });
 
-client.once('ready', () => console.log(`✅ ${client.user.tag} is online`));
+client.once('ready', () => {
+  console.log(`✅ ${client.user.tag} is online`);
+
+  client.user.setPresence({
+    activities: [{
+      name: 'players in GoldenHeart SMP | discord.gg/We5SpWv64T',
+      type: ActivityType.Watching,
+    }],
+    status: 'online',
+  });
+});
 client.on('error', err => console.error('❌ CLIENT ERROR:', err));
 client.on('shardError', err => console.error('❌ SHARD ERROR:', err));
 client.on('shardDisconnect', () => console.warn('⚠️ Shard disconnected'));
@@ -640,12 +651,8 @@ client.on('messageReactionAdd', async (reaction, user) => {
       try {
         const dmUser = await user.createDM();
         await dmUser.send(
-          `⚠️ **GoldenHeart SMP — Poll Warning**
-
-` +
-          `You tried to vote more than once on a poll. **Only one vote per person is allowed.**
-
-` +
+          `⚠️ **GoldenHeart SMP — Poll Warning**\n\n` +
+          `You tried to vote more than once on a poll. **Only one vote per person is allowed.**\n\n` +
           `Your extra vote has been removed. Please do not attempt to vote again.`
         );
       } catch { /* user has DMs closed */ }
