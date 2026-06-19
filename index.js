@@ -2516,11 +2516,12 @@ const commands = [
         .addUserOption(o => o.setName('user').setDescription('User to check (default: yourself)').setRequired(false))
     ),
 
+  // ── FIXED: required options (role1, label1) come before non-required options ──
   new SlashCommandBuilder().setName('rolepanel').setDescription('Post a self-role button panel (admin only)')
-    .addStringOption(o => o.setName('title').setDescription('Panel title').setRequired(false))
-    .addStringOption(o => o.setName('description').setDescription('Panel description').setRequired(false))
     .addRoleOption(o => o.setName('role1').setDescription('Role 1').setRequired(true))
     .addStringOption(o => o.setName('label1').setDescription('Button label for role 1').setRequired(true))
+    .addStringOption(o => o.setName('title').setDescription('Panel title').setRequired(false))
+    .addStringOption(o => o.setName('description').setDescription('Panel description').setRequired(false))
     .addRoleOption(o => o.setName('role2').setDescription('Role 2').setRequired(false))
     .addStringOption(o => o.setName('label2').setDescription('Button label for role 2').setRequired(false))
     .addRoleOption(o => o.setName('role3').setDescription('Role 3').setRequired(false))
