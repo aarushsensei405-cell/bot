@@ -3,6 +3,7 @@ const {
   Client,
   ActivityType,
   GatewayIntentBits,
+  Partials,
   SlashCommandBuilder,
   REST,
   Routes,
@@ -21,7 +22,7 @@ const {
 } = require('discord.js');
 const fs   = require('fs');
 const path = require('path');
-const { createCanvas, loadImage, registerFont } = require('canvas');
+const { createCanvas, loadImage } = require('canvas');
 const { AttachmentBuilder } = require('discord.js');
 const https = require('https');
 const http  = require('http');
@@ -155,7 +156,6 @@ const pollVotes       = new Map();
 const messageHistory  = new Map();
 const spamCooldown    = new Map();
 const xpCooldown      = new Map();
-let afkData           = loadAFK();
 
 const STAR_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
 
@@ -536,7 +536,7 @@ function checkSpam(message) {
 }
 
 // ─────────────────────────────────────────
-// WELCOME CARD IMAGE GENERATOR (ENHANCED)
+// WELCOME CARD IMAGE GENERATOR
 // ─────────────────────────────────────────
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -589,7 +589,7 @@ async function generateWelcomeCard(member) {
     [30,150],[80,220],[160,300],[900,180],[960,250],[40,350],[180,380],
   ];
   for (const [sx, sy] of starPositions) {
-    const size = Math.random() * 2 + 0.5;
+    const size = 1.5;
     ctx.beginPath();
     ctx.arc(sx, sy, size, 0, Math.PI * 2);
     ctx.fill();
@@ -614,8 +614,6 @@ async function generateWelcomeCard(member) {
   ctx.strokeStyle = 'rgba(240,180,41,0.35)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
-
-  // Inner card fill
   roundRect(ctx, 20, 20, width - 40, height - 40, 24);
   ctx.fillStyle = 'rgba(255,255,255,0.03)';
   ctx.fill();
@@ -628,7 +626,6 @@ async function generateWelcomeCard(member) {
     if (guildIconURL) {
       const guildIcon = await loadImage(guildIconURL);
       ctx.save();
-      // Glow ring
       ctx.shadowColor = '#f0b429';
       ctx.shadowBlur = 20;
       ctx.beginPath();
@@ -636,12 +633,10 @@ async function generateWelcomeCard(member) {
       ctx.fillStyle = 'rgba(240,180,41,0.2)';
       ctx.fill();
       ctx.restore();
-      // Clip circle
       ctx.save();
       circleClip(ctx, 920, 70, 38);
       ctx.drawImage(guildIcon, 882, 32, 76, 76);
       ctx.restore();
-      // Border ring
       ctx.beginPath();
       ctx.arc(920, 70, 40, 0, Math.PI * 2);
       ctx.strokeStyle = '#f0b429';
@@ -658,7 +653,6 @@ async function generateWelcomeCard(member) {
     const avatarURL = member.user.displayAvatarURL({ extension: 'png', size: 256 });
     const avatarImg = await loadImage(avatarURL);
 
-    // Outer glow ring
     ctx.save();
     ctx.shadowColor = '#f0b429';
     ctx.shadowBlur  = 35;
@@ -672,13 +666,11 @@ async function generateWelcomeCard(member) {
     ctx.fill();
     ctx.restore();
 
-    // Avatar clip
     ctx.save();
     circleClip(ctx, avatarCX, avatarCY, avatarSize / 2);
     ctx.drawImage(avatarImg, avatarCX - avatarSize / 2, avatarCY - avatarSize / 2, avatarSize, avatarSize);
     ctx.restore();
 
-    // Inner border
     ctx.beginPath();
     ctx.arc(avatarCX, avatarCY, avatarSize / 2 + 3, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255,255,255,0.15)';
@@ -695,10 +687,9 @@ async function generateWelcomeCard(member) {
   const textX  = 290;
   const textY0 = 110;
 
-  // "WELCOME TO" label
+  // "WELCOME TO" label — NOTE: letterSpacing is NOT a canvas property; use fillText spacing manually
   ctx.save();
   ctx.font = 'bold 18px sans-serif';
-  ctx.letterSpacing = '6px';
   ctx.fillStyle = 'rgba(240,180,41,0.75)';
   ctx.fillText('✦  W E L C O M E  T O  ✦', textX, textY0);
   ctx.restore();
@@ -925,6 +916,7 @@ process.on('uncaughtException',  err => console.error('❌ UNCAUGHT EXCEPTION:',
 
 // ─────────────────────────────────────────
 // CLIENT
+// FIX: Use Partials enum (not strings) — strings crash the client on startup
 // ─────────────────────────────────────────
 const client = new Client({
   intents: [
@@ -939,7 +931,8 @@ const client = new Client({
     GatewayIntentBits.DirectMessageReactions,
     GatewayIntentBits.GuildPresences,
   ],
-  partials: ['CHANNEL', 'MESSAGE', 'REACTION'],
+  // FIX: Must use the Partials enum, not raw strings
+  partials: [Partials.Channel, Partials.Message, Partials.Reaction],
 });
 
 client.once('ready', () => {
@@ -1030,12 +1023,12 @@ client.on('guildMemberAdd', async member => {
     const cardBuffer     = await generateWelcomeCard(member);
     const cardAttachment = new AttachmentBuilder(cardBuffer, { name: 'welcome-card.png' });
     const files          = [cardAttachment];
-    if (fs.existsSync(WELCOME_BANNER_FILE)) {
+    const bannerExists   = fs.existsSync(WELCOME_BANNER_FILE);
+    if (bannerExists) {
       files.unshift(new AttachmentBuilder(WELCOME_BANNER_FILE, { name: 'goldenheart-banner.png' }));
     }
     const welcomeChannel = await client.channels.fetch(WELCOME_CHANNEL_ID);
 
-    // Main stunning embed
     const welcomeEmbed = new EmbedBuilder()
       .setColor(0xf0b429)
       .setAuthor({
@@ -1075,7 +1068,6 @@ client.on('guildMemberAdd', async member => {
       })
       .setTimestamp();
 
-    // Verify button row
     const verifyRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('verify')
@@ -1255,6 +1247,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
   if (reaction.partial) { try { await reaction.fetch(); } catch { return; } }
   if (reaction.message.partial) { try { await reaction.message.fetch(); } catch { return; } }
 
+  // ── Starboard ──
   if (reaction.emoji.name === '⭐' && reaction.message.guild?.id === GUILD_ID) {
     const starCount    = reaction.count;
     if (starCount < STARBOARD_THRESHOLD) return;
@@ -1289,57 +1282,63 @@ client.on('messageReactionAdd', async (reaction, user) => {
     return;
   }
 
+  // ── Poll vote enforcement (guild messages only) ──
+  // FIX: was checking reaction.message.guild twice in wrong context; now correctly scoped
   if (reaction.message.guild) {
     const msgId = reaction.message.id;
-    if (!pollVotes.has(msgId)) return;
-    const voteMap    = pollVotes.get(msgId);
-    const pollEmojis = ['🇦', '🇧', '🇨', '🇩'];
-    if (!pollEmojis.includes(reaction.emoji.name)) return;
-    if (voteMap.has(user.id)) {
-      try { await reaction.users.remove(user.id); } catch { /* permissions */ }
-      try {
-        const dmUser = await user.createDM();
-        await dmUser.send(`⚠️ **GoldenHeart SMP — Poll Warning**\n\nYou tried to vote more than once on a poll. **Only one vote per person is allowed.**\n\nYour extra vote has been removed.`);
-      } catch { /* DMs closed */ }
-    } else {
-      voteMap.set(user.id, reaction.emoji.name);
-      pollVotes.set(msgId, voteMap);
+    if (pollVotes.has(msgId)) {
+      const voteMap    = pollVotes.get(msgId);
+      const pollEmojis = ['🇦', '🇧', '🇨', '🇩'];
+      if (pollEmojis.includes(reaction.emoji.name)) {
+        if (voteMap.has(user.id)) {
+          try { await reaction.users.remove(user.id); } catch { /* permissions */ }
+          try {
+            const dmUser = await user.createDM();
+            await dmUser.send(`⚠️ **GoldenHeart SMP — Poll Warning**\n\nYou tried to vote more than once on a poll. **Only one vote per person is allowed.**\n\nYour extra vote has been removed.`);
+          } catch { /* DMs closed */ }
+        } else {
+          voteMap.set(user.id, reaction.emoji.name);
+          pollVotes.set(msgId, voteMap);
+        }
+        return;
+      }
     }
-    return;
   }
 
-  if (reaction.message.guild) return;
-  const session = pendingFeedback.get(user.id);
-  if (!session) return;
-  if (reaction.message.id !== session.messageId) return;
-  const emojiIndex = STAR_EMOJIS.indexOf(reaction.emoji.name);
-  if (emojiIndex === -1) return;
+  // ── DM feedback reactions ──
+  if (!reaction.message.guild) {
+    const session = pendingFeedback.get(user.id);
+    if (!session) return;
+    if (reaction.message.id !== session.messageId) return;
+    const emojiIndex = STAR_EMOJIS.indexOf(reaction.emoji.name);
+    if (emojiIndex === -1) return;
 
-  if (session.stage === 'pick_staff') {
-    const staffList = session.staffList;
-    if (emojiIndex >= staffList.length) return;
-    const [staffKey, staffInfo] = staffList[emojiIndex];
-    const ratingEmbed = new EmbedBuilder()
-      .setTitle(`⭐ Rate ${staffInfo.label}`).setColor(0xf0b429)
-      .setDescription(`You selected **${staffInfo.label}** (${staffInfo.type}).\n\nReact with a number to give your rating:\n\n1️⃣ ⭐ — Poor\n2️⃣ ⭐⭐ — Fair\n3️⃣ ⭐⭐⭐ — Good\n4️⃣ ⭐⭐⭐⭐ — Great\n5️⃣ ⭐⭐⭐⭐⭐ — Excellent`)
-      .setFooter({ text: 'React with 1️⃣ through 5️⃣ to rate.' }).setTimestamp();
-    try {
-      const dm      = reaction.message.channel;
-      const rateMsg = await dm.send({ embeds: [ratingEmbed] });
-      for (const emoji of STAR_EMOJIS) await rateMsg.react(emoji);
-      pendingFeedback.set(user.id, { stage: 'pick_rating', staffKey, messageId: rateMsg.id });
-    } catch (err) { console.error('Could not send rating message:', err); }
-    return;
-  }
+    if (session.stage === 'pick_staff') {
+      const staffList = session.staffList;
+      if (emojiIndex >= staffList.length) return;
+      const [staffKey, staffInfo] = staffList[emojiIndex];
+      const ratingEmbed = new EmbedBuilder()
+        .setTitle(`⭐ Rate ${staffInfo.label}`).setColor(0xf0b429)
+        .setDescription(`You selected **${staffInfo.label}** (${staffInfo.type}).\n\nReact with a number to give your rating:\n\n1️⃣ ⭐ — Poor\n2️⃣ ⭐⭐ — Fair\n3️⃣ ⭐⭐⭐ — Good\n4️⃣ ⭐⭐⭐⭐ — Great\n5️⃣ ⭐⭐⭐⭐⭐ — Excellent`)
+        .setFooter({ text: 'React with 1️⃣ through 5️⃣ to rate.' }).setTimestamp();
+      try {
+        const dm      = reaction.message.channel;
+        const rateMsg = await dm.send({ embeds: [ratingEmbed] });
+        for (const emoji of STAR_EMOJIS) await rateMsg.react(emoji);
+        pendingFeedback.set(user.id, { stage: 'pick_rating', staffKey, messageId: rateMsg.id });
+      } catch (err) { console.error('Could not send rating message:', err); }
+      return;
+    }
 
-  if (session.stage === 'pick_rating') {
-    const rating   = emojiIndex + 1;
-    const staffKey = session.staffKey;
-    pendingFeedback.set(user.id, { stage: 'await_comment', staffKey, rating, awaitingComment: true, messageId: session.messageId });
-    try {
-      const dm = reaction.message.channel;
-      await dm.send(`${starsDisplay(rating)} Got it — **${rating}/5** for **${STAFF_MEMBERS[staffKey].label}**!\n\n💬 **Optional:** Type a comment about them, or type \`skip\` to submit now.`);
-    } catch (err) { console.error('Could not send comment prompt:', err); }
+    if (session.stage === 'pick_rating') {
+      const rating   = emojiIndex + 1;
+      const staffKey = session.staffKey;
+      pendingFeedback.set(user.id, { stage: 'await_comment', staffKey, rating, awaitingComment: true, messageId: session.messageId });
+      try {
+        const dm = reaction.message.channel;
+        await dm.send(`${starsDisplay(rating)} Got it — **${rating}/5** for **${STAFF_MEMBERS[staffKey].label}**!\n\n💬 **Optional:** Type a comment about them, or type \`skip\` to submit now.`);
+      } catch (err) { console.error('Could not send comment prompt:', err); }
+    }
   }
 });
 
@@ -1355,8 +1354,8 @@ client.on('messageCreate', async message => {
 
     // ── AFK ping detection ──
     if (message.mentions.users.size > 0) {
-      const afkData = loadAFK();
-      for (const [uid, data] of Object.entries(afkData)) {
+      const afkCache = loadAFK();
+      for (const [uid, data] of Object.entries(afkCache)) {
         if (message.mentions.users.has(uid)) {
           const sinceMs = Date.now() - data.since;
           const since   = humanDuration(sinceMs);
@@ -1579,44 +1578,36 @@ client.on('messageCreate', async message => {
 });
 
 // ─────────────────────────────────────────
-// TICKET TYPES (ENHANCED)
+// TICKET TYPES
 // ─────────────────────────────────────────
 const TICKET_TYPES = {
   support: {
     label: 'General Support',
     emoji: '🎟️',
     color: 0xf0b429,
-    bannerColor: '#f0b429',
     prefix: 'support',
     intro: 'Describe your issue in detail and a staff member will assist you shortly.',
-    description: 'Questions, help, and general server support',
   },
   report: {
     label: 'Player Report',
     emoji: '🚨',
     color: 0xed4245,
-    bannerColor: '#ed4245',
     prefix: 'report',
     intro: 'Please include the player\'s name, what happened, and any screenshots or message links.',
-    description: 'Report a rule-breaking player with evidence',
   },
   appeal: {
     label: 'Ban Appeal',
     emoji: '⚖️',
     color: 0x5865f2,
-    bannerColor: '#5865f2',
     prefix: 'appeal',
     intro: 'Include your username, the punishment you received, and why you believe it should be reviewed.',
-    description: 'Request a punishment or ban review',
   },
   billing: {
     label: 'Store & Rewards',
     emoji: '💎',
     color: 0x57f287,
-    bannerColor: '#57f287',
     prefix: 'store',
     intro: 'Share your purchase details, reward claim, or rank info so staff can look into it.',
-    description: 'Purchase, rank, reward, or claim assistance',
   },
 };
 
@@ -1644,7 +1635,6 @@ async function openTicket(interaction, ticketTypeKey = 'support') {
     tickets[channel.id] = { userId, channelId: channel.id, ticketNumber, type: ticketTypeKey, createdAt: new Date().toISOString(), closed: false };
     saveTickets(tickets);
 
-    // Build close + add user buttons
     const closeRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`ticket_close:${channel.id}`)
@@ -1705,7 +1695,6 @@ client.on('interactionCreate', async interaction => {
   // ════════════════════════════════════════
   if (interaction.isModalSubmit()) {
 
-    // ── Edit Message Modal ──
     if (interaction.customId.startsWith('editmsg_modal:')) {
       const [, channelId, messageId] = interaction.customId.split(':');
       const newContent = interaction.fields.getTextInputValue('new_content');
@@ -1731,7 +1720,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ── Edit Embed Modal ──
     if (interaction.customId.startsWith('editembed_modal:')) {
       const [, channelId, messageId] = interaction.customId.split(':');
       const newTitle       = interaction.fields.getTextInputValue('embed_title');
@@ -1749,7 +1737,7 @@ client.on('interactionCreate', async interaction => {
         const updatedEmbed = EmbedBuilder.from(msg.embeds[0]);
         if (newTitle.trim())       updatedEmbed.setTitle(newTitle.trim());
         if (newDescription.trim()) updatedEmbed.setDescription(newDescription.trim());
-        if (!isNaN(colorInt))      updatedEmbed.setColor(colorInt);
+        if (newColorRaw && !isNaN(colorInt)) updatedEmbed.setColor(colorInt);
         if (newFooter.trim())      updatedEmbed.setFooter({ text: newFooter.trim() });
         await msg.edit({ embeds: [updatedEmbed] });
         await interaction.reply({ content: '✅ Embed edited successfully!', ephemeral: true });
@@ -1758,7 +1746,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ── Edit Rules Modal ──
     if (interaction.customId.startsWith('editrules_modal:')) {
       const [, bookKey, pageIndexStr] = interaction.customId.split(':');
       const pageIndex   = parseInt(pageIndexStr, 10);
@@ -1784,7 +1771,6 @@ client.on('interactionCreate', async interaction => {
   // ════════════════════════════════════════
   if (interaction.isChatInputCommand()) {
 
-    // ─── FEATURES ───
     if (interaction.commandName === 'features') {
       const embed = new EmbedBuilder()
         .setTitle('✨ GoldenHeart SMP — Member Features').setColor(0xf0b429)
@@ -1808,7 +1794,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ embeds: [embed] });
     }
 
-    // ─── RULES ───
     if (interaction.commandName === 'rules') {
       const embed = new EmbedBuilder()
         .setTitle('📜 GoldenHeart SMP — Server Rules').setColor(0xed4245)
@@ -1826,7 +1811,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ embeds: [embed] });
     }
 
-    // ─── RULEBOOKS ───
     if (interaction.commandName === 'rulebook_mc') {
       const book  = RULEBOOK_MC;
       const embed = buildBookEmbed(book.title, book.pages, 0, book.color);
@@ -1849,21 +1833,16 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: '📖 General Rulebook posted!', ephemeral: true });
     }
 
-    // ─── EDITMESSAGE (Owner only) ───
     if (interaction.commandName === 'editmessage') {
       if (!isGuildOwner(interaction))
         return interaction.reply({ content: '❌ Only the server owner can use this command.', ephemeral: true });
-
       const channelId = interaction.options.getString('channel_id');
       const messageId = interaction.options.getString('message_id');
-
-      // Validate the message exists and belongs to the bot
       try {
         const ch  = await client.channels.fetch(channelId);
         const msg = await ch.messages.fetch(messageId);
         if (msg.author.id !== client.user.id)
           return interaction.reply({ content: '❌ I can only edit my own messages.', ephemeral: true });
-
         const modal = new ModalBuilder()
           .setCustomId(`editmsg_modal:${channelId}:${messageId}`)
           .setTitle('✏️ Edit Bot Message');
@@ -1881,14 +1860,11 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ─── EDITEMBED (Owner only) ───
     if (interaction.commandName === 'editembed') {
       if (!isGuildOwner(interaction))
         return interaction.reply({ content: '❌ Only the server owner can use this command.', ephemeral: true });
-
       const channelId = interaction.options.getString('channel_id');
       const messageId = interaction.options.getString('message_id');
-
       try {
         const ch  = await client.channels.fetch(channelId);
         const msg = await ch.messages.fetch(messageId);
@@ -1896,43 +1872,22 @@ client.on('interactionCreate', async interaction => {
           return interaction.reply({ content: '❌ I can only edit my own messages.', ephemeral: true });
         if (!msg.embeds.length)
           return interaction.reply({ content: '❌ That message has no embed.', ephemeral: true });
-
         const existingEmbed = msg.embeds[0];
         const modal = new ModalBuilder()
           .setCustomId(`editembed_modal:${channelId}:${messageId}`)
           .setTitle('✏️ Edit Embed');
-
         const titleInput = new TextInputBuilder()
-          .setCustomId('embed_title')
-          .setLabel('Embed Title (leave blank to keep)')
-          .setStyle(TextInputStyle.Short)
-          .setValue(existingEmbed.title || '')
-          .setRequired(false)
-          .setMaxLength(256);
-
+          .setCustomId('embed_title').setLabel('Embed Title (leave blank to keep)')
+          .setStyle(TextInputStyle.Short).setValue(existingEmbed.title || '').setRequired(false).setMaxLength(256);
         const descInput = new TextInputBuilder()
-          .setCustomId('embed_description')
-          .setLabel('Embed Description (leave blank to keep)')
-          .setStyle(TextInputStyle.Paragraph)
-          .setValue(existingEmbed.description || '')
-          .setRequired(false)
-          .setMaxLength(4000);
-
+          .setCustomId('embed_description').setLabel('Embed Description (leave blank to keep)')
+          .setStyle(TextInputStyle.Paragraph).setValue(existingEmbed.description || '').setRequired(false).setMaxLength(4000);
         const colorInput = new TextInputBuilder()
-          .setCustomId('embed_color')
-          .setLabel('Color (hex e.g. #f0b429, leave blank to keep)')
-          .setStyle(TextInputStyle.Short)
-          .setRequired(false)
-          .setMaxLength(7);
-
+          .setCustomId('embed_color').setLabel('Color (hex e.g. #f0b429, leave blank to keep)')
+          .setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(7);
         const footerInput = new TextInputBuilder()
-          .setCustomId('embed_footer')
-          .setLabel('Footer text (leave blank to keep)')
-          .setStyle(TextInputStyle.Short)
-          .setValue(existingEmbed.footer?.text || '')
-          .setRequired(false)
-          .setMaxLength(200);
-
+          .setCustomId('embed_footer').setLabel('Footer text (leave blank to keep)')
+          .setStyle(TextInputStyle.Short).setValue(existingEmbed.footer?.text || '').setRequired(false).setMaxLength(200);
         modal.addComponents(
           new ActionRowBuilder().addComponents(titleInput),
           new ActionRowBuilder().addComponents(descInput),
@@ -1945,11 +1900,9 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ─── EDITRULES (Owner only) ───
     if (interaction.commandName === 'editrules') {
       if (!isGuildOwner(interaction))
         return interaction.reply({ content: '❌ Only the server owner can use this command.', ephemeral: true });
-
       const bookKey   = interaction.options.getString('book');
       const pageNum   = interaction.options.getInteger('page');
       const book      = RULEBOOKS[bookKey];
@@ -1958,28 +1911,16 @@ client.on('interactionCreate', async interaction => {
       const pageIndex = pageNum - 1;
       if (pageIndex < 0 || pageIndex >= book.pages.length)
         return interaction.reply({ content: `❌ Page ${pageNum} doesn't exist in this rulebook (has ${book.pages.length} pages).`, ephemeral: true });
-
       const page  = book.pages[pageIndex];
       const modal = new ModalBuilder()
         .setCustomId(`editrules_modal:${bookKey}:${pageIndex}`)
         .setTitle(`✏️ Edit ${book.title.slice(0, 30)} — Page ${pageNum}`);
-
       const titleInput = new TextInputBuilder()
-        .setCustomId('page_title')
-        .setLabel('Page Title')
-        .setStyle(TextInputStyle.Short)
-        .setValue(page.title)
-        .setRequired(true)
-        .setMaxLength(256);
-
+        .setCustomId('page_title').setLabel('Page Title')
+        .setStyle(TextInputStyle.Short).setValue(page.title).setRequired(true).setMaxLength(256);
       const contentInput = new TextInputBuilder()
-        .setCustomId('page_content')
-        .setLabel('Page Content (supports markdown)')
-        .setStyle(TextInputStyle.Paragraph)
-        .setValue(page.content)
-        .setRequired(true)
-        .setMaxLength(4000);
-
+        .setCustomId('page_content').setLabel('Page Content (supports markdown)')
+        .setStyle(TextInputStyle.Paragraph).setValue(page.content).setRequired(true).setMaxLength(4000);
       modal.addComponents(
         new ActionRowBuilder().addComponents(titleInput),
         new ActionRowBuilder().addComponents(contentInput),
@@ -1987,7 +1928,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.showModal(modal);
     }
 
-    // ─── APPLY PANEL ───
     if (interaction.commandName === 'applypanel') {
       if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
         return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
@@ -2008,7 +1948,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: '✅ Application panel sent!', ephemeral: true });
     }
 
-    // ─── ANNOUNCE ───
     if (interaction.commandName === 'announce') {
       if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
         return interaction.reply({ content: 'Only admins can use this command.', ephemeral: true });
@@ -2031,7 +1970,6 @@ client.on('interactionCreate', async interaction => {
       });
     }
 
-    // ─── VERIFY PANEL ───
     if (interaction.commandName === 'verifypanel') {
       if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
         return interaction.reply({ content: 'Admins only.', ephemeral: true });
@@ -2042,7 +1980,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: 'Verify panel sent!', ephemeral: true });
     }
 
-    // ─── BAN ───
     if (interaction.commandName === 'ban') {
       if (!hasModPermission(interaction.member))
         return interaction.reply({ content: '❌ No permission.', ephemeral: true });
@@ -2081,7 +2018,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ─── KICK ───
     if (interaction.commandName === 'kick') {
       if (!hasModPermission(interaction.member))
         return interaction.reply({ content: '❌ No permission.', ephemeral: true });
@@ -2108,7 +2044,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ─── PURGE ───
     if (interaction.commandName === 'purge') {
       if (!hasModPermission(interaction.member))
         return interaction.reply({ content: '❌ No permission.', ephemeral: true });
@@ -2132,7 +2067,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ─── LOCK ───
     if (interaction.commandName === 'lock') {
       if (!hasModPermission(interaction.member))
         return interaction.reply({ content: '❌ No permission.', ephemeral: true });
@@ -2154,7 +2088,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ─── UNLOCK ───
     if (interaction.commandName === 'unlock') {
       if (!hasModPermission(interaction.member))
         return interaction.reply({ content: '❌ No permission.', ephemeral: true });
@@ -2175,7 +2108,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ─── SLOWMODE ───
     if (interaction.commandName === 'slowmode') {
       if (!hasModPermission(interaction.member))
         return interaction.reply({ content: '❌ No permission.', ephemeral: true });
@@ -2190,7 +2122,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ─── WARN ───
     if (interaction.commandName === 'warn') {
       if (!hasModPermission(interaction.member))
         return interaction.reply({ content: '❌ You do not have permission to warn members.', ephemeral: true });
@@ -2219,7 +2150,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: `⚠️ **${target.user.tag}** has been warned.\n📋 **Reason:** ${reason}\n🔢 **Total warns:** ${warnCount}/8${punishmentText}` });
     }
 
-    // ─── UNWARN ───
     if (interaction.commandName === 'unwarn') {
       if (!hasModPermission(interaction.member))
         return interaction.reply({ content: '❌ No permission.', ephemeral: true });
@@ -2235,7 +2165,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: `✅ Removed latest warn from **${target.tag}**.\n🔢 **Remaining warns:** ${remaining}` });
     }
 
-    // ─── WARNINGS ───
     if (interaction.commandName === 'warnings') {
       if (!hasModPermission(interaction.member))
         return interaction.reply({ content: '❌ No permission.', ephemeral: true });
@@ -2256,7 +2185,6 @@ client.on('interactionCreate', async interaction => {
       });
     }
 
-    // ─── CLEARWARNS ───
     if (interaction.commandName === 'clearwarns') {
       if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
         return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
@@ -2267,7 +2195,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: `🧹 Cleared all warns for **${target.tag}**.` });
     }
 
-    // ─── SERVER INFO ───
     if (interaction.commandName === 'serverinfo') {
       if (!hasModPermission(interaction.member))
         return interaction.reply({ content: '❌ No permission.', ephemeral: true });
@@ -2307,7 +2234,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.editReply({ embeds: [embed] });
     }
 
-    // ─── FEEDBACK ───
     if (interaction.commandName === 'feedback') {
       await interaction.reply({ content: `📬 Check your **DMs** — I've sent you the staff list to rate!`, ephemeral: true });
       const staffList  = Object.entries(STAFF_MEMBERS);
@@ -2327,7 +2253,6 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
-    // ─── VIEW FEEDBACK ───
     if (interaction.commandName === 'viewfeedback') {
       if (!hasModPermission(interaction.member))
         return interaction.reply({ content: '❌ No permission.', ephemeral: true });
@@ -2364,7 +2289,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ─── STAFF STATS ───
     if (interaction.commandName === 'staffstats') {
       if (!hasModPermission(interaction.member))
         return interaction.reply({ content: '❌ No permission.', ephemeral: true });
@@ -2384,7 +2308,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // ─── SUGGEST ───
     if (interaction.commandName === 'suggest') {
       const text   = interaction.options.getString('suggestion');
       const suggId = 'SUG-' + Date.now().toString(36).toUpperCase();
@@ -2406,7 +2329,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: `✅ Your suggestion (\`${suggId}\`) has been submitted!`, ephemeral: true });
     }
 
-    // ─── VIEW SUGGESTIONS ───
     if (interaction.commandName === 'viewsuggestions') {
       if (!hasModPermission(interaction.member))
         return interaction.reply({ content: '❌ No permission.', ephemeral: true });
@@ -2426,7 +2348,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // ─── UPDATE SUGGESTION ───
     if (interaction.commandName === 'suggestion') {
       if (!hasModPermission(interaction.member))
         return interaction.reply({ content: '❌ No permission.', ephemeral: true });
@@ -2442,7 +2363,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: `${statusEmoji[newStatus] || '🟡'} Suggestion \`${suggId}\` marked as **${newStatus}**.` });
     }
 
-    // ─── POLL ───
     if (interaction.commandName === 'poll') {
       if (!hasModPermission(interaction.member))
         return interaction.reply({ content: '❌ No permission.', ephemeral: true });
@@ -2460,30 +2380,50 @@ client.on('interactionCreate', async interaction => {
       const optC       = interaction.options.getString('option_c');
       const optD       = interaction.options.getString('option_d');
       const rawOptions = [optA, optB, optC, optD].filter(Boolean);
+
+      // FIX: Use native Discord poll API via REST — import Routes from discord.js is correct,
+      // but channelMessages must be called as a function with the channel ID string.
+      // The original code used Routes.channelMessages which IS available in discord.js v14.
+      // The issue was it was wrapped in client.rest.post which may fail silently.
+      // Use a try/catch and always fall back to reaction-based poll.
+      let nativePollSent = false;
       try {
         const answers = rawOptions.map(text => ({ poll_media: { text } }));
-        await client.rest.post(Routes.channelMessages(interaction.channelId), {
-          body: {
-            content: '@everyone 📊 A new poll is live — cast your vote!',
-            poll: { question: { text: question }, answers, duration: durationFinal, allow_multiselect: false },
-          },
-        });
-        return interaction.reply({ content: '✅ Poll posted!', ephemeral: true });
+        await client.rest.post(
+          `/channels/${interaction.channelId}/messages`,
+          {
+            body: {
+              content: '@everyone 📊 A new poll is live — cast your vote!',
+              poll: { question: { text: question }, answers, duration: durationFinal, allow_multiselect: false },
+            },
+          }
+        );
+        nativePollSent = true;
+        await interaction.reply({ content: '✅ Poll posted!', ephemeral: true });
       } catch (err) {
+        console.log('Native poll API unavailable, falling back to reaction poll:', err.message);
+      }
+
+      if (!nativePollSent) {
+        // FIX: Only reply once — defer wasn't called so we can reply directly
         const emojis      = ['🇦', '🇧', '🇨', '🇩'];
         const optionLines = rawOptions.map((o, i) => `${emojis[i]} **${o}**`).join('\n\n');
         const embed = new EmbedBuilder()
           .setTitle(`📊 ${question}`).setColor(0x5865f2).setDescription(optionLines)
           .addFields({ name: '🗳️ How to vote', value: 'React with **one** letter emoji. One vote per person!', inline: false })
           .setFooter({ text: `Poll by ${interaction.user.tag} • Closes in ${durationLabel}` }).setTimestamp();
-        const pollMsg = await interaction.channel.send({ content: '@everyone', embeds: [embed] });
-        for (let i = 0; i < rawOptions.length; i++) await pollMsg.react(emojis[i]);
-        pollVotes.set(pollMsg.id, new Map());
-        return interaction.reply({ content: '✅ Poll posted!', ephemeral: true });
+        try {
+          const pollMsg = await interaction.channel.send({ content: '@everyone', embeds: [embed] });
+          for (let i = 0; i < rawOptions.length; i++) await pollMsg.react(emojis[i]);
+          pollVotes.set(pollMsg.id, new Map());
+          return interaction.reply({ content: '✅ Poll posted!', ephemeral: true });
+        } catch (err2) {
+          console.error('Poll fallback error:', err2);
+          return interaction.reply({ content: '❌ Failed to post poll.', ephemeral: true });
+        }
       }
     }
 
-    // ─── RANK ───
     if (interaction.commandName === 'rank') {
       const target = interaction.options.getUser('user') || interaction.user;
       const xpData = loadXP();
@@ -2511,7 +2451,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ embeds: [embed] });
     }
 
-    // ─── LEADERBOARD ───
     if (interaction.commandName === 'leaderboard') {
       const xpData = loadXP();
       const sorted = Object.entries(xpData)
@@ -2533,7 +2472,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ embeds: [embed] });
     }
 
-    // ─── GIVEAWAY ───
     if (interaction.commandName === 'giveaway') {
       const sub = interaction.options.getSubcommand();
       if (sub === 'start') {
@@ -2572,7 +2510,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ─── MC SERVER STATUS ───
     if (interaction.commandName === 'serverstatus') {
       await interaction.deferReply();
       const status = await getMCServerStatus('goldenheartsmp.minecraftnoob.com', 25565);
@@ -2597,7 +2534,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.editReply({ embeds: [embed] });
     }
 
-    // ─── MC PLAYER LOOKUP ───
     if (interaction.commandName === 'mcplayer') {
       const username = interaction.options.getString('username');
       await interaction.deferReply();
@@ -2624,7 +2560,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ─── AFK ───
     if (interaction.commandName === 'afk') {
       const reason  = interaction.options.getString('reason') || 'AFK';
       const afkData = loadAFK();
@@ -2633,7 +2568,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: `💤 **${interaction.user.username}** is now AFK: *${reason}*` });
     }
 
-    // ─── REMINDME ───
     if (interaction.commandName === 'remindme') {
       const timeStr = interaction.options.getString('time');
       const text    = interaction.options.getString('reminder');
@@ -2650,7 +2584,6 @@ client.on('interactionCreate', async interaction => {
       });
     }
 
-    // ─── BIRTHDAY ───
     if (interaction.commandName === 'birthday') {
       const sub = interaction.options.getSubcommand();
       if (sub === 'set') {
@@ -2678,7 +2611,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ─── EMBED BUILDER ───
     if (interaction.commandName === 'embed') {
       if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
         return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
@@ -2694,7 +2626,10 @@ client.on('interactionCreate', async interaction => {
         .setDescription(description || null)
         .setColor(colorInt);
       if (footer)   embed.setFooter({ text: footer });
-      if (imageUrl) { try { embed.setImage(imageUrl); } catch { /* invalid URL */ } }
+      // FIX: only call setImage if imageUrl is a non-empty string — null crashes discord.js v14
+      if (imageUrl && imageUrl.startsWith('http')) {
+        try { embed.setImage(imageUrl); } catch { /* invalid URL */ }
+      }
       embed.setTimestamp();
       try {
         await channel.send({ embeds: [embed] });
@@ -2704,7 +2639,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ─── ROLE PANEL ───
     if (interaction.commandName === 'rolepanel') {
       if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
         return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
@@ -2788,7 +2722,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.update({ embeds: [embed], components: [row] });
     }
 
-    // ── Verify ──
     if (interaction.customId === 'verify') {
       try {
         await interaction.member.roles.add(VERIFY_ROLE_ID);
@@ -2798,7 +2731,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ── Role toggle ──
     if (interaction.customId.startsWith('role_toggle:')) {
       const roleId = interaction.customId.split(':')[1];
       const member = interaction.member;
@@ -2815,7 +2747,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // ── Ticket claim ──
     if (interaction.customId.startsWith('ticket_claim:')) {
       const channelId = interaction.customId.split(':')[1];
       if (!hasModPermission(interaction.member))
@@ -2835,7 +2766,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: '✅ You have claimed this ticket.', ephemeral: true });
     }
 
-    // ── Ticket close ──
     if (interaction.customId.startsWith('ticket_close:')) {
       const channelId = interaction.customId.split(':')[1];
       const tickets   = loadTickets();
@@ -2876,8 +2806,10 @@ client.on('interactionCreate', async interaction => {
         new ButtonBuilder().setCustomId('_noop_accept').setLabel('✅ Accepted').setStyle(ButtonStyle.Success).setDisabled(true),
         new ButtonBuilder().setCustomId('_noop_reject').setLabel('❌ Reject').setStyle(ButtonStyle.Danger).setDisabled(true),
       );
-      const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setColor(0x3dd68c).setFooter({ text: `✅ Accepted by ${interaction.user.tag}` });
-      await interaction.message.edit({ embeds: [updatedEmbed], components: [disabledRow] });
+      try {
+        const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setColor(0x3dd68c).setFooter({ text: `✅ Accepted by ${interaction.user.tag}` });
+        await interaction.message.edit({ embeds: [updatedEmbed], components: [disabledRow] });
+      } catch (err) { console.error('Could not update app message:', err); }
       try { const member = await interaction.guild.members.fetch(userId); await member.roles.add(APP_ROLES[role]); } catch (err) { console.error('Could not assign role:', err); }
       try { const user = await client.users.fetch(userId); await user.send(`🎉 **Congratulations!**\n\nYour **${APP_NAMES[role]}** application (\`${appId}\`) has been **accepted**!\n\nYou've been given the role. Welcome to the team! 🏆\n\n*Reviewed by: ${interaction.user.tag}*`); } catch { /* DMs closed */ }
       return interaction.editReply({ content: `✅ Application **${appId}** accepted.` });
@@ -2892,8 +2824,10 @@ client.on('interactionCreate', async interaction => {
         new ButtonBuilder().setCustomId('_noop_accept').setLabel('✅ Accept').setStyle(ButtonStyle.Success).setDisabled(true),
         new ButtonBuilder().setCustomId('_noop_rejected').setLabel('❌ Rejected').setStyle(ButtonStyle.Danger).setDisabled(true),
       );
-      const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setColor(0xe05c5c).setFooter({ text: `❌ Rejected by ${interaction.user.tag}` });
-      await interaction.message.edit({ embeds: [updatedEmbed], components: [disabledRow] });
+      try {
+        const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setColor(0xe05c5c).setFooter({ text: `❌ Rejected by ${interaction.user.tag}` });
+        await interaction.message.edit({ embeds: [updatedEmbed], components: [disabledRow] });
+      } catch (err) { console.error('Could not update app message:', err); }
       try { const user = await client.users.fetch(userId); await user.send(`📋 **Application Update**\n\nYour **${APP_NAMES[role]}** application (\`${appId}\`) has been **rejected** at this time.\n\nDon't be discouraged — you're welcome to apply again in the future! 💪\n\n*Reviewed by: ${interaction.user.tag}*`); } catch { /* DMs closed */ }
       return interaction.editReply({ content: `❌ Application **${appId}** rejected.` });
     }
@@ -2901,7 +2835,7 @@ client.on('interactionCreate', async interaction => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// TICKET PANEL COMMAND (ENHANCED — Stylish Dropdown)
+// TICKET PANEL COMMAND
 // ═══════════════════════════════════════════════════════════════
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
@@ -2937,7 +2871,8 @@ client.on('interactionCreate', async interaction => {
       )
   );
 
-  // Main panel embed
+  const bannerExists = fs.existsSync(WELCOME_BANNER_FILE);
+
   const panelEmbed = new EmbedBuilder()
     .setColor(0xf0b429)
     .setTitle('🏰  GoldenHeart SMP — Support Desk')
@@ -2966,12 +2901,17 @@ client.on('interactionCreate', async interaction => {
       { name: '⚡ Fast',       value: 'Staff are notified instantly',            inline: true },
       { name: '📋 Organized',  value: 'Pick a category for faster help',        inline: true },
     )
-    .setImage(fs.existsSync(WELCOME_BANNER_FILE) ? 'attachment://goldenheart-banner.png' : null)
+    // FIX: only set image if banner file exists — setImage(null) throws in discord.js v14
     .setFooter({ text: 'GoldenHeart SMP  •  Support Desk  •  We\'re here to help 💛' })
     .setTimestamp();
 
+  // FIX: conditionally set image only when file exists
+  if (bannerExists) {
+    panelEmbed.setImage('attachment://goldenheart-banner.png');
+  }
+
   const files = [];
-  if (fs.existsSync(WELCOME_BANNER_FILE)) {
+  if (bannerExists) {
     files.push(new AttachmentBuilder(WELCOME_BANNER_FILE, { name: 'goldenheart-banner.png' }));
   }
 
@@ -2992,12 +2932,10 @@ const commands = [
   new SlashCommandBuilder().setName('features').setDescription('See all features available to members'),
   new SlashCommandBuilder().setName('rules').setDescription('View the full server rules and warning system'),
 
-  // ── Rulebooks ──
   new SlashCommandBuilder().setName('rulebook_mc').setDescription('📖 Browse the Minecraft Server Rules (paginated book)'),
   new SlashCommandBuilder().setName('rulebook_chat').setDescription('📖 Browse the Chat Rules (paginated book)'),
   new SlashCommandBuilder().setName('rulebook_general').setDescription('📖 Browse the General Rules, Warning System & Staff Rules (paginated book)'),
 
-  // ── Owner-only edit commands ──
   new SlashCommandBuilder().setName('editmessage').setDescription('✏️ Edit a bot message (Owner only)')
     .addStringOption(o => o.setName('channel_id').setDescription('Channel ID where the message is').setRequired(true))
     .addStringOption(o => o.setName('message_id').setDescription('Message ID to edit').setRequired(true)),
@@ -3021,7 +2959,6 @@ const commands = [
   new SlashCommandBuilder().setName('announce').setDescription('Send announcement').addStringOption(o => o.setName('title').setDescription('Optional title').setRequired(false)),
   new SlashCommandBuilder().setName('verifypanel').setDescription('Send verification panel'),
 
-  // ── Moderation ──
   new SlashCommandBuilder().setName('ban').setDescription('Ban a member permanently or temporarily')
     .addUserOption(o => o.setName('user').setDescription('Member to ban').setRequired(true))
     .addStringOption(o => o.setName('reason').setDescription('Reason').setRequired(false))
@@ -3060,7 +2997,6 @@ const commands = [
 
   new SlashCommandBuilder().setName('serverinfo').setDescription('Show server stats and warn records'),
 
-  // ── Feedback ──
   new SlashCommandBuilder().setName('feedback').setDescription('Rate a staff member — you\'ll receive a DM with the full staff list!'),
 
   new SlashCommandBuilder().setName('viewfeedback').setDescription('View feedback for staff members (mod only)')
@@ -3068,7 +3004,6 @@ const commands = [
 
   new SlashCommandBuilder().setName('staffstats').setDescription('View full staff performance table (mod only)'),
 
-  // ── Suggestions ──
   new SlashCommandBuilder().setName('suggest').setDescription('Submit a suggestion for the server')
     .addStringOption(o => o.setName('suggestion').setDescription('Your suggestion').setRequired(true)),
 
@@ -3096,7 +3031,6 @@ const commands = [
         )
     ),
 
-  // ── Poll ──
   new SlashCommandBuilder().setName('poll').setDescription('Create a poll (mod only)')
     .addStringOption(o => o.setName('question').setDescription('Poll question').setRequired(true))
     .addStringOption(o => o.setName('option_a').setDescription('Option A').setRequired(true))
@@ -3106,13 +3040,11 @@ const commands = [
     .addIntegerOption(o => o.setName('duration').setDescription('Hours (default: 24)').setRequired(false).setMinValue(0).setMaxValue(168))
     .addIntegerOption(o => o.setName('minutes').setDescription('Extra minutes').setRequired(false).setMinValue(1).setMaxValue(59)),
 
-  // ── Leveling ──
   new SlashCommandBuilder().setName('rank').setDescription('Check your XP rank (or another member\'s)')
     .addUserOption(o => o.setName('user').setDescription('Member to check (default: yourself)').setRequired(false)),
 
   new SlashCommandBuilder().setName('leaderboard').setDescription('View the top 10 most active members by XP'),
 
-  // ── Giveaways ──
   new SlashCommandBuilder().setName('giveaway').setDescription('Giveaway management')
     .addSubcommand(sub =>
       sub.setName('start').setDescription('Start a new giveaway')
@@ -3126,16 +3058,13 @@ const commands = [
         .addStringOption(o => o.setName('message_id').setDescription('The giveaway message ID').setRequired(true))
     ),
 
-  // ── Minecraft ──
   new SlashCommandBuilder().setName('serverstatus').setDescription('Check if the GoldenHeart SMP Minecraft server is online'),
 
   new SlashCommandBuilder().setName('mcplayer').setDescription('Look up a Minecraft player by username')
     .addStringOption(o => o.setName('username').setDescription('Minecraft username').setRequired(true)),
 
-  // ── Tickets ──
   new SlashCommandBuilder().setName('ticketpanel').setDescription('Post the support ticket panel (admin only)'),
 
-  // ── Utility ──
   new SlashCommandBuilder().setName('embed').setDescription('Post a custom embed (admin only)')
     .addStringOption(o => o.setName('title').setDescription('Embed title').setRequired(false))
     .addStringOption(o => o.setName('description').setDescription('Embed description').setRequired(false))
