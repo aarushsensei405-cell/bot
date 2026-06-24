@@ -102,6 +102,7 @@ const AFK_FILE         = path.join(__dirname, 'afk.json');
 const GIVEAWAYS_FILE   = path.join(__dirname, 'giveaways.json');
 const REMINDERS_FILE   = path.join(__dirname, 'reminders.json');
 const RULEBOOKS_FILE   = path.join(__dirname, 'rulebooks.json');
+const COINS_FILE       = path.join(__dirname, 'coins.json'); // NEW: Coins data file
 
 const APP_FILES = {
   chatmod: path.join(__dirname, 'applicationforchatmod.json'),
@@ -150,12 +151,17 @@ function saveGiveaways(d)      { writeJSON(GIVEAWAYS_FILE, d); }
 function loadReminders()       { return readJSON(REMINDERS_FILE, []); }
 function saveReminders(d)      { writeJSON(REMINDERS_FILE, d); }
 
+// NEW: Coins functions
+function loadCoins()           { return readJSON(COINS_FILE, {}); }
+function saveCoins(d)          { writeJSON(COINS_FILE, d); }
+
 const activeSessions  = new Map();
 const pendingFeedback = new Map();
 const pollVotes       = new Map();
 const messageHistory  = new Map();
 const spamCooldown    = new Map();
 const xpCooldown      = new Map();
+const coinsCooldown   = new Map(); // NEW: Coins cooldown per user
 
 const STAR_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
 
@@ -412,6 +418,14 @@ function getLevelFromXP(totalXP) {
   while (xpForLevel(level + 1) <= totalXP) level++;
   return level;
 }
+
+// ─────────────────────────────────────────
+// COINS SYSTEM CONFIG
+// ─────────────────────────────────────────
+const COINS_PER_MESSAGE = 0.2; // 5 messages = 1 coin
+const COINS_PER_VC_MINUTE = 1; // 1 coin per minute in VC
+const COINS_PER_INVITE = 50; // 50 coins per invite
+const COINS_COOLDOWN_MS = 10000; // 10 seconds between coins from messages
 
 // ─────────────────────────────────────────
 // APPLICATION QUESTIONS
@@ -909,6 +923,11 @@ async function checkTempBans(client) {
 }
 
 // ─────────────────────────────────────────
+// VOICE CHANNEL TRACKING FOR COINS
+// ─────────────────────────────────────────
+const voiceTracking = new Map(); // userId -> { startTime, channelId }
+
+// ─────────────────────────────────────────
 // GLOBAL ERROR HANDLERS
 // ─────────────────────────────────────────
 process.on('unhandledRejection', err => console.error('❌ UNHANDLED REJECTION:', err));
@@ -1214,10 +1233,15 @@ client.on('guildAuditLogEntryCreate', async (entry, guild) => {
   }
 });
 
+// ─────────────────────────────────────────
+// VOICE STATE TRACKING FOR COINS
+// ─────────────────────────────────────────
 client.on('voiceStateUpdate', async (oldState, newState) => {
   if (oldState.guild.id !== GUILD_ID) return;
   const member = newState.member || oldState.member;
   if (member?.user.bot) return;
+
+  // Voice Join/Logging
   let title, color, fields;
   if (!oldState.channelId && newState.channelId) {
     title = '🔊 Voice Joined'; color = 0x57f287;
@@ -1231,13 +1255,168 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       { name: 'From', value: `<#${oldState.channelId}>`, inline: true },
       { name: 'To',   value: `<#${newState.channelId}>`,  inline: true },
     ];
-  } else return;
-  const embed = new EmbedBuilder()
-    .setTitle(title).setColor(color)
-    .addFields({ name: 'User', value: `<@${member.id}> (${member.user.tag})`, inline: true }, ...fields)
-    .setTimestamp();
-  await sendLog(client, embed);
+  }
+
+  // Track voice time for coins
+  const userId = member.user.id;
+  
+  // User joined a voice channel
+  if (newState.channelId && !oldState.channelId) {
+    // Start tracking
+    voiceTracking.set(userId, {
+      startTime: Date.now(),
+      channelId: newState.channelId
+    });
+    console.log(`Started tracking voice for ${member.user.tag} in #${newState.channel.name}`);
+  }
+  
+  // User left voice channel
+  if (!newState.channelId && oldState.channelId) {
+    const tracking = voiceTracking.get(userId);
+    if (tracking) {
+      const elapsedMs = Date.now() - tracking.startTime;
+      const elapsedMinutes = Math.floor(elapsedMs / 60000);
+      
+      if (elapsedMinutes >= 1) {
+        // Award coins for voice time (1 coin per minute)
+        const coinsToAdd = elapsedMinutes * COINS_PER_VC_MINUTE;
+        const coinsData = loadCoins();
+        if (!coinsData[userId]) {
+          coinsData[userId] = { 
+            username: member.user.tag, 
+            coins: 0, 
+            messages: 0,
+            voiceMinutes: 0,
+            invites: 0
+          };
+        }
+        coinsData[userId].username = member.user.tag;
+        coinsData[userId].coins += coinsToAdd;
+        coinsData[userId].voiceMinutes += elapsedMinutes;
+        saveCoins(coinsData);
+        
+        console.log(`Awarded ${coinsToAdd} coins to ${member.user.tag} for ${elapsedMinutes} minutes in voice chat`);
+      }
+      voiceTracking.delete(userId);
+    }
+  }
+  
+  // Log voice state changes (after coin tracking)
+  if (title) {
+    const embed = new EmbedBuilder()
+      .setTitle(title).setColor(color)
+      .addFields({ name: 'User', value: `<@${member.id}> (${member.user.tag})`, inline: true }, ...fields)
+      .setTimestamp();
+    await sendLog(client, embed);
+  }
 });
+
+// ─────────────────────────────────────────
+// INVITE TRACKING FOR COINS
+// ─────────────────────────────────────────
+client.on('inviteCreate', async (invite) => {
+  // We'll track invites when users join via the guildMemberAdd event
+  // Store invite codes and their creators
+  const inviteData = loadCoins();
+  if (!inviteData['invite_codes']) {
+    inviteData['invite_codes'] = {};
+  }
+  inviteData['invite_codes'][invite.code] = {
+    inviterId: invite.inviter.id,
+    uses: invite.uses || 0,
+    maxUses: invite.maxUses,
+    createdAt: invite.createdTimestamp
+  };
+  saveCoins(inviteData);
+});
+
+// Track invite usage on member join
+client.on('guildMemberAdd', async (member) => {
+  if (member.guild.id !== GUILD_ID) return;
+  
+  try {
+    // Fetch invites to determine which one was used
+    const invites = await member.guild.invites.fetch();
+    const inviteData = loadCoins();
+    const cachedInvites = inviteData['invite_codes'] || {};
+    
+    // Find the invite that was used (compare current uses with cached uses)
+    for (const [code, invite] of invites) {
+      const cached = cachedInvites[code];
+      if (cached && invite.uses > cached.uses) {
+        // This invite was used!
+        const inviterId = invite.inviter.id;
+        
+        // Award coins to the inviter
+        const coinsData = loadCoins();
+        if (!coinsData[inviterId]) {
+          coinsData[inviterId] = { 
+            username: invite.inviter.tag, 
+            coins: 0, 
+            messages: 0,
+            voiceMinutes: 0,
+            invites: 0
+          };
+        }
+        coinsData[inviterId].username = invite.inviter.tag;
+        coinsData[inviterId].coins += COINS_PER_INVITE;
+        coinsData[inviterId].invites += 1;
+        saveCoins(coinsData);
+        
+        // Update cached invite count
+        inviteData['invite_codes'][code].uses = invite.uses;
+        saveCoins(inviteData);
+        
+        console.log(`Awarded ${COINS_PER_INVITE} coins to ${invite.inviter.tag} for inviting ${member.user.tag}`);
+        
+        // Notify the inviter
+        try {
+          const inviter = await client.users.fetch(inviterId);
+          await inviter.send(`🎉 **You earned ${COINS_PER_INVITE} coins!**\n\n${member.user.tag} joined using your invite link! 🏆`);
+        } catch (err) {
+          console.log(`Could not DM inviter ${inviterId}`);
+        }
+        break;
+      }
+    }
+  } catch (err) {
+    console.error('Error tracking invite:', err);
+  }
+});
+
+// ─────────────────────────────────────────
+// COINS HELPERS
+// ─────────────────────────────────────────
+function addCoins(userId, username, amount) {
+  const coinsData = loadCoins();
+  if (!coinsData[userId]) {
+    coinsData[userId] = { 
+      username: username || 'Unknown', 
+      coins: 0, 
+      messages: 0,
+      voiceMinutes: 0,
+      invites: 0
+    };
+  }
+  coinsData[userId].username = username || coinsData[userId].username;
+  coinsData[userId].coins += amount;
+  saveCoins(coinsData);
+  return coinsData[userId].coins;
+}
+
+function getCoins(userId) {
+  const coinsData = loadCoins();
+  return coinsData[userId] || null;
+}
+
+function getCoinsLeaderboard(limit = 10) {
+  const coinsData = loadCoins();
+  const filtered = Object.entries(coinsData)
+    .filter(([key]) => key !== 'invite_codes')
+    .filter(([, data]) => data.coins > 0 || data.messages > 0 || data.voiceMinutes > 0)
+    .sort((a, b) => b[1].coins - a[1].coins);
+  return filtered.slice(0, limit);
+}
 
 // ═══════════════════════════════════════════════════════════════
 // STARBOARD
@@ -1397,6 +1576,34 @@ client.on('messageCreate', async message => {
         }
       }
       saveXP(xpData);
+    }
+
+    // ── COINS GAIN (5 messages = 1 coin) ──
+    const coinsNow = Date.now();
+    const lastCoins = coinsCooldown.get(message.author.id) || 0;
+    if (coinsNow - lastCoins >= COINS_COOLDOWN_MS) {
+      coinsCooldown.set(message.author.id, coinsNow);
+      const coinsData = loadCoins();
+      const userId = message.author.id;
+      if (!coinsData[userId]) {
+        coinsData[userId] = { 
+          username: message.author.tag, 
+          coins: 0, 
+          messages: 0,
+          voiceMinutes: 0,
+          invites: 0
+        };
+      }
+      coinsData[userId].username = message.author.tag;
+      coinsData[userId].messages += 1;
+      
+      // Award coins based on message count (5 messages = 1 coin)
+      const earnedCoins = Math.floor(coinsData[userId].messages / 5) - Math.floor((coinsData[userId].messages - 1) / 5);
+      if (earnedCoins > 0) {
+        coinsData[userId].coins += earnedCoins;
+      }
+      
+      saveCoins(coinsData);
     }
 
     // ── Cultural / country jokes ──
@@ -1782,6 +1989,7 @@ client.on('interactionCreate', async interaction => {
           { name: '💡 Suggestions',          value: 'Use `/suggest` to submit server ideas. They appear in the suggestions channel with **👍 / 👎** voting.', inline: false },
           { name: '🌍 Minecraft Server',     value: 'Type `ip` in any channel to get the MC server IP.\n> `goldenheartsmp.minecraftnoob.com:25565`', inline: false },
           { name: '📊 Leveling & XP',        value: 'Earn XP by chatting! Use `/rank` to see your level and `/leaderboard` for the top 10.', inline: false },
+          { name: '🪙 Golden Coins',         value: 'Earn **Golden Coins** by chatting (5 messages = 1 coin), joining voice chat (1 coin per minute), and inviting members (50 coins per invite)! Use `/balance`, `/coinslb`, and `/daily` to check.', inline: false },
           { name: '🎉 Giveaways',            value: 'Watch for giveaway announcements — react with 🎉 to enter!', inline: false },
           { name: '💤 AFK System',           value: 'Use `/afk <reason>` to mark yourself AFK. The bot will notify others who ping you.', inline: false },
           { name: '⏰ Reminders',            value: 'Use `/remindme <time> <text>` to set a personal reminder via DM.', inline: false },
@@ -1791,6 +1999,100 @@ client.on('interactionCreate', async interaction => {
           { name: '🗳️ Polls',                value: 'Staff may create polls in the server — react with the emoji letter to cast your vote!', inline: false },
         )
         .setFooter({ text: 'GoldenHeart SMP — Glad to have you here! 💛' }).setTimestamp();
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    // ── COINS COMMANDS ──
+    if (interaction.commandName === 'balance') {
+      const target = interaction.options.getUser('user') || interaction.user;
+      const coinsData = getCoins(target.id);
+      if (!coinsData || coinsData.coins === 0) {
+        return interaction.reply({ 
+          content: `🪙 **${target.username}** has 0 Golden Coins. Start chatting to earn some! 💰`,
+          ephemeral: true 
+        });
+      }
+      
+      const embed = new EmbedBuilder()
+        .setTitle(`🪙 ${target.username}'s Golden Coins`)
+        .setColor(0xf0b429)
+        .setThumbnail(target.displayAvatarURL())
+        .addFields(
+          { name: '💰 Balance', value: `${coinsData.coins} Golden Coins`, inline: true },
+          { name: '💬 Messages', value: `${coinsData.messages || 0}`, inline: true },
+          { name: '🎤 Voice Minutes', value: `${coinsData.voiceMinutes || 0} min`, inline: true },
+          { name: '📨 Invites', value: `${coinsData.invites || 0}`, inline: true },
+        )
+        .setFooter({ text: `5 messages = 1 coin • 1 min voice = 1 coin • 1 invite = 50 coins` })
+        .setTimestamp();
+      
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    if (interaction.commandName === 'coinslb') {
+      const leaderboard = getCoinsLeaderboard(10);
+      if (leaderboard.length === 0) {
+        return interaction.reply({ content: '🪙 No coins have been earned yet! Be the first to earn some! 💰', ephemeral: true });
+      }
+      
+      const medals = ['🥇', '🥈', '🥉'];
+      const lines = leaderboard.map(([userId, data], index) => {
+        const medal = medals[index] || `\`${index + 1}.\``;
+        return `${medal} <@${userId}> — **${data.coins}** coins (${data.messages || 0} msgs, ${data.voiceMinutes || 0} min VC)`;
+      }).join('\n');
+      
+      const embed = new EmbedBuilder()
+        .setTitle('🪙 Golden Coins Leaderboard — Top 10')
+        .setColor(0xf0b429)
+        .setDescription(lines)
+        .addFields(
+          { name: '📊 How to Earn', value: '💬 5 messages = 1 coin\n🎤 1 min voice = 1 coin\n📨 1 invite = 50 coins' }
+        )
+        .setFooter({ text: 'Keep chatting, VCing, and inviting to earn more coins!' })
+        .setTimestamp();
+      
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    if (interaction.commandName === 'daily') {
+      const userId = interaction.user.id;
+      const coinsData = loadCoins();
+      
+      // Check if user has claimed today
+      const today = new Date().toDateString();
+      if (coinsData[userId] && coinsData[userId].lastDaily === today) {
+        return interaction.reply({ 
+          content: `⏰ You already claimed your daily reward today! Come back tomorrow for another **50 Golden Coins**! 💰`,
+          ephemeral: true 
+        });
+      }
+      
+      if (!coinsData[userId]) {
+        coinsData[userId] = { 
+          username: interaction.user.tag, 
+          coins: 0, 
+          messages: 0,
+          voiceMinutes: 0,
+          invites: 0
+        };
+      }
+      
+      coinsData[userId].username = interaction.user.tag;
+      coinsData[userId].coins += 50;
+      coinsData[userId].lastDaily = today;
+      saveCoins(coinsData);
+      
+      const embed = new EmbedBuilder()
+        .setTitle('🎉 Daily Reward Claimed!')
+        .setColor(0x57f287)
+        .setDescription(`💰 You received **50 Golden Coins**!`)
+        .addFields(
+          { name: '💳 New Balance', value: `${coinsData[userId].coins} coins`, inline: true },
+          { name: '⏰ Next Claim', value: 'Tomorrow!', inline: true },
+        )
+        .setFooter({ text: 'Keep earning coins by chatting, VCing, and inviting!' })
+        .setTimestamp();
+      
       return interaction.reply({ embeds: [embed] });
     }
 
@@ -2214,6 +2516,13 @@ client.on('interactionCreate', async interaction => {
         .slice(0, 10)
         .map(([uid, data], i) => `\`${i + 1}.\` <@${uid}> — **${data.warns.length}** warn(s)`)
         .join('\n') || 'No warns on record.';
+      
+      // Get coins stats
+      const coinsData = loadCoins();
+      const totalCoins = Object.entries(coinsData)
+        .filter(([key]) => key !== 'invite_codes')
+        .reduce((sum, [, data]) => sum + (data.coins || 0), 0);
+      
       const embed = new EmbedBuilder()
         .setTitle(`📊 Server Info — ${guild.name}`).setColor(0x5865f2)
         .setThumbnail(guild.iconURL({ dynamic: true }))
@@ -2227,6 +2536,7 @@ client.on('interactionCreate', async interaction => {
           { name: '\u200b', value: '\u200b', inline: false },
           { name: '⚠️ Total Warns Issued', value: `${totalWarns}`,    inline: true },
           { name: '👤 Warned Users',       value: `${warnedUsers}`,   inline: true },
+          { name: '🪙 Total Coins',        value: `${totalCoins}`,    inline: true },
           { name: '\u200b', value: '\u200b', inline: false },
           { name: '📋 Top Warned Members', value: warnList,           inline: false },
         )
@@ -2438,6 +2748,11 @@ client.on('interactionCreate', async interaction => {
       const bar         = '█'.repeat(progress) + '░'.repeat(20 - progress);
       const sorted = Object.entries(xpData).sort((a, b) => b[1].xp - a[1].xp);
       const rank   = sorted.findIndex(([id]) => id === target.id) + 1;
+      
+      // Get coins data
+      const coinsData = getCoins(target.id);
+      const coins = coinsData ? coinsData.coins : 0;
+      
       const embed = new EmbedBuilder()
         .setTitle(`📊 ${target.username}'s Rank`).setColor(0xf0b429)
         .setThumbnail(target.displayAvatarURL())
@@ -2445,9 +2760,10 @@ client.on('interactionCreate', async interaction => {
           { name: '🏅 Rank',    value: `#${rank}`,    inline: true },
           { name: '⭐ Level',   value: `${level}`,     inline: true },
           { name: '✨ Total XP', value: `${data.xp}`, inline: true },
+          { name: '🪙 Coins',   value: `${coins}`,    inline: true },
           { name: `Progress to Level ${level + 1}`, value: `\`[${bar}]\` ${xpThisLevel}/${xpNeeded} XP`, inline: false },
         )
-        .setFooter({ text: 'Keep chatting to earn more XP!' }).setTimestamp();
+        .setFooter({ text: 'Keep chatting to earn more XP and coins!' }).setTimestamp();
       return interaction.reply({ embeds: [embed] });
     }
 
@@ -2463,12 +2779,15 @@ client.on('interactionCreate', async interaction => {
       const lines  = sorted.map(([uid, data], i) => {
         const level = getLevelFromXP(data.xp);
         const medal = medals[i] || `\`${i + 1}.\``;
-        return `${medal} <@${uid}> — **Level ${level}** (${data.xp} XP)`;
+        // Get coins for this user
+        const coinsData = getCoins(uid);
+        const coins = coinsData ? coinsData.coins : 0;
+        return `${medal} <@${uid}> — **Level ${level}** (${data.xp} XP) • 🪙${coins}`;
       }).join('\n');
       const embed = new EmbedBuilder()
         .setTitle('🏆 XP Leaderboard — Top 10').setColor(0xf0b429)
         .setDescription(lines)
-        .setFooter({ text: 'Earn XP by chatting every minute!' }).setTimestamp();
+        .setFooter({ text: 'Earn XP by chatting every minute! 🪙 Earn coins by chatting, VCing, and inviting!' }).setTimestamp();
       return interaction.reply({ embeds: [embed] });
     }
 
@@ -3044,6 +3363,14 @@ const commands = [
     .addUserOption(o => o.setName('user').setDescription('Member to check (default: yourself)').setRequired(false)),
 
   new SlashCommandBuilder().setName('leaderboard').setDescription('View the top 10 most active members by XP'),
+
+  // ── NEW COINS COMMANDS ──
+  new SlashCommandBuilder().setName('balance').setDescription('Check your Golden Coins balance (or another member\'s)')
+    .addUserOption(o => o.setName('user').setDescription('Member to check (default: yourself)').setRequired(false)),
+
+  new SlashCommandBuilder().setName('coinslb').setDescription('View the top 10 richest members by Golden Coins'),
+
+  new SlashCommandBuilder().setName('daily').setDescription('Claim your daily 50 Golden Coins reward!'),
 
   new SlashCommandBuilder().setName('giveaway').setDescription('Giveaway management')
     .addSubcommand(sub =>
