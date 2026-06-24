@@ -102,7 +102,7 @@ const AFK_FILE         = path.join(__dirname, 'afk.json');
 const GIVEAWAYS_FILE   = path.join(__dirname, 'giveaways.json');
 const REMINDERS_FILE   = path.join(__dirname, 'reminders.json');
 const RULEBOOKS_FILE   = path.join(__dirname, 'rulebooks.json');
-const COINS_FILE       = path.join(__dirname, 'coins.json'); // NEW: Coins data file
+const COINS_FILE       = path.join(__dirname, 'coins.json');
 
 const APP_FILES = {
   chatmod: path.join(__dirname, 'applicationforchatmod.json'),
@@ -150,8 +150,6 @@ function loadGiveaways()       { return readJSON(GIVEAWAYS_FILE, []); }
 function saveGiveaways(d)      { writeJSON(GIVEAWAYS_FILE, d); }
 function loadReminders()       { return readJSON(REMINDERS_FILE, []); }
 function saveReminders(d)      { writeJSON(REMINDERS_FILE, d); }
-
-// NEW: Coins functions
 function loadCoins()           { return readJSON(COINS_FILE, {}); }
 function saveCoins(d)          { writeJSON(COINS_FILE, d); }
 
@@ -161,7 +159,8 @@ const pollVotes       = new Map();
 const messageHistory  = new Map();
 const spamCooldown    = new Map();
 const xpCooldown      = new Map();
-const coinsCooldown   = new Map(); // NEW: Coins cooldown per user
+const coinsCooldown   = new Map();
+const pendingTransfers = new Map(); // For /transfer command
 
 const STAR_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
 
@@ -422,10 +421,10 @@ function getLevelFromXP(totalXP) {
 // ─────────────────────────────────────────
 // COINS SYSTEM CONFIG
 // ─────────────────────────────────────────
-const COINS_PER_MESSAGE = 0.2; // 5 messages = 1 coin
-const COINS_PER_VC_MINUTE = 1; // 1 coin per minute in VC
-const COINS_PER_INVITE = 50; // 50 coins per invite
-const COINS_COOLDOWN_MS = 10000; // 10 seconds between coins from messages
+const COINS_PER_MESSAGE = 0.2;
+const COINS_PER_VC_MINUTE = 1;
+const COINS_PER_INVITE = 50;
+const COINS_COOLDOWN_MS = 10000;
 
 // ─────────────────────────────────────────
 // APPLICATION QUESTIONS
@@ -473,7 +472,7 @@ function hasModPermission(member) {
 function isGuildOwner(interaction) {
   return interaction.guild?.ownerId === interaction.user.id;
 }
-function autoDelete(sentMessage, ms = 10000) {
+function autoDelete(sentMessage, ms = 5000) {
   if (!sentMessage) return;
   setTimeout(() => sentMessage.delete().catch(() => {}), ms);
 }
@@ -574,7 +573,6 @@ async function generateWelcomeCard(member) {
   const canvas = createCanvas(width, height);
   const ctx    = canvas.getContext('2d');
 
-  // Rich dark background with layered gradients
   const bgGradient = ctx.createLinearGradient(0, 0, width, height);
   bgGradient.addColorStop(0, '#0d0d1a');
   bgGradient.addColorStop(0.5, '#1a1230');
@@ -582,7 +580,6 @@ async function generateWelcomeCard(member) {
   ctx.fillStyle = bgGradient;
   ctx.fillRect(0, 0, width, height);
 
-  // Decorative glowing orbs
   const drawOrb = (x, y, r, color, alpha) => {
     const radGrad = ctx.createRadialGradient(x, y, 0, x, y, r);
     radGrad.addColorStop(0, color.replace(')', `, ${alpha})`).replace('rgb', 'rgba'));
@@ -596,7 +593,6 @@ async function generateWelcomeCard(member) {
   drawOrb(100, 360, 150, 'rgb(88,101,242)', 0.10);
   drawOrb(500, 200, 200, 'rgb(87,242,135)', 0.04);
 
-  // Star particles
   ctx.fillStyle = 'rgba(255,255,255,0.6)';
   const starPositions = [
     [50,30],[120,80],[200,25],[350,15],[600,40],[750,20],[850,70],[950,30],
@@ -609,7 +605,6 @@ async function generateWelcomeCard(member) {
     ctx.fill();
   }
 
-  // Top golden accent bar with gradient
   const barGrad = ctx.createLinearGradient(0, 0, width, 0);
   barGrad.addColorStop(0, '#b8860b');
   barGrad.addColorStop(0.3, '#f0b429');
@@ -617,12 +612,8 @@ async function generateWelcomeCard(member) {
   barGrad.addColorStop(1, '#b8860b');
   ctx.fillStyle = barGrad;
   ctx.fillRect(0, 0, width, 6);
-
-  // Bottom accent bar
-  ctx.fillStyle = barGrad;
   ctx.fillRect(0, height - 4, width, 4);
 
-  // Card border glow
   ctx.save();
   roundRect(ctx, 20, 20, width - 40, height - 40, 24);
   ctx.strokeStyle = 'rgba(240,180,41,0.35)';
@@ -633,7 +624,6 @@ async function generateWelcomeCard(member) {
   ctx.fill();
   ctx.restore();
 
-  // === SERVER LOGO (top-right) ===
   try {
     const guild = member.guild;
     const guildIconURL = guild.iconURL({ extension: 'png', size: 128 });
@@ -657,16 +647,14 @@ async function generateWelcomeCard(member) {
       ctx.lineWidth = 2.5;
       ctx.stroke();
     }
-  } catch { /* no guild icon */ }
+  } catch { }
 
-  // === PLAYER AVATAR ===
   const avatarSize = 160;
   const avatarCX   = 160;
   const avatarCY   = height / 2 + 10;
   try {
     const avatarURL = member.user.displayAvatarURL({ extension: 'png', size: 256 });
     const avatarImg = await loadImage(avatarURL);
-
     ctx.save();
     ctx.shadowColor = '#f0b429';
     ctx.shadowBlur  = 35;
@@ -679,12 +667,10 @@ async function generateWelcomeCard(member) {
     ctx.fillStyle = ringGrad;
     ctx.fill();
     ctx.restore();
-
     ctx.save();
     circleClip(ctx, avatarCX, avatarCY, avatarSize / 2);
     ctx.drawImage(avatarImg, avatarCX - avatarSize / 2, avatarCY - avatarSize / 2, avatarSize, avatarSize);
     ctx.restore();
-
     ctx.beginPath();
     ctx.arc(avatarCX, avatarCY, avatarSize / 2 + 3, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255,255,255,0.15)';
@@ -697,18 +683,15 @@ async function generateWelcomeCard(member) {
     ctx.fill();
   }
 
-  // === TEXT SECTION ===
   const textX  = 290;
   const textY0 = 110;
 
-  // "WELCOME TO" label — NOTE: letterSpacing is NOT a canvas property; use fillText spacing manually
   ctx.save();
   ctx.font = 'bold 18px sans-serif';
   ctx.fillStyle = 'rgba(240,180,41,0.75)';
   ctx.fillText('✦  W E L C O M E  T O  ✦', textX, textY0);
   ctx.restore();
 
-  // Server name
   ctx.save();
   const serverNameGrad = ctx.createLinearGradient(textX, 0, textX + 500, 0);
   serverNameGrad.addColorStop(0, '#ffd76e');
@@ -721,7 +704,6 @@ async function generateWelcomeCard(member) {
   ctx.fillText('GoldenHeart SMP', textX, textY0 + 52);
   ctx.restore();
 
-  // Decorative divider
   const divGrad = ctx.createLinearGradient(textX, 0, textX + 580, 0);
   divGrad.addColorStop(0, 'rgba(240,180,41,0.8)');
   divGrad.addColorStop(0.5, 'rgba(255,255,255,0.4)');
@@ -729,7 +711,6 @@ async function generateWelcomeCard(member) {
   ctx.fillStyle = divGrad;
   ctx.fillRect(textX, textY0 + 62, 580, 2);
 
-  // Username
   let displayName = member.user.username;
   if (displayName.length > 20) displayName = displayName.slice(0, 18) + '…';
   ctx.font = 'bold 34px sans-serif';
@@ -739,7 +720,6 @@ async function generateWelcomeCard(member) {
   ctx.fillText(displayName, textX, textY0 + 108);
   ctx.shadowBlur = 0;
 
-  // Member count pill
   const pillText = `✦  Member #${member.guild.memberCount}  ✦`;
   ctx.font = '16px sans-serif';
   const pillW = ctx.measureText(pillText).width + 30;
@@ -753,7 +733,6 @@ async function generateWelcomeCard(member) {
   ctx.fillStyle = '#f0b429';
   ctx.fillText(pillText, textX + 15, textY0 + 145);
 
-  // Verify CTA
   ctx.save();
   const ctaW = 400;
   roundRect(ctx, textX, textY0 + 170, ctaW, 46, 12);
@@ -771,7 +750,6 @@ async function generateWelcomeCard(member) {
   ctx.fillText('🔐  Verify in #verification to get access!', textX + 14, textY0 + 200);
   ctx.restore();
 
-  // Footer
   ctx.fillStyle = 'rgba(255,255,255,0.25)';
   ctx.font = '13px sans-serif';
   ctx.fillText(`discord.gg/We5SpWv64T  •  goldenheartsmp.minecraftnoob.com:25565`, textX, height - 38);
@@ -885,7 +863,7 @@ async function checkReminders(client) {
       try {
         const user = await client.users.fetch(reminder.userId);
         await user.send(`⏰ **Reminder!**\n\n${reminder.text}`);
-      } catch { /* user blocked DMs */ }
+      } catch { }
     } else {
       remaining.push(reminder);
     }
@@ -914,7 +892,7 @@ async function checkTempBans(client) {
             ).setTimestamp();
           await sendLog(client, logEmbed);
         }
-      } catch { /* already unbanned or left */ }
+      } catch { }
     } else {
       remaining.push(ban);
     }
@@ -925,7 +903,7 @@ async function checkTempBans(client) {
 // ─────────────────────────────────────────
 // VOICE CHANNEL TRACKING FOR COINS
 // ─────────────────────────────────────────
-const voiceTracking = new Map(); // userId -> { startTime, channelId }
+const voiceTracking = new Map();
 
 // ─────────────────────────────────────────
 // GLOBAL ERROR HANDLERS
@@ -935,7 +913,6 @@ process.on('uncaughtException',  err => console.error('❌ UNCAUGHT EXCEPTION:',
 
 // ─────────────────────────────────────────
 // CLIENT
-// FIX: Use Partials enum (not strings) — strings crash the client on startup
 // ─────────────────────────────────────────
 const client = new Client({
   intents: [
@@ -950,7 +927,6 @@ const client = new Client({
     GatewayIntentBits.DirectMessageReactions,
     GatewayIntentBits.GuildPresences,
   ],
-  // FIX: Must use the Partials enum, not raw strings
   partials: [Partials.Channel, Partials.Message, Partials.Reaction],
 });
 
@@ -1014,7 +990,7 @@ client.on('guildMemberAdd', async member => {
     try {
       const logCh = await client.channels.fetch(STAFF_LOG_CHANNEL);
       await logCh.send(`🚨 <@&${MOD_ROLE_IDS[0]}> **RAID ALERT** — server has been auto-locked!`);
-    } catch { /* ignore */ }
+    } catch { }
     setTimeout(async () => {
       raidLockActive = false;
       try {
@@ -1024,7 +1000,7 @@ client.on('guildMemberAdd', async member => {
         }
         const logCh = await client.channels.fetch(STAFF_LOG_CHANNEL);
         await logCh.send('✅ Raid lock auto-removed after 5 minutes. Monitor the server.');
-      } catch { /* ignore */ }
+      } catch { }
     }, 300000);
   }
   const embed = new EmbedBuilder()
@@ -1037,7 +1013,6 @@ client.on('guildMemberAdd', async member => {
     .setFooter({ text: `ID: ${member.id}` }).setTimestamp();
   await sendLog(client, embed);
 
-  // ── ENHANCED WELCOME MESSAGE ──
   try {
     const cardBuffer     = await generateWelcomeCard(member);
     const cardAttachment = new AttachmentBuilder(cardBuffer, { name: 'welcome-card.png' });
@@ -1241,7 +1216,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   const member = newState.member || oldState.member;
   if (member?.user.bot) return;
 
-  // Voice Join/Logging
   let title, color, fields;
   if (!oldState.channelId && newState.channelId) {
     title = '🔊 Voice Joined'; color = 0x57f287;
@@ -1257,20 +1231,16 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     ];
   }
 
-  // Track voice time for coins
   const userId = member.user.id;
   
-  // User joined a voice channel
   if (newState.channelId && !oldState.channelId) {
-    // Start tracking
     voiceTracking.set(userId, {
       startTime: Date.now(),
       channelId: newState.channelId
     });
-    console.log(`Started tracking voice for ${member.user.tag} in #${newState.channel.name}`);
+    console.log(`Started tracking voice for ${member.user.tag}`);
   }
   
-  // User left voice channel
   if (!newState.channelId && oldState.channelId) {
     const tracking = voiceTracking.get(userId);
     if (tracking) {
@@ -1278,7 +1248,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       const elapsedMinutes = Math.floor(elapsedMs / 60000);
       
       if (elapsedMinutes >= 1) {
-        // Award coins for voice time (1 coin per minute)
         const coinsToAdd = elapsedMinutes * COINS_PER_VC_MINUTE;
         const coinsData = loadCoins();
         if (!coinsData[userId]) {
@@ -1294,14 +1263,12 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         coinsData[userId].coins += coinsToAdd;
         coinsData[userId].voiceMinutes += elapsedMinutes;
         saveCoins(coinsData);
-        
         console.log(`Awarded ${coinsToAdd} coins to ${member.user.tag} for ${elapsedMinutes} minutes in voice chat`);
       }
       voiceTracking.delete(userId);
     }
   }
   
-  // Log voice state changes (after coin tracking)
   if (title) {
     const embed = new EmbedBuilder()
       .setTitle(title).setColor(color)
@@ -1315,8 +1282,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 // INVITE TRACKING FOR COINS
 // ─────────────────────────────────────────
 client.on('inviteCreate', async (invite) => {
-  // We'll track invites when users join via the guildMemberAdd event
-  // Store invite codes and their creators
   const inviteData = loadCoins();
   if (!inviteData['invite_codes']) {
     inviteData['invite_codes'] = {};
@@ -1330,24 +1295,18 @@ client.on('inviteCreate', async (invite) => {
   saveCoins(inviteData);
 });
 
-// Track invite usage on member join
 client.on('guildMemberAdd', async (member) => {
   if (member.guild.id !== GUILD_ID) return;
   
   try {
-    // Fetch invites to determine which one was used
     const invites = await member.guild.invites.fetch();
     const inviteData = loadCoins();
     const cachedInvites = inviteData['invite_codes'] || {};
     
-    // Find the invite that was used (compare current uses with cached uses)
     for (const [code, invite] of invites) {
       const cached = cachedInvites[code];
       if (cached && invite.uses > cached.uses) {
-        // This invite was used!
         const inviterId = invite.inviter.id;
-        
-        // Award coins to the inviter
         const coinsData = loadCoins();
         if (!coinsData[inviterId]) {
           coinsData[inviterId] = { 
@@ -1362,14 +1321,9 @@ client.on('guildMemberAdd', async (member) => {
         coinsData[inviterId].coins += COINS_PER_INVITE;
         coinsData[inviterId].invites += 1;
         saveCoins(coinsData);
-        
-        // Update cached invite count
         inviteData['invite_codes'][code].uses = invite.uses;
         saveCoins(inviteData);
-        
         console.log(`Awarded ${COINS_PER_INVITE} coins to ${invite.inviter.tag} for inviting ${member.user.tag}`);
-        
-        // Notify the inviter
         try {
           const inviter = await client.users.fetch(inviterId);
           await inviter.send(`🎉 **You earned ${COINS_PER_INVITE} coins!**\n\n${member.user.tag} joined using your invite link! 🏆`);
@@ -1426,7 +1380,6 @@ client.on('messageReactionAdd', async (reaction, user) => {
   if (reaction.partial) { try { await reaction.fetch(); } catch { return; } }
   if (reaction.message.partial) { try { await reaction.message.fetch(); } catch { return; } }
 
-  // ── Starboard ──
   if (reaction.emoji.name === '⭐' && reaction.message.guild?.id === GUILD_ID) {
     const starCount    = reaction.count;
     if (starCount < STARBOARD_THRESHOLD) return;
@@ -1439,7 +1392,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
         const updatedEmbed = EmbedBuilder.from(sbMsg.embeds[0])
           .setFooter({ text: `⭐ ${starCount} | #${reaction.message.channel.name}` });
         await sbMsg.edit({ embeds: [updatedEmbed] });
-      } catch { /* starboard message deleted */ }
+      } catch { }
       return;
     }
     const original = reaction.message;
@@ -1461,8 +1414,6 @@ client.on('messageReactionAdd', async (reaction, user) => {
     return;
   }
 
-  // ── Poll vote enforcement (guild messages only) ──
-  // FIX: was checking reaction.message.guild twice in wrong context; now correctly scoped
   if (reaction.message.guild) {
     const msgId = reaction.message.id;
     if (pollVotes.has(msgId)) {
@@ -1470,11 +1421,11 @@ client.on('messageReactionAdd', async (reaction, user) => {
       const pollEmojis = ['🇦', '🇧', '🇨', '🇩'];
       if (pollEmojis.includes(reaction.emoji.name)) {
         if (voteMap.has(user.id)) {
-          try { await reaction.users.remove(user.id); } catch { /* permissions */ }
+          try { await reaction.users.remove(user.id); } catch { }
           try {
             const dmUser = await user.createDM();
             await dmUser.send(`⚠️ **GoldenHeart SMP — Poll Warning**\n\nYou tried to vote more than once on a poll. **Only one vote per person is allowed.**\n\nYour extra vote has been removed.`);
-          } catch { /* DMs closed */ }
+          } catch { }
         } else {
           voteMap.set(user.id, reaction.emoji.name);
           pollVotes.set(msgId, voteMap);
@@ -1484,7 +1435,6 @@ client.on('messageReactionAdd', async (reaction, user) => {
     }
   }
 
-  // ── DM feedback reactions ──
   if (!reaction.message.guild) {
     const session = pendingFeedback.get(user.id);
     if (!session) return;
@@ -1531,7 +1481,6 @@ client.on('messageCreate', async message => {
     const msg     = message.content.toLowerCase();
     const content = message.content;
 
-    // ── AFK ping detection ──
     if (message.mentions.users.size > 0) {
       const afkCache = loadAFK();
       for (const [uid, data] of Object.entries(afkCache)) {
@@ -1543,7 +1492,6 @@ client.on('messageCreate', async message => {
       }
     }
 
-    // ── AFK removal ──
     const afkCache = loadAFK();
     if (afkCache[message.author.id]) {
       delete afkCache[message.author.id];
@@ -1568,8 +1516,9 @@ client.on('messageCreate', async message => {
         xpData[userId].level = newLevel;
         try {
           const lvlChannel = await client.channels.fetch(LEVEL_UP_CHANNEL_ID);
-          await lvlChannel.send(`🎉 <@${userId}> leveled up to **Level ${newLevel}**! Keep it up! 🚀`);
-        } catch { /* channel not found */ }
+          const sent = await lvlChannel.send(`🎉 <@${userId}> leveled up to **Level ${newLevel}**! Keep it up! 🚀`);
+          autoDelete(sent, 5000);
+        } catch { }
         if (LEVEL_ROLES[newLevel]) {
           const member = message.member;
           if (member) await member.roles.add(LEVEL_ROLES[newLevel]).catch(() => {});
@@ -1597,10 +1546,12 @@ client.on('messageCreate', async message => {
       coinsData[userId].username = message.author.tag;
       coinsData[userId].messages += 1;
       
-      // Award coins based on message count (5 messages = 1 coin)
       const earnedCoins = Math.floor(coinsData[userId].messages / 5) - Math.floor((coinsData[userId].messages - 1) / 5);
       if (earnedCoins > 0) {
         coinsData[userId].coins += earnedCoins;
+        // Send notification but auto-delete it
+        const sentMsg = await message.channel.send(`🪙 **${message.author.username}** earned **${earnedCoins}** Golden Coin(s)! Total: ${coinsData[userId].coins} 🪙`);
+        autoDelete(sentMsg, 5000);
       }
       
       saveCoins(coinsData);
@@ -1653,7 +1604,7 @@ client.on('messageCreate', async message => {
         const warnCount   = warns[userId].warns.length;
         const timeoutMins = getTimeoutDuration(warnCount);
         if (timeoutMins) {
-          try { await message.member.timeout(timeoutMins * 60 * 1000, `AutoMod Warn #${warnCount}: Swearing at a person`); } catch { /* bot role too low */ }
+          try { await message.member.timeout(timeoutMins * 60 * 1000, `AutoMod Warn #${warnCount}: Swearing at a person`); } catch { }
         }
         const warnEmbed = new EmbedBuilder()
           .setTitle('⚠️ Warning Issued — Personal Swearing').setColor(0xffa500)
@@ -1785,7 +1736,7 @@ client.on('messageCreate', async message => {
 });
 
 // ─────────────────────────────────────────
-// TICKET TYPES
+// TICKET TYPES (Only General Support & Shop)
 // ─────────────────────────────────────────
 const TICKET_TYPES = {
   support: {
@@ -1795,26 +1746,12 @@ const TICKET_TYPES = {
     prefix: 'support',
     intro: 'Describe your issue in detail and a staff member will assist you shortly.',
   },
-  report: {
-    label: 'Player Report',
-    emoji: '🚨',
-    color: 0xed4245,
-    prefix: 'report',
-    intro: 'Please include the player\'s name, what happened, and any screenshots or message links.',
-  },
-  appeal: {
-    label: 'Ban Appeal',
-    emoji: '⚖️',
-    color: 0x5865f2,
-    prefix: 'appeal',
-    intro: 'Include your username, the punishment you received, and why you believe it should be reviewed.',
-  },
-  billing: {
-    label: 'Store & Rewards',
-    emoji: '💎',
+  shop: {
+    label: 'Shop & Purchases',
+    emoji: '🛍️',
     color: 0x57f287,
-    prefix: 'store',
-    intro: 'Share your purchase details, reward claim, or rank info so staff can look into it.',
+    prefix: 'shop',
+    intro: 'Need help with shop purchases, rewards, or item claims? Share your details here.',
   },
 };
 
@@ -1986,10 +1923,10 @@ client.on('interactionCreate', async interaction => {
           { name: '🔐 Verification',        value: 'Click the **Verify** button in the verification channel to unlock full server access.', inline: false },
           { name: '📋 Staff Applications',  value: 'Use the **Staff Application panel** to apply for Chat Moderator, Helper, or Minecraft Chat Moderator.', inline: false },
           { name: '⭐ Staff Feedback',       value: 'Use `/feedback` to rate any staff member out of 5 stars via DM. All feedback is **anonymous**.', inline: false },
-          { name: '💡 Suggestions',          value: 'Use `/suggest` to submit server ideas. They appear in the suggestions channel with **👍 / 👎** voting.', inline: false },
+          { name: '💡 Suggestions',          value: 'Use `/suggest` to submit server ideas. They appear in the suggestions channel with **Accept/Reject** buttons for staff.', inline: false },
           { name: '🌍 Minecraft Server',     value: 'Type `ip` in any channel to get the MC server IP.\n> `goldenheartsmp.minecraftnoob.com:25565`', inline: false },
           { name: '📊 Leveling & XP',        value: 'Earn XP by chatting! Use `/rank` to see your level and `/leaderboard` for the top 10.', inline: false },
-          { name: '🪙 Golden Coins',         value: 'Earn **Golden Coins** by chatting (5 messages = 1 coin), joining voice chat (1 coin per minute), and inviting members (50 coins per invite)! Use `/balance`, `/coinslb`, and `/daily` to check.', inline: false },
+          { name: '🪙 Golden Coins',         value: 'Earn **Golden Coins** by chatting (5 messages = 1 coin), joining voice chat (1 coin per minute), and inviting members (50 coins per invite)! Use `/balance`, `/coinslb`, `/daily`, and `/transfer` to manage your coins.', inline: false },
           { name: '🎉 Giveaways',            value: 'Watch for giveaway announcements — react with 🎉 to enter!', inline: false },
           { name: '💤 AFK System',           value: 'Use `/afk <reason>` to mark yourself AFK. The bot will notify others who ping you.', inline: false },
           { name: '⏰ Reminders',            value: 'Use `/remindme <time> <text>` to set a personal reminder via DM.', inline: false },
@@ -2058,7 +1995,6 @@ client.on('interactionCreate', async interaction => {
       const userId = interaction.user.id;
       const coinsData = loadCoins();
       
-      // Check if user has claimed today
       const today = new Date().toDateString();
       if (coinsData[userId] && coinsData[userId].lastDaily === today) {
         return interaction.reply({ 
@@ -2091,6 +2027,73 @@ client.on('interactionCreate', async interaction => {
           { name: '⏰ Next Claim', value: 'Tomorrow!', inline: true },
         )
         .setFooter({ text: 'Keep earning coins by chatting, VCing, and inviting!' })
+        .setTimestamp();
+      
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    // ── TRANSFER COMMAND ──
+    if (interaction.commandName === 'transfer') {
+      const target = interaction.options.getUser('user');
+      const amount = interaction.options.getNumber('amount');
+      
+      if (amount <= 0) {
+        return interaction.reply({ content: '❌ Amount must be greater than 0!', ephemeral: true });
+      }
+      
+      if (target.id === interaction.user.id) {
+        return interaction.reply({ content: '❌ You cannot transfer coins to yourself!', ephemeral: true });
+      }
+      
+      const senderCoins = getCoins(interaction.user.id);
+      const senderBalance = senderCoins ? senderCoins.coins : 0;
+      
+      if (senderBalance < amount) {
+        return interaction.reply({ 
+          content: `❌ You don't have enough coins! You have **${senderBalance}** coins but tried to transfer **${amount}**.`,
+          ephemeral: true 
+        });
+      }
+      
+      // Process transfer
+      let coinsData = loadCoins();
+      
+      // Deduct from sender
+      if (!coinsData[interaction.user.id]) {
+        coinsData[interaction.user.id] = { 
+          username: interaction.user.tag, 
+          coins: 0, 
+          messages: 0,
+          voiceMinutes: 0,
+          invites: 0
+        };
+      }
+      coinsData[interaction.user.id].coins -= amount;
+      coinsData[interaction.user.id].username = interaction.user.tag;
+      
+      // Add to receiver
+      if (!coinsData[target.id]) {
+        coinsData[target.id] = { 
+          username: target.tag, 
+          coins: 0, 
+          messages: 0,
+          voiceMinutes: 0,
+          invites: 0
+        };
+      }
+      coinsData[target.id].coins += amount;
+      coinsData[target.id].username = target.tag;
+      
+      saveCoins(coinsData);
+      
+      const embed = new EmbedBuilder()
+        .setTitle('💸 Transfer Complete!')
+        .setColor(0x57f287)
+        .setDescription(`<@${interaction.user.id}> successfully transferred **${amount}** Golden Coins to <@${target.id}>!`)
+        .addFields(
+          { name: '📤 Sender\'s New Balance', value: `${coinsData[interaction.user.id].coins} coins`, inline: true },
+          { name: '📥 Receiver\'s New Balance', value: `${coinsData[target.id].coins} coins`, inline: true },
+        )
         .setTimestamp();
       
       return interaction.reply({ embeds: [embed] });
@@ -2294,7 +2297,7 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: '❌ Cannot ban an admin.', ephemeral: true });
       await interaction.deferReply();
       try {
-        try { await target.send(`🔨 **You have been ${duration ? 'temporarily ' : ''}banned from GoldenHeart SMP.**\n\n**Reason:** ${reason}${duration ? `\n**Duration:** ${duration}` : ''}`); } catch { /* DMs closed */ }
+        try { await target.send(`🔨 **You have been ${duration ? 'temporarily ' : ''}banned from GoldenHeart SMP.**\n\n**Reason:** ${reason}${duration ? `\n**Duration:** ${duration}` : ''}`); } catch { }
         await target.ban({ reason });
         if (duration) {
           const ms = parseDuration(duration);
@@ -2330,7 +2333,7 @@ client.on('interactionCreate', async interaction => {
       if (target.permissions.has(PermissionFlagsBits.Administrator))
         return interaction.reply({ content: '❌ Cannot kick an admin.', ephemeral: true });
       try {
-        try { await target.send(`👢 **You have been kicked from GoldenHeart SMP.**\n\n**Reason:** ${reason}`); } catch { /* DMs closed */ }
+        try { await target.send(`👢 **You have been kicked from GoldenHeart SMP.**\n\n**Reason:** ${reason}`); } catch { }
         await target.kick(reason);
         const logEmbed = new EmbedBuilder()
           .setTitle('👢 Member Kicked').setColor(0xffa500)
@@ -2517,7 +2520,6 @@ client.on('interactionCreate', async interaction => {
         .map(([uid, data], i) => `\`${i + 1}.\` <@${uid}> — **${data.warns.length}** warn(s)`)
         .join('\n') || 'No warns on record.';
       
-      // Get coins stats
       const coinsData = loadCoins();
       const totalCoins = Object.entries(coinsData)
         .filter(([key]) => key !== 'invite_codes')
@@ -2618,25 +2620,41 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
+    // ── SUGGESTIONS WITH ACCEPT/REJECT BUTTONS ──
     if (interaction.commandName === 'suggest') {
       const text   = interaction.options.getString('suggestion');
       const suggId = 'SUG-' + Date.now().toString(36).toUpperCase();
       saveSuggestion({ id: suggId, from: interaction.user.tag, fromId: interaction.user.id, text, timestamp: new Date().toISOString(), status: 'pending' });
+      
       const embed = new EmbedBuilder()
         .setTitle('💡 New Suggestion').setColor(0xf0b429).setDescription(text)
         .addFields(
           { name: '👤 Submitted by',  value: `<@${interaction.user.id}>`, inline: true },
           { name: '🆔 Suggestion ID', value: `\`${suggId}\``,             inline: true },
-          { name: '📌 Status',        value: '🟡 Pending',                inline: true },
+          { name: '📌 Status',        value: '🟡 Pending Review',         inline: true },
         )
-        .setFooter({ text: 'React below to vote!' }).setTimestamp();
+        .setFooter({ text: 'Staff can accept or reject this suggestion using the buttons below.' })
+        .setTimestamp();
+      
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`suggest_accept:${suggId}`)
+          .setLabel('✅ Accept')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(`suggest_reject:${suggId}`)
+          .setLabel('❌ Reject')
+          .setStyle(ButtonStyle.Danger),
+      );
+      
       try {
         const ch  = await client.channels.fetch(SUGGESTIONS_CHANNEL_ID);
-        const msg = await ch.send({ embeds: [embed] });
-        await msg.react('👍');
-        await msg.react('👎');
-      } catch (err) { console.error('Could not post suggestion:', err); }
-      return interaction.reply({ content: `✅ Your suggestion (\`${suggId}\`) has been submitted!`, ephemeral: true });
+        await ch.send({ embeds: [embed], components: [row] });
+        await interaction.reply({ content: `✅ Your suggestion (\`${suggId}\`) has been submitted for review!`, ephemeral: true });
+      } catch (err) { 
+        console.error('Could not post suggestion:', err);
+        return interaction.reply({ content: '❌ Failed to submit suggestion.', ephemeral: true });
+      }
     }
 
     if (interaction.commandName === 'viewsuggestions') {
@@ -2647,30 +2665,15 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: '📋 No suggestions yet.', ephemeral: true });
       const statusFilter = interaction.options.getString('status') || 'all';
       const filtered = statusFilter === 'all' ? suggestions : suggestions.filter(s => s.status === statusFilter);
-      const statusEmoji = { pending: '🟡', accepted: '✅', denied: '❌', 'in-progress': '🔄' };
+      const statusEmoji = { pending: '🟡', accepted: '✅', rejected: '❌' };
       const lines = filtered.slice(-20).reverse().map((s, i) =>
-        `**${i + 1}.** \`${s.id}\` — ${statusEmoji[s.status] || '🟡'} ${s.status || 'pending'}\n> ${s.text.slice(0, 80)}${s.text.length > 80 ? '...' : ''}\n> *by ${s.from}*`
+        `**${i + 1}.** \`${s.id}\` — ${statusEmoji[s.status] || '🟡'} **${s.status || 'pending'}**\n> ${s.text.slice(0, 80)}${s.text.length > 80 ? '...' : ''}\n> *by ${s.from}*`
       ).join('\n\n');
       const embed = new EmbedBuilder()
         .setTitle('💡 Suggestions').setColor(0xf0b429)
         .setDescription(lines || 'No suggestions match this filter.')
         .setFooter({ text: `Showing last 20 | Filter: ${statusFilter}` }).setTimestamp();
       return interaction.reply({ embeds: [embed], ephemeral: true });
-    }
-
-    if (interaction.commandName === 'suggestion') {
-      if (!hasModPermission(interaction.member))
-        return interaction.reply({ content: '❌ No permission.', ephemeral: true });
-      const suggId      = interaction.options.getString('id');
-      const newStatus   = interaction.options.getString('status');
-      const suggestions = loadSuggestions();
-      const idx = suggestions.findIndex(s => s.id === suggId);
-      if (idx === -1)
-        return interaction.reply({ content: `❌ Suggestion \`${suggId}\` not found.`, ephemeral: true });
-      suggestions[idx].status = newStatus;
-      writeJSON(SUGGESTIONS_FILE, suggestions);
-      const statusEmoji = { accepted: '✅', denied: '❌', 'in-progress': '🔄', pending: '🟡' };
-      return interaction.reply({ content: `${statusEmoji[newStatus] || '🟡'} Suggestion \`${suggId}\` marked as **${newStatus}**.` });
     }
 
     if (interaction.commandName === 'poll') {
@@ -2691,11 +2694,6 @@ client.on('interactionCreate', async interaction => {
       const optD       = interaction.options.getString('option_d');
       const rawOptions = [optA, optB, optC, optD].filter(Boolean);
 
-      // FIX: Use native Discord poll API via REST — import Routes from discord.js is correct,
-      // but channelMessages must be called as a function with the channel ID string.
-      // The original code used Routes.channelMessages which IS available in discord.js v14.
-      // The issue was it was wrapped in client.rest.post which may fail silently.
-      // Use a try/catch and always fall back to reaction-based poll.
       let nativePollSent = false;
       try {
         const answers = rawOptions.map(text => ({ poll_media: { text } }));
@@ -2715,7 +2713,6 @@ client.on('interactionCreate', async interaction => {
       }
 
       if (!nativePollSent) {
-        // FIX: Only reply once — defer wasn't called so we can reply directly
         const emojis      = ['🇦', '🇧', '🇨', '🇩'];
         const optionLines = rawOptions.map((o, i) => `${emojis[i]} **${o}**`).join('\n\n');
         const embed = new EmbedBuilder()
@@ -2749,7 +2746,6 @@ client.on('interactionCreate', async interaction => {
       const sorted = Object.entries(xpData).sort((a, b) => b[1].xp - a[1].xp);
       const rank   = sorted.findIndex(([id]) => id === target.id) + 1;
       
-      // Get coins data
       const coinsData = getCoins(target.id);
       const coins = coinsData ? coinsData.coins : 0;
       
@@ -2779,15 +2775,12 @@ client.on('interactionCreate', async interaction => {
       const lines  = sorted.map(([uid, data], i) => {
         const level = getLevelFromXP(data.xp);
         const medal = medals[i] || `\`${i + 1}.\``;
-        // Get coins for this user
-        const coinsData = getCoins(uid);
-        const coins = coinsData ? coinsData.coins : 0;
-        return `${medal} <@${uid}> — **Level ${level}** (${data.xp} XP) • 🪙${coins}`;
+        return `${medal} <@${uid}> — **Level ${level}** (${data.xp} XP)`;
       }).join('\n');
       const embed = new EmbedBuilder()
         .setTitle('🏆 XP Leaderboard — Top 10').setColor(0xf0b429)
         .setDescription(lines)
-        .setFooter({ text: 'Earn XP by chatting every minute! 🪙 Earn coins by chatting, VCing, and inviting!' }).setTimestamp();
+        .setFooter({ text: 'Earn XP by chatting every minute!' }).setTimestamp();
       return interaction.reply({ embeds: [embed] });
     }
 
@@ -2945,9 +2938,8 @@ client.on('interactionCreate', async interaction => {
         .setDescription(description || null)
         .setColor(colorInt);
       if (footer)   embed.setFooter({ text: footer });
-      // FIX: only call setImage if imageUrl is a non-empty string — null crashes discord.js v14
       if (imageUrl && imageUrl.startsWith('http')) {
-        try { embed.setImage(imageUrl); } catch { /* invalid URL */ }
+        try { embed.setImage(imageUrl); } catch { }
       }
       embed.setTimestamp();
       try {
@@ -3041,6 +3033,66 @@ client.on('interactionCreate', async interaction => {
       return interaction.update({ embeds: [embed], components: [row] });
     }
 
+    // ── SUGGESTION ACCEPT/REJECT BUTTONS ──
+    if (interaction.customId.startsWith('suggest_accept:') || interaction.customId.startsWith('suggest_reject:')) {
+      if (!hasModPermission(interaction.member)) {
+        return interaction.reply({ content: '❌ Only staff can accept or reject suggestions.', ephemeral: true });
+      }
+      
+      const [, suggId] = interaction.customId.split(':');
+      const isAccept = interaction.customId.startsWith('suggest_accept:');
+      const newStatus = isAccept ? 'accepted' : 'rejected';
+      const statusEmoji = isAccept ? '✅' : '❌';
+      const statusColor = isAccept ? 0x57f287 : 0xed4245;
+      
+      const suggestions = loadSuggestions();
+      const idx = suggestions.findIndex(s => s.id === suggId);
+      if (idx === -1) {
+        return interaction.reply({ content: `❌ Suggestion \`${suggId}\` not found.`, ephemeral: true });
+      }
+      
+      suggestions[idx].status = newStatus;
+      writeJSON(SUGGESTIONS_FILE, suggestions);
+      
+      // Update the original embed
+      const embed = EmbedBuilder.from(interaction.message.embeds[0]);
+      embed.setColor(statusColor);
+      embed.setDescription(embed.data.description);
+      embed.spliceFields(2, 1, { 
+        name: '📌 Status', 
+        value: `${statusEmoji} **${newStatus.toUpperCase()}** by <@${interaction.user.id}>`, 
+        inline: true 
+      });
+      embed.setFooter({ text: `Processed by ${interaction.user.tag}` });
+      
+      const disabledRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`suggest_accept:${suggId}`)
+          .setLabel('✅ Accept')
+          .setStyle(ButtonStyle.Success)
+          .setDisabled(true),
+        new ButtonBuilder()
+          .setCustomId(`suggest_reject:${suggId}`)
+          .setLabel('❌ Reject')
+          .setStyle(ButtonStyle.Danger)
+          .setDisabled(true),
+      );
+      
+      await interaction.message.edit({ embeds: [embed], components: [disabledRow] });
+      
+      // DM the user about the status change
+      try {
+        const suggestion = suggestions[idx];
+        const user = await client.users.fetch(suggestion.fromId);
+        await user.send(`📋 **Suggestion Update**\n\nYour suggestion **"${suggestion.text.slice(0, 100)}${suggestion.text.length > 100 ? '...' : ''}"** has been **${newStatus.toUpperCase()}** by <@${interaction.user.id}>.\n\n🆔 Suggestion ID: \`${suggId}\``);
+      } catch { }
+      
+      return interaction.reply({ 
+        content: `${statusEmoji} Suggestion \`${suggId}\` has been **${newStatus}**!`, 
+        ephemeral: true 
+      });
+    }
+
     if (interaction.customId === 'verify') {
       try {
         await interaction.member.roles.add(VERIFY_ROLE_ID);
@@ -3130,7 +3182,7 @@ client.on('interactionCreate', async interaction => {
         await interaction.message.edit({ embeds: [updatedEmbed], components: [disabledRow] });
       } catch (err) { console.error('Could not update app message:', err); }
       try { const member = await interaction.guild.members.fetch(userId); await member.roles.add(APP_ROLES[role]); } catch (err) { console.error('Could not assign role:', err); }
-      try { const user = await client.users.fetch(userId); await user.send(`🎉 **Congratulations!**\n\nYour **${APP_NAMES[role]}** application (\`${appId}\`) has been **accepted**!\n\nYou've been given the role. Welcome to the team! 🏆\n\n*Reviewed by: ${interaction.user.tag}*`); } catch { /* DMs closed */ }
+      try { const user = await client.users.fetch(userId); await user.send(`🎉 **Congratulations!**\n\nYour **${APP_NAMES[role]}** application (\`${appId}\`) has been **accepted**!\n\nYou've been given the role. Welcome to the team! 🏆\n\n*Reviewed by: ${interaction.user.tag}*`); } catch { }
       return interaction.editReply({ content: `✅ Application **${appId}** accepted.` });
     }
 
@@ -3147,14 +3199,14 @@ client.on('interactionCreate', async interaction => {
         const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setColor(0xe05c5c).setFooter({ text: `❌ Rejected by ${interaction.user.tag}` });
         await interaction.message.edit({ embeds: [updatedEmbed], components: [disabledRow] });
       } catch (err) { console.error('Could not update app message:', err); }
-      try { const user = await client.users.fetch(userId); await user.send(`📋 **Application Update**\n\nYour **${APP_NAMES[role]}** application (\`${appId}\`) has been **rejected** at this time.\n\nDon't be discouraged — you're welcome to apply again in the future! 💪\n\n*Reviewed by: ${interaction.user.tag}*`); } catch { /* DMs closed */ }
+      try { const user = await client.users.fetch(userId); await user.send(`📋 **Application Update**\n\nYour **${APP_NAMES[role]}** application (\`${appId}\`) has been **rejected** at this time.\n\nDon't be discouraged — you're welcome to apply again in the future! 💪\n\n*Reviewed by: ${interaction.user.tag}*`); } catch { }
       return interaction.editReply({ content: `❌ Application **${appId}** rejected.` });
     }
   }
 });
 
 // ═══════════════════════════════════════════════════════════════
-// TICKET PANEL COMMAND
+// TICKET PANEL COMMAND (Updated with only General Support & Shop)
 // ═══════════════════════════════════════════════════════════════
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
@@ -3173,20 +3225,10 @@ client.on('interactionCreate', async interaction => {
           .setEmoji('🎟️')
           .setValue('support'),
         new StringSelectMenuOptionBuilder()
-          .setLabel('Player Report')
-          .setDescription('Report rule-breaking with evidence — be detailed')
-          .setEmoji('🚨')
-          .setValue('report'),
-        new StringSelectMenuOptionBuilder()
-          .setLabel('Ban Appeal')
-          .setDescription('Request a punishment review from the staff team')
-          .setEmoji('⚖️')
-          .setValue('appeal'),
-        new StringSelectMenuOptionBuilder()
-          .setLabel('Store & Rewards')
-          .setDescription('Purchase, rank, reward, or claim assistance')
-          .setEmoji('💎')
-          .setValue('billing'),
+          .setLabel('Shop & Purchases')
+          .setDescription('Help with shop purchases, rewards, or item claims')
+          .setEmoji('🛍️')
+          .setValue('shop'),
       )
   );
 
@@ -3203,14 +3245,8 @@ client.on('interactionCreate', async interaction => {
       '🎟️  **General Support**',
       '> Questions, help & general server assistance',
       '',
-      '🚨  **Player Report**',
-      '> Report a rule-breaking player with evidence',
-      '',
-      '⚖️  **Ban Appeal**',
-      '> Request a punishment or ban review',
-      '',
-      '💎  **Store & Rewards**',
-      '> Purchase, rank, reward, or claim help',
+      '🛍️  **Shop & Purchases**',
+      '> Help with shop purchases, rewards, or item claims',
       '',
       '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
     ].join('\n'))
@@ -3220,11 +3256,9 @@ client.on('interactionCreate', async interaction => {
       { name: '⚡ Fast',       value: 'Staff are notified instantly',            inline: true },
       { name: '📋 Organized',  value: 'Pick a category for faster help',        inline: true },
     )
-    // FIX: only set image if banner file exists — setImage(null) throws in discord.js v14
     .setFooter({ text: 'GoldenHeart SMP  •  Support Desk  •  We\'re here to help 💛' })
     .setTimestamp();
 
-  // FIX: conditionally set image only when file exists
   if (bannerExists) {
     panelEmbed.setImage('attachment://goldenheart-banner.png');
   }
@@ -3333,20 +3367,7 @@ const commands = [
           { name: 'All',         value: 'all' },
           { name: 'Pending',     value: 'pending' },
           { name: 'Accepted',    value: 'accepted' },
-          { name: 'Denied',      value: 'denied' },
-          { name: 'In Progress', value: 'in-progress' },
-        )
-    ),
-
-  new SlashCommandBuilder().setName('suggestion').setDescription('Update the status of a suggestion (mod only)')
-    .addStringOption(o => o.setName('id').setDescription('Suggestion ID e.g. SUG-ABC123').setRequired(true))
-    .addStringOption(o =>
-      o.setName('status').setDescription('New status').setRequired(true)
-        .addChoices(
-          { name: '✅ Accepted',    value: 'accepted' },
-          { name: '❌ Denied',      value: 'denied' },
-          { name: '🔄 In Progress', value: 'in-progress' },
-          { name: '🟡 Pending',     value: 'pending' },
+          { name: 'Rejected',    value: 'rejected' },
         )
     ),
 
@@ -3364,13 +3385,17 @@ const commands = [
 
   new SlashCommandBuilder().setName('leaderboard').setDescription('View the top 10 most active members by XP'),
 
-  // ── NEW COINS COMMANDS ──
+  // ── COINS COMMANDS ──
   new SlashCommandBuilder().setName('balance').setDescription('Check your Golden Coins balance (or another member\'s)')
     .addUserOption(o => o.setName('user').setDescription('Member to check (default: yourself)').setRequired(false)),
 
   new SlashCommandBuilder().setName('coinslb').setDescription('View the top 10 richest members by Golden Coins'),
 
   new SlashCommandBuilder().setName('daily').setDescription('Claim your daily 50 Golden Coins reward!'),
+
+  new SlashCommandBuilder().setName('transfer').setDescription('Transfer Golden Coins to another member')
+    .addUserOption(o => o.setName('user').setDescription('Member to transfer coins to').setRequired(true))
+    .addNumberOption(o => o.setName('amount').setDescription('Amount of coins to transfer').setRequired(true).setMinValue(1)),
 
   new SlashCommandBuilder().setName('giveaway').setDescription('Giveaway management')
     .addSubcommand(sub =>
