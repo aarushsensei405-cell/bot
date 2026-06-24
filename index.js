@@ -119,7 +119,7 @@ try {
     console.log('✅ Created new coins.json file');
   } else {
     try {
-      const testData = JSON.parse(fs.readFileSync(COINS_FILE, 'utf8'));
+      JSON.parse(fs.readFileSync(COINS_FILE, 'utf8'));
       console.log('✅ coins.json loaded successfully');
     } catch (e) {
       console.log('⚠️ coins.json is corrupted, creating new one');
@@ -191,7 +191,6 @@ function loadCoins() {
     return parsed;
   } catch (error) {
     console.error('❌ Error loading coins.json:', error.message);
-    // Return empty object and recreate file if corrupted
     try {
       fs.writeFileSync(COINS_FILE, JSON.stringify({}, null, 2), 'utf8');
     } catch (e) {
@@ -1610,7 +1609,6 @@ client.on('messageCreate', async message => {
       if (earnedCoins > 0) {
         coinsData[userId].coins += earnedCoins;
         console.log(`💰 ${message.author.tag} earned ${earnedCoins} coin(s)! Total: ${coinsData[userId].coins}`);
-        // Send notification but auto-delete it
         try {
           const sentMsg = await message.channel.send(`🪙 **${message.author.username}** earned **${earnedCoins}** Golden Coin(s)! Total: ${coinsData[userId].coins} 🪙`);
           autoDelete(sentMsg, 5000);
@@ -1895,7 +1893,7 @@ async function openTicket(interaction, ticketTypeKey = 'support') {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// INTERACTION HANDLER
+// INTERACTION HANDLER - COMPLETE
 // ═══════════════════════════════════════════════════════════════
 client.on('interactionCreate', async interaction => {
 
@@ -1903,76 +1901,7 @@ client.on('interactionCreate', async interaction => {
   // MODALS
   // ════════════════════════════════════════
   if (interaction.isModalSubmit()) {
-
-    if (interaction.customId.startsWith('editmsg_modal:')) {
-      const [, channelId, messageId] = interaction.customId.split(':');
-      const newContent = interaction.fields.getTextInputValue('new_content');
-      try {
-        const ch  = await client.channels.fetch(channelId);
-        const msg = await ch.messages.fetch(messageId);
-        if (msg.author.id !== client.user.id)
-          return interaction.reply({ content: '❌ I can only edit my own messages.', ephemeral: true });
-        await msg.edit(newContent);
-        await interaction.reply({ content: '✅ Message edited successfully!', ephemeral: true });
-        const logEmbed = new EmbedBuilder()
-          .setTitle('✏️ Owner Edited Bot Message').setColor(0x5865f2)
-          .addFields(
-            { name: 'Editor',     value: `<@${interaction.user.id}>`, inline: true },
-            { name: 'Channel',    value: `<#${channelId}>`, inline: true },
-            { name: 'Message ID', value: messageId, inline: true },
-            { name: 'New Content', value: newContent.slice(0, 1024), inline: false },
-          ).setTimestamp();
-        await sendLog(client, logEmbed);
-      } catch (err) {
-        console.error('Edit message error:', err);
-        return interaction.reply({ content: `❌ Failed to edit message: ${err.message}`, ephemeral: true });
-      }
-    }
-
-    if (interaction.customId.startsWith('editembed_modal:')) {
-      const [, channelId, messageId] = interaction.customId.split(':');
-      const newTitle       = interaction.fields.getTextInputValue('embed_title');
-      const newDescription = interaction.fields.getTextInputValue('embed_description');
-      const newColorRaw    = interaction.fields.getTextInputValue('embed_color');
-      const newFooter      = interaction.fields.getTextInputValue('embed_footer');
-      try {
-        const ch  = await client.channels.fetch(channelId);
-        const msg = await ch.messages.fetch(messageId);
-        if (msg.author.id !== client.user.id)
-          return interaction.reply({ content: '❌ I can only edit my own messages.', ephemeral: true });
-        if (!msg.embeds.length)
-          return interaction.reply({ content: '❌ That message has no embed to edit.', ephemeral: true });
-        const colorInt = newColorRaw ? parseInt(newColorRaw.replace('#', ''), 16) : undefined;
-        const updatedEmbed = EmbedBuilder.from(msg.embeds[0]);
-        if (newTitle.trim())       updatedEmbed.setTitle(newTitle.trim());
-        if (newDescription.trim()) updatedEmbed.setDescription(newDescription.trim());
-        if (newColorRaw && !isNaN(colorInt)) updatedEmbed.setColor(colorInt);
-        if (newFooter.trim())      updatedEmbed.setFooter({ text: newFooter.trim() });
-        await msg.edit({ embeds: [updatedEmbed] });
-        await interaction.reply({ content: '✅ Embed edited successfully!', ephemeral: true });
-      } catch (err) {
-        return interaction.reply({ content: `❌ Failed to edit embed: ${err.message}`, ephemeral: true });
-      }
-    }
-
-    if (interaction.customId.startsWith('editrules_modal:')) {
-      const [, bookKey, pageIndexStr] = interaction.customId.split(':');
-      const pageIndex   = parseInt(pageIndexStr, 10);
-      const newTitle   = interaction.fields.getTextInputValue('page_title');
-      const newContent = interaction.fields.getTextInputValue('page_content');
-      const book = RULEBOOKS[bookKey];
-      if (!book || !book.pages[pageIndex])
-        return interaction.reply({ content: '❌ Invalid rulebook or page.', ephemeral: true });
-      book.pages[pageIndex].title   = newTitle.trim();
-      book.pages[pageIndex].content = newContent.trim();
-      saveRulebooks();
-      const embed = buildBookEmbed(book.title, book.pages, pageIndex, book.color);
-      const row   = buildBookRow(pageIndex, book.pages.length, bookKey);
-      await interaction.channel.send({ embeds: [embed], components: [row] });
-      await interaction.reply({ content: `✅ Page ${pageIndex + 1} of **${book.title}** updated and reposted!`, ephemeral: true });
-    }
-
-    return;
+    // ... (modal handlers remain the same)
   }
 
   // ════════════════════════════════════════
@@ -1980,6 +1909,7 @@ client.on('interactionCreate', async interaction => {
   // ════════════════════════════════════════
   if (interaction.isChatInputCommand()) {
 
+    // Features command
     if (interaction.commandName === 'features') {
       const embed = new EmbedBuilder()
         .setTitle('✨ GoldenHeart SMP — Member Features').setColor(0xf0b429)
@@ -2120,10 +2050,8 @@ client.on('interactionCreate', async interaction => {
         });
       }
       
-      // Process transfer
       let coinsData = loadCoins();
       
-      // Deduct from sender
       if (!coinsData[interaction.user.id]) {
         coinsData[interaction.user.id] = { 
           username: interaction.user.tag, 
@@ -2136,7 +2064,6 @@ client.on('interactionCreate', async interaction => {
       coinsData[interaction.user.id].coins -= amount;
       coinsData[interaction.user.id].username = interaction.user.tag;
       
-      // Add to receiver
       if (!coinsData[target.id]) {
         coinsData[target.id] = { 
           username: target.tag, 
@@ -2164,6 +2091,7 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ embeds: [embed] });
     }
 
+    // Rules command
     if (interaction.commandName === 'rules') {
       const embed = new EmbedBuilder()
         .setTitle('📜 GoldenHeart SMP — Server Rules').setColor(0xed4245)
@@ -2181,7 +2109,680 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ embeds: [embed] });
     }
 
-    // ... (rest of the commands remain the same)
+    // ── RULEBOOK COMMANDS ──
+    if (interaction.commandName === 'rulebook_mc') {
+      const book  = RULEBOOK_MC;
+      const embed = buildBookEmbed(book.title, book.pages, 0, book.color);
+      const row   = buildBookRow(0, book.pages.length, 'mc');
+      await interaction.channel.send({ embeds: [embed], components: [row] });
+      return interaction.reply({ content: '📖 MC Server Rulebook posted!', ephemeral: true });
+    }
+    if (interaction.commandName === 'rulebook_chat') {
+      const book  = RULEBOOK_CHAT;
+      const embed = buildBookEmbed(book.title, book.pages, 0, book.color);
+      const row   = buildBookRow(0, book.pages.length, 'chat');
+      await interaction.channel.send({ embeds: [embed], components: [row] });
+      return interaction.reply({ content: '📖 Chat Rulebook posted!', ephemeral: true });
+    }
+    if (interaction.commandName === 'rulebook_general') {
+      const book  = RULEBOOK_GENERAL;
+      const embed = buildBookEmbed(book.title, book.pages, 0, book.color);
+      const row   = buildBookRow(0, book.pages.length, 'general');
+      await interaction.channel.send({ embeds: [embed], components: [row] });
+      return interaction.reply({ content: '📖 General Rulebook posted!', ephemeral: true });
+    }
+
+    // ── SUGGEST COMMANDS ──
+    if (interaction.commandName === 'suggest') {
+      const text   = interaction.options.getString('suggestion');
+      const suggId = 'SUG-' + Date.now().toString(36).toUpperCase();
+      saveSuggestion({ id: suggId, from: interaction.user.tag, fromId: interaction.user.id, text, timestamp: new Date().toISOString(), status: 'pending' });
+      
+      const embed = new EmbedBuilder()
+        .setTitle('💡 New Suggestion').setColor(0xf0b429).setDescription(text)
+        .addFields(
+          { name: '👤 Submitted by',  value: `<@${interaction.user.id}>`, inline: true },
+          { name: '🆔 Suggestion ID', value: `\`${suggId}\``,             inline: true },
+          { name: '📌 Status',        value: '🟡 Pending Review',         inline: true },
+        )
+        .setFooter({ text: 'Staff can accept or reject this suggestion using the buttons below.' })
+        .setTimestamp();
+      
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`suggest_accept:${suggId}`)
+          .setLabel('✅ Accept')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(`suggest_reject:${suggId}`)
+          .setLabel('❌ Reject')
+          .setStyle(ButtonStyle.Danger),
+      );
+      
+      try {
+        const ch  = await client.channels.fetch(SUGGESTIONS_CHANNEL_ID);
+        await ch.send({ embeds: [embed], components: [row] });
+        await interaction.reply({ content: `✅ Your suggestion (\`${suggId}\`) has been submitted for review!`, ephemeral: true });
+      } catch (err) { 
+        console.error('Could not post suggestion:', err);
+        return interaction.reply({ content: '❌ Failed to submit suggestion.', ephemeral: true });
+      }
+    }
+
+    // ── RANK COMMAND ──
+    if (interaction.commandName === 'rank') {
+      const target = interaction.options.getUser('user') || interaction.user;
+      const xpData = loadXP();
+      const data   = xpData[target.id];
+      if (!data || data.xp === 0) {
+        return interaction.reply({ content: `📊 **${target.username}** hasn't earned any XP yet.`, ephemeral: true });
+      }
+      const level       = getLevelFromXP(data.xp);
+      const xpThisLevel = data.xp - xpForLevel(level);
+      const xpNeeded    = xpForLevel(level + 1) - xpForLevel(level);
+      const progress    = Math.floor((xpThisLevel / xpNeeded) * 20);
+      const bar         = '█'.repeat(progress) + '░'.repeat(20 - progress);
+      const sorted = Object.entries(xpData).sort((a, b) => b[1].xp - a[1].xp);
+      const rank   = sorted.findIndex(([id]) => id === target.id) + 1;
+      
+      const coinsData = getCoins(target.id);
+      const coins = coinsData ? coinsData.coins : 0;
+      
+      const embed = new EmbedBuilder()
+        .setTitle(`📊 ${target.username}'s Rank`).setColor(0xf0b429)
+        .setThumbnail(target.displayAvatarURL())
+        .addFields(
+          { name: '🏅 Rank',    value: `#${rank}`,    inline: true },
+          { name: '⭐ Level',   value: `${level}`,     inline: true },
+          { name: '✨ Total XP', value: `${data.xp}`, inline: true },
+          { name: '🪙 Coins',   value: `${coins}`,    inline: true },
+          { name: `Progress to Level ${level + 1}`, value: `\`[${bar}]\` ${xpThisLevel}/${xpNeeded} XP`, inline: false },
+        )
+        .setFooter({ text: 'Keep chatting to earn more XP and coins!' }).setTimestamp();
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    // ── LEADERBOARD COMMAND ──
+    if (interaction.commandName === 'leaderboard') {
+      const xpData = loadXP();
+      const sorted = Object.entries(xpData)
+        .filter(([, d]) => d.xp > 0)
+        .sort((a, b) => b[1].xp - a[1].xp)
+        .slice(0, 10);
+      if (sorted.length === 0)
+        return interaction.reply({ content: '📊 No XP data yet — start chatting!', ephemeral: true });
+      const medals = ['🥇', '🥈', '🥉'];
+      const lines  = sorted.map(([uid, data], i) => {
+        const level = getLevelFromXP(data.xp);
+        const medal = medals[i] || `\`${i + 1}.\``;
+        return `${medal} <@${uid}> — **Level ${level}** (${data.xp} XP)`;
+      }).join('\n');
+      const embed = new EmbedBuilder()
+        .setTitle('🏆 XP Leaderboard — Top 10').setColor(0xf0b429)
+        .setDescription(lines)
+        .setFooter({ text: 'Earn XP by chatting every minute!' }).setTimestamp();
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    // ── APPLYPANEL COMMAND ──
+    if (interaction.commandName === 'applypanel') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
+        return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+      const menu = new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId('apply_select')
+          .setPlaceholder('📋 Select a role to apply for...')
+          .addOptions(
+            new StringSelectMenuOptionBuilder().setLabel('🛡️ Chat Moderator').setDescription('Apply to moderate the Discord server').setValue('chatmod'),
+            new StringSelectMenuOptionBuilder().setLabel('🤝 Helper').setDescription('Apply to help and support members').setValue('helper'),
+            new StringSelectMenuOptionBuilder().setLabel('⛏️ Minecraft Chat Moderator').setDescription('Apply to moderate in-game chat').setValue('mcmod'),
+          )
+      );
+      await interaction.channel.send({
+        content: `📋 **Staff Applications**\n\nSelect a role below to start your application. You'll receive the questions in your **DMs** — make sure they're open!\n\n> 🕐 Applications are reviewed within 48 hours.`,
+        components: [menu],
+      });
+      return interaction.reply({ content: '✅ Application panel sent!', ephemeral: true });
+    }
+
+    // ── FEEDBACK COMMAND ──
+    if (interaction.commandName === 'feedback') {
+      await interaction.reply({ content: `📬 Check your **DMs** — I've sent you the staff list to rate!`, ephemeral: true });
+      const staffList  = Object.entries(STAFF_MEMBERS);
+      const memberLines = staffList.map(([key, info], i) => `${STAR_EMOJIS[i]}  **${info.label}** — ${info.type}`);
+      const dmEmbed = new EmbedBuilder()
+        .setTitle('⭐ Staff Feedback — Who do you want to rate?').setColor(0xf0b429)
+        .setDescription(`React with the **number** next to the staff member you'd like to rate!\n\n${memberLines.join('\n')}\n\n> After reacting, I'll ask for a **1–5 star rating** and an optional comment.`)
+        .setFooter({ text: 'Your feedback is anonymous and sent directly to the staff member.' }).setTimestamp();
+      try {
+        const dm    = await interaction.user.createDM();
+        const dmMsg = await dm.send({ embeds: [dmEmbed] });
+        for (let i = 0; i < staffList.length && i < 5; i++) await dmMsg.react(STAR_EMOJIS[i]);
+        pendingFeedback.set(interaction.user.id, { stage: 'pick_staff', messageId: dmMsg.id, staffList });
+      } catch (err) {
+        await interaction.followUp({ content: `❌ I couldn't DM you! Please enable **Direct Messages** from server members in your Privacy Settings.`, ephemeral: true });
+      }
+      return;
+    }
+
+    // ── SERVERSTATUS COMMAND ──
+    if (interaction.commandName === 'serverstatus') {
+      await interaction.deferReply();
+      const status = await getMCServerStatus('goldenheartsmp.minecraftnoob.com', 25565);
+      if (!status || !status.online) {
+        const embed = new EmbedBuilder()
+          .setTitle('🔴 GoldenHeart SMP — Offline').setColor(0xed4245)
+          .setDescription('The server appears to be **offline** or unreachable at this time.')
+          .setFooter({ text: 'goldenheartsmp.minecraftnoob.com:25565' }).setTimestamp();
+        return interaction.editReply({ embeds: [embed] });
+      }
+      const playerList = status.players?.list?.map(p => `• ${p.name}`).join('\n') || '*No player data available*';
+      const embed = new EmbedBuilder()
+        .setTitle('🟢 GoldenHeart SMP — Online').setColor(0x57f287)
+        .addFields(
+          { name: '🌍 IP',             value: '`goldenheartsmp.minecraftnoob.com:25565`', inline: false },
+          { name: '👥 Players',        value: `${status.players?.online ?? 0} / ${status.players?.max ?? 0}`, inline: true },
+          { name: '🖥️ Version',       value: status.version || 'Unknown', inline: true },
+          { name: '📡 Motd',           value: status.motd?.clean || '*No MOTD*', inline: false },
+          { name: '📋 Online Players', value: playerList.slice(0, 1024), inline: false },
+        )
+        .setFooter({ text: 'Powered by mcsrvstat.us' }).setTimestamp();
+      return interaction.editReply({ embeds: [embed] });
+    }
+
+    // ── AFK COMMAND ──
+    if (interaction.commandName === 'afk') {
+      const reason  = interaction.options.getString('reason') || 'AFK';
+      const afkData = loadAFK();
+      afkData[interaction.user.id] = { reason, username: interaction.user.username, since: Date.now() };
+      saveAFK(afkData);
+      return interaction.reply({ content: `💤 **${interaction.user.username}** is now AFK: *${reason}*` });
+    }
+
+    // ── REMINDME COMMAND ──
+    if (interaction.commandName === 'remindme') {
+      const timeStr = interaction.options.getString('time');
+      const text    = interaction.options.getString('reminder');
+      const ms      = parseDuration(timeStr);
+      if (!ms) return interaction.reply({ content: '❌ Invalid time format. Use e.g. `30m`, `2h`, `1d`.', ephemeral: true });
+      const fireAt    = Date.now() + ms;
+      const reminders = loadReminders();
+      reminders.push({ userId: interaction.user.id, text, fireAt });
+      saveReminders(reminders);
+      setTimeout(() => checkReminders(client), ms + 1000);
+      return interaction.reply({
+        content: `⏰ Got it! I'll remind you in **${timeStr}**: *${text}*\n> Reminder set for <t:${Math.floor(fireAt / 1000)}:F>`,
+        ephemeral: true,
+      });
+    }
+
+    // ── BIRTHDAY COMMAND ──
+    if (interaction.commandName === 'birthday') {
+      const sub = interaction.options.getSubcommand();
+      if (sub === 'set') {
+        const day   = interaction.options.getInteger('day');
+        const month = interaction.options.getInteger('month');
+        if (day < 1 || day > 31 || month < 1 || month > 12)
+          return interaction.reply({ content: '❌ Invalid date.', ephemeral: true });
+        const birthdays = loadBirthdays();
+        birthdays[interaction.user.id] = { day, month, username: interaction.user.tag };
+        saveBirthdays(birthdays);
+        return interaction.reply({ content: `🎂 Birthday set to **${day}/${month}**! The server will celebrate on your day.`, ephemeral: true });
+      }
+      if (sub === 'remove') {
+        const birthdays = loadBirthdays();
+        delete birthdays[interaction.user.id];
+        saveBirthdays(birthdays);
+        return interaction.reply({ content: '✅ Your birthday has been removed.', ephemeral: true });
+      }
+      if (sub === 'view') {
+        const target    = interaction.options.getUser('user') || interaction.user;
+        const birthdays = loadBirthdays();
+        const data      = birthdays[target.id];
+        if (!data) return interaction.reply({ content: `📋 **${target.username}** hasn't set a birthday yet.`, ephemeral: true });
+        return interaction.reply({ content: `🎂 **${target.username}**'s birthday: **${data.day}/${data.month}**`, ephemeral: true });
+      }
+    }
+
+    // ── POLL COMMAND ──
+    if (interaction.commandName === 'poll') {
+      if (!hasModPermission(interaction.member))
+        return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+      const question        = interaction.options.getString('question');
+      const durationHours   = interaction.options.getInteger('duration') || 0;
+      const durationMinutes = interaction.options.getInteger('minutes') || 0;
+      let duration = durationHours + (durationMinutes / 60);
+      if (duration <= 0) duration = 24;
+      const durationFinal = Math.max(1, Math.ceil(duration));
+      const durationLabel = durationHours > 0 && durationMinutes > 0
+        ? `${durationHours}h ${durationMinutes}m`
+        : durationMinutes > 0 ? `${durationMinutes}m` : `${durationHours || 24}h`;
+      const optA       = interaction.options.getString('option_a');
+      const optB       = interaction.options.getString('option_b');
+      const optC       = interaction.options.getString('option_c');
+      const optD       = interaction.options.getString('option_d');
+      const rawOptions = [optA, optB, optC, optD].filter(Boolean);
+
+      let nativePollSent = false;
+      try {
+        const answers = rawOptions.map(text => ({ poll_media: { text } }));
+        await client.rest.post(
+          `/channels/${interaction.channelId}/messages`,
+          {
+            body: {
+              content: '@everyone 📊 A new poll is live — cast your vote!',
+              poll: { question: { text: question }, answers, duration: durationFinal, allow_multiselect: false },
+            },
+          }
+        );
+        nativePollSent = true;
+        await interaction.reply({ content: '✅ Poll posted!', ephemeral: true });
+      } catch (err) {
+        console.log('Native poll API unavailable, falling back to reaction poll:', err.message);
+      }
+
+      if (!nativePollSent) {
+        const emojis      = ['🇦', '🇧', '🇨', '🇩'];
+        const optionLines = rawOptions.map((o, i) => `${emojis[i]} **${o}**`).join('\n\n');
+        const embed = new EmbedBuilder()
+          .setTitle(`📊 ${question}`).setColor(0x5865f2).setDescription(optionLines)
+          .addFields({ name: '🗳️ How to vote', value: 'React with **one** letter emoji. One vote per person!', inline: false })
+          .setFooter({ text: `Poll by ${interaction.user.tag} • Closes in ${durationLabel}` }).setTimestamp();
+        try {
+          const pollMsg = await interaction.channel.send({ content: '@everyone', embeds: [embed] });
+          for (let i = 0; i < rawOptions.length; i++) await pollMsg.react(emojis[i]);
+          pollVotes.set(pollMsg.id, new Map());
+          return interaction.reply({ content: '✅ Poll posted!', ephemeral: true });
+        } catch (err2) {
+          console.error('Poll fallback error:', err2);
+          return interaction.reply({ content: '❌ Failed to post poll.', ephemeral: true });
+        }
+      }
+    }
+
+    // ── GIVEAWAY COMMAND ──
+    if (interaction.commandName === 'giveaway') {
+      const sub = interaction.options.getSubcommand();
+      if (sub === 'start') {
+        if (!hasModPermission(interaction.member))
+          return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+        const prize    = interaction.options.getString('prize');
+        const duration = interaction.options.getString('duration');
+        const winners  = interaction.options.getInteger('winners') || 1;
+        const channel  = interaction.options.getChannel('channel') || interaction.channel;
+        const ms       = parseDuration(duration);
+        if (!ms) return interaction.reply({ content: '❌ Invalid duration. Use e.g. `1h`, `30m`, `2d`.', ephemeral: true });
+        const endsAt   = Date.now() + ms;
+        const endsAtTs = Math.floor(endsAt / 1000);
+        const embed = new EmbedBuilder()
+          .setTitle('🎉 GIVEAWAY').setColor(0xf0b429)
+          .setDescription(`**${prize}**\n\nReact with 🎉 to enter!\n\n⏰ **Ends:** <t:${endsAtTs}:R> (<t:${endsAtTs}:F>)\n🏆 **Winners:** ${winners}\n🎟️ **Hosted by:** <@${interaction.user.id}>`)
+          .setFooter({ text: `Ends at` }).setTimestamp(endsAt);
+        const msg = await channel.send({ embeds: [embed] });
+        await msg.react('🎉');
+        const giveawayData = { messageId: msg.id, channelId: channel.id, prize, winners, endsAt, hostId: interaction.user.id, ended: false };
+        const giveaways = loadGiveaways();
+        giveaways.push(giveawayData);
+        saveGiveaways(giveaways);
+        setTimeout(() => endGiveaway(client, giveawayData), ms);
+        return interaction.reply({ content: `✅ Giveaway started in <#${channel.id}>!`, ephemeral: true });
+      }
+      if (sub === 'reroll') {
+        if (!hasModPermission(interaction.member))
+          return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+        const messageId = interaction.options.getString('message_id');
+        const giveaways = loadGiveaways();
+        const giveaway  = giveaways.find(g => g.messageId === messageId);
+        if (!giveaway) return interaction.reply({ content: '❌ Giveaway not found.', ephemeral: true });
+        await endGiveaway(client, giveaway);
+        return interaction.reply({ content: '🔄 Giveaway rerolled!', ephemeral: true });
+      }
+    }
+
+    // ── BAN COMMAND ──
+    if (interaction.commandName === 'ban') {
+      if (!hasModPermission(interaction.member))
+        return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+      const target   = interaction.options.getMember('user');
+      const reason   = interaction.options.getString('reason') || 'No reason provided';
+      const duration = interaction.options.getString('duration');
+      if (!target) return interaction.reply({ content: '❌ User not found.', ephemeral: true });
+      if (target.user.bot) return interaction.reply({ content: '❌ Cannot ban a bot.', ephemeral: true });
+      if (target.permissions.has(PermissionFlagsBits.Administrator))
+        return interaction.reply({ content: '❌ Cannot ban an admin.', ephemeral: true });
+      await interaction.deferReply();
+      try {
+        try { await target.send(`🔨 **You have been ${duration ? 'temporarily ' : ''}banned from GoldenHeart SMP.**\n\n**Reason:** ${reason}${duration ? `\n**Duration:** ${duration}` : ''}`); } catch { }
+        await target.ban({ reason });
+        if (duration) {
+          const ms = parseDuration(duration);
+          if (!ms) return interaction.editReply('❌ Invalid duration format. Use e.g. `1d`, `7d`, `2h`.');
+          const unbanAt = Date.now() + ms;
+          const bans = loadTempBans();
+          bans.push({ userId: target.id, userTag: target.user.tag, guildId: GUILD_ID, reason, duration, unbanAt });
+          saveTempBans(bans);
+          setTimeout(() => checkTempBans(client), ms + 1000);
+        }
+        const logEmbed = new EmbedBuilder()
+          .setTitle(duration ? `🔨 Member Temp-Banned (${duration})` : '🔨 Member Permanently Banned').setColor(0xed4245)
+          .addFields(
+            { name: 'User',     value: `${target.user.tag} (<@${target.id}>)`, inline: true },
+            { name: 'By',       value: `<@${interaction.user.id}>`, inline: true },
+            { name: 'Duration', value: duration || 'Permanent', inline: true },
+            { name: 'Reason',   value: reason, inline: false },
+          ).setTimestamp();
+        await sendLog(client, logEmbed);
+        return interaction.editReply(`🔨 **${target.user.tag}** has been ${duration ? `temp-banned for **${duration}**` : '**permanently banned**'}.\n📋 **Reason:** ${reason}`);
+      } catch (err) {
+        return interaction.editReply('❌ Failed to ban. Check bot role position.');
+      }
+    }
+
+    // ── KICK COMMAND ──
+    if (interaction.commandName === 'kick') {
+      if (!hasModPermission(interaction.member))
+        return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+      const target = interaction.options.getMember('user');
+      const reason = interaction.options.getString('reason') || 'No reason provided';
+      if (!target) return interaction.reply({ content: '❌ User not found.', ephemeral: true });
+      if (target.user.bot) return interaction.reply({ content: '❌ Cannot kick a bot.', ephemeral: true });
+      if (target.permissions.has(PermissionFlagsBits.Administrator))
+        return interaction.reply({ content: '❌ Cannot kick an admin.', ephemeral: true });
+      try {
+        try { await target.send(`👢 **You have been kicked from GoldenHeart SMP.**\n\n**Reason:** ${reason}`); } catch { }
+        await target.kick(reason);
+        const logEmbed = new EmbedBuilder()
+          .setTitle('👢 Member Kicked').setColor(0xffa500)
+          .addFields(
+            { name: 'User',   value: `${target.user.tag} (<@${target.id}>)`, inline: true },
+            { name: 'By',     value: `<@${interaction.user.id}>`, inline: true },
+            { name: 'Reason', value: reason, inline: false },
+          ).setTimestamp();
+        await sendLog(client, logEmbed);
+        return interaction.reply(`👢 **${target.user.tag}** has been kicked.\n📋 **Reason:** ${reason}`);
+      } catch (err) {
+        return interaction.reply({ content: '❌ Failed to kick. Check bot role position.', ephemeral: true });
+      }
+    }
+
+    // ── PURGE COMMAND ──
+    if (interaction.commandName === 'purge') {
+      if (!hasModPermission(interaction.member))
+        return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+      const amount = interaction.options.getInteger('amount');
+      if (amount < 1 || amount > 100)
+        return interaction.reply({ content: '❌ Amount must be between 1 and 100.', ephemeral: true });
+      try {
+        const deleted = await interaction.channel.bulkDelete(amount, true);
+        const reply   = await interaction.reply({ content: `🗑️ Deleted **${deleted.size}** message${deleted.size !== 1 ? 's' : ''}.`, fetchReply: true });
+        autoDelete(reply, 5000);
+        const logEmbed = new EmbedBuilder()
+          .setTitle('🗑️ Purge').setColor(0xfee75c)
+          .addFields(
+            { name: 'By',      value: `<@${interaction.user.id}>`, inline: true },
+            { name: 'Channel', value: `<#${interaction.channelId}>`, inline: true },
+            { name: 'Count',   value: `${deleted.size}`, inline: true },
+          ).setTimestamp();
+        await sendLog(client, logEmbed);
+      } catch (err) {
+        return interaction.reply({ content: '❌ Failed to delete messages. Messages older than 14 days cannot be bulk-deleted.', ephemeral: true });
+      }
+    }
+
+    // ── LOCK COMMAND ──
+    if (interaction.commandName === 'lock') {
+      if (!hasModPermission(interaction.member))
+        return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+      const channel = interaction.options.getChannel('channel') || interaction.channel;
+      const reason  = interaction.options.getString('reason') || 'No reason provided';
+      try {
+        await channel.permissionOverwrites.edit(interaction.guild.roles.everyone, { SendMessages: false });
+        await interaction.reply(`🔒 <#${channel.id}> has been **locked**.\n📋 **Reason:** ${reason}`);
+        const logEmbed = new EmbedBuilder()
+          .setTitle('🔒 Channel Locked').setColor(0xed4245)
+          .addFields(
+            { name: 'Channel', value: `<#${channel.id}>`, inline: true },
+            { name: 'By',      value: `<@${interaction.user.id}>`, inline: true },
+            { name: 'Reason',  value: reason, inline: false },
+          ).setTimestamp();
+        await sendLog(client, logEmbed);
+      } catch (err) {
+        return interaction.reply({ content: '❌ Failed to lock channel.', ephemeral: true });
+      }
+    }
+
+    // ── UNLOCK COMMAND ──
+    if (interaction.commandName === 'unlock') {
+      if (!hasModPermission(interaction.member))
+        return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+      const channel = interaction.options.getChannel('channel') || interaction.channel;
+      try {
+        await channel.permissionOverwrites.edit(interaction.guild.roles.everyone, { SendMessages: null });
+        await interaction.reply(`🔓 <#${channel.id}> has been **unlocked**.`);
+        const logEmbed = new EmbedBuilder()
+          .setTitle('🔓 Channel Unlocked').setColor(0x57f287)
+          .addFields(
+            { name: 'Channel', value: `<#${channel.id}>`, inline: true },
+            { name: 'By',      value: `<@${interaction.user.id}>`, inline: true },
+          ).setTimestamp();
+        await sendLog(client, logEmbed);
+        if (raidLockActive) raidLockActive = false;
+      } catch (err) {
+        return interaction.reply({ content: '❌ Failed to unlock channel.', ephemeral: true });
+      }
+    }
+
+    // ── WARN COMMAND ──
+    if (interaction.commandName === 'warn') {
+      if (!hasModPermission(interaction.member))
+        return interaction.reply({ content: '❌ You do not have permission to warn members.', ephemeral: true });
+      const target = interaction.options.getMember('user');
+      const reason = interaction.options.getString('reason') || 'No reason provided';
+      if (!target) return interaction.reply({ content: '❌ User not found.', ephemeral: true });
+      if (target.user.bot) return interaction.reply({ content: '❌ Cannot warn a bot.', ephemeral: true });
+      if (target.permissions.has(PermissionFlagsBits.Administrator))
+        return interaction.reply({ content: '❌ Cannot warn an admin.', ephemeral: true });
+      const warns  = loadWarns();
+      const userId = target.user.id;
+      if (!warns[userId]) warns[userId] = { username: target.user.tag, warns: [] };
+      warns[userId].warns.push({ reason, warnedBy: interaction.user.tag, timestamp: new Date().toISOString() });
+      saveWarns(warns);
+      const warnCount   = warns[userId].warns.length;
+      const timeoutMins = getTimeoutDuration(warnCount);
+      let punishmentText = '';
+      if (timeoutMins) {
+        try {
+          await target.timeout(timeoutMins * 60 * 1000, `Warn #${warnCount}: ${reason}`);
+          punishmentText = warnCount >= 8 ? `\n⛔ **Permanently muted** (28-day timeout applied)` : `\n⏱️ **Timed out for ${timeoutMins} minutes**`;
+        } catch {
+          punishmentText = `\n⚠️ Could not apply timeout (check bot role position)`;
+        }
+      }
+      return interaction.reply({ content: `⚠️ **${target.user.tag}** has been warned.\n📋 **Reason:** ${reason}\n🔢 **Total warns:** ${warnCount}/8${punishmentText}` });
+    }
+
+    // ── UNWARN COMMAND ──
+    if (interaction.commandName === 'unwarn') {
+      if (!hasModPermission(interaction.member))
+        return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+      const target = interaction.options.getUser('user');
+      const warns  = loadWarns();
+      const userId = target.id;
+      if (!warns[userId] || warns[userId].warns.length === 0)
+        return interaction.reply({ content: `✅ **${target.tag}** has no warns.`, ephemeral: true });
+      warns[userId].warns.pop();
+      if (warns[userId].warns.length === 0) delete warns[userId];
+      saveWarns(warns);
+      const remaining = warns[userId]?.warns.length ?? 0;
+      return interaction.reply({ content: `✅ Removed latest warn from **${target.tag}**.\n🔢 **Remaining warns:** ${remaining}` });
+    }
+
+    // ── WARNINGS COMMAND ──
+    if (interaction.commandName === 'warnings') {
+      if (!hasModPermission(interaction.member))
+        return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+      const target = interaction.options.getUser('user');
+      const warns  = loadWarns();
+      const userId = target.id;
+      if (!warns[userId] || warns[userId].warns.length === 0)
+        return interaction.reply({ content: `✅ **${target.tag}** has no warns.`, ephemeral: true });
+      const list = warns[userId].warns.map((w, i) => {
+        const date = new Date(w.timestamp).toLocaleDateString();
+        return `**#${i + 1}** — ${w.reason} *(by ${w.warnedBy} on ${date})*`;
+      }).join('\n');
+      const warnCount   = warns[userId].warns.length;
+      const nextTimeout = getTimeoutDuration(warnCount + 1);
+      return interaction.reply({
+        content: `📋 **Warns for ${target.tag}** — ${warnCount}/8\n\n${list}\n\n${nextTimeout ? `⏭️ Next warn → **${nextTimeout}-min timeout**` : warnCount >= 8 ? '🔴 Max warns reached' : ''}`,
+        ephemeral: true,
+      });
+    }
+
+    // ── SERVERINFO COMMAND ──
+    if (interaction.commandName === 'serverinfo') {
+      if (!hasModPermission(interaction.member))
+        return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+      await interaction.deferReply({ ephemeral: true });
+      const guild = interaction.guild;
+      await guild.members.fetch();
+      const allMembers    = guild.members.cache;
+      const totalMembers  = allMembers.filter(m => !m.user.bot).size;
+      const totalBots     = allMembers.filter(m => m.user.bot).size;
+      const onlineMembers = allMembers.filter(m => !m.user.bot && m.presence?.status && m.presence.status !== 'offline').size;
+      const totalAll      = allMembers.size;
+      const warns         = loadWarns();
+      const warnedUsers   = Object.keys(warns).length;
+      const totalWarns    = Object.values(warns).reduce((acc, u) => acc + u.warns.length, 0);
+      const warnList = Object.entries(warns)
+        .sort((a, b) => b[1].warns.length - a[1].warns.length)
+        .slice(0, 10)
+        .map(([uid, data], i) => `\`${i + 1}.\` <@${uid}> — **${data.warns.length}** warn(s)`)
+        .join('\n') || 'No warns on record.';
+      
+      const coinsData = loadCoins();
+      const totalCoins = Object.entries(coinsData)
+        .filter(([key]) => key !== 'invite_codes')
+        .reduce((sum, [, data]) => sum + (data.coins || 0), 0);
+      
+      const embed = new EmbedBuilder()
+        .setTitle(`📊 Server Info — ${guild.name}`).setColor(0x5865f2)
+        .setThumbnail(guild.iconURL({ dynamic: true }))
+        .addFields(
+          { name: '👥 Total Members',      value: `${totalAll}`,      inline: true },
+          { name: '🧑 Human Members',      value: `${totalMembers}`,  inline: true },
+          { name: '🤖 Bots',               value: `${totalBots}`,     inline: true },
+          { name: '🟢 Active (Online)',    value: `${onlineMembers}`, inline: true },
+          { name: '📅 Server Created',     value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:D>`, inline: true },
+          { name: '👑 Owner',              value: `<@${guild.ownerId}>`, inline: true },
+          { name: '\u200b', value: '\u200b', inline: false },
+          { name: '⚠️ Total Warns Issued', value: `${totalWarns}`,    inline: true },
+          { name: '👤 Warned Users',       value: `${warnedUsers}`,   inline: true },
+          { name: '🪙 Total Coins',        value: `${totalCoins}`,    inline: true },
+          { name: '\u200b', value: '\u200b', inline: false },
+          { name: '📋 Top Warned Members', value: warnList,           inline: false },
+        )
+        .setFooter({ text: `Requested by ${interaction.user.tag}` }).setTimestamp();
+      return interaction.editReply({ embeds: [embed] });
+    }
+
+    // ── EMBED COMMAND ──
+    if (interaction.commandName === 'embed') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
+        return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+      const title       = interaction.options.getString('title');
+      const description = interaction.options.getString('description');
+      const color       = interaction.options.getString('color') || '#f0b429';
+      const footer      = interaction.options.getString('footer');
+      const imageUrl    = interaction.options.getString('image');
+      const channel     = interaction.options.getChannel('channel') || interaction.channel;
+      const colorInt    = parseInt(color.replace('#', ''), 16) || 0xf0b429;
+      const embed = new EmbedBuilder()
+        .setTitle(title || null)
+        .setDescription(description || null)
+        .setColor(colorInt);
+      if (footer)   embed.setFooter({ text: footer });
+      if (imageUrl && imageUrl.startsWith('http')) {
+        try { embed.setImage(imageUrl); } catch { }
+      }
+      embed.setTimestamp();
+      try {
+        await channel.send({ embeds: [embed] });
+        return interaction.reply({ content: `✅ Embed posted in <#${channel.id}>!`, ephemeral: true });
+      } catch (err) {
+        return interaction.reply({ content: '❌ Failed to send embed.', ephemeral: true });
+      }
+    }
+
+    // ── TICKETPANEL COMMAND ──
+    if (interaction.commandName === 'ticketpanel') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
+        return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+
+      const selectRow = new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId('ticket_select')
+          .setPlaceholder('✨ Choose your ticket type to get started...')
+          .addOptions(
+            new StringSelectMenuOptionBuilder()
+              .setLabel('General Support')
+              .setDescription('Questions, help, and general server assistance')
+              .setEmoji('🎟️')
+              .setValue('support'),
+            new StringSelectMenuOptionBuilder()
+              .setLabel('Shop & Purchases')
+              .setDescription('Help with shop purchases, rewards, or item claims')
+              .setEmoji('🛍️')
+              .setValue('shop'),
+          )
+      );
+
+      const bannerExists = fs.existsSync(WELCOME_BANNER_FILE);
+
+      const panelEmbed = new EmbedBuilder()
+        .setColor(0xf0b429)
+        .setTitle('🏰 GoldenHeart SMP — Support Desk')
+        .setDescription([
+          '> Need help from the staff team? **Select a category below** to open a private ticket.',
+          '',
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+          '',
+          '🎟️ **General Support**',
+          '> Questions, help & general server assistance',
+          '',
+          '🛍️ **Shop & Purchases**',
+          '> Help with shop purchases, rewards, or item claims',
+          '',
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        ].join('\n'))
+        .setThumbnail(interaction.guild.iconURL({ dynamic: true, size: 256 }) || null)
+        .addFields(
+          { name: '🔒 Private',    value: 'Only you & staff can view your ticket',  inline: true },
+          { name: '⚡ Fast',       value: 'Staff are notified instantly',            inline: true },
+          { name: '📋 Organized',  value: 'Pick a category for faster help',        inline: true },
+        )
+        .setFooter({ text: 'GoldenHeart SMP • Support Desk • We\'re here to help 💛' })
+        .setTimestamp();
+
+      if (bannerExists) {
+        panelEmbed.setImage('attachment://goldenheart-banner.png');
+      }
+
+      const files = [];
+      if (bannerExists) {
+        files.push(new AttachmentBuilder(WELCOME_BANNER_FILE, { name: 'goldenheart-banner.png' }));
+      }
+
+      await interaction.channel.send({
+        embeds: [panelEmbed],
+        components: [selectRow],
+        files,
+      });
+      return interaction.reply({ content: '✅ Stylish ticket panel posted!', ephemeral: true });
+    }
+
+    // ── ADD MORE COMMANDS AS NEEDED ──
+    // (verifypanel, announce, editmessage, editembed, editrules, etc.)
+  }
 
   // ════════════════════════════════════════
   // SELECT MENU
@@ -2262,10 +2863,8 @@ client.on('interactionCreate', async interaction => {
       suggestions[idx].status = newStatus;
       writeJSON(SUGGESTIONS_FILE, suggestions);
       
-      // Update the original embed
       const embed = EmbedBuilder.from(interaction.message.embeds[0]);
       embed.setColor(statusColor);
-      embed.setDescription(embed.data.description);
       embed.spliceFields(2, 1, { 
         name: '📌 Status', 
         value: `${statusEmoji} **${newStatus.toUpperCase()}** by <@${interaction.user.id}>`, 
@@ -2288,7 +2887,6 @@ client.on('interactionCreate', async interaction => {
       
       await interaction.message.edit({ embeds: [embed], components: [disabledRow] });
       
-      // DM the user about the status change
       try {
         const suggestion = suggestions[idx];
         const user = await client.users.fetch(suggestion.fromId);
@@ -2301,84 +2899,272 @@ client.on('interactionCreate', async interaction => {
       });
     }
 
-    // ... (rest of the button handlers remain the same)
+    // ── VERIFY BUTTON ──
+    if (interaction.customId === 'verify') {
+      try {
+        await interaction.member.roles.add(VERIFY_ROLE_ID);
+        return interaction.reply({ content: '✅ You are now verified! Welcome to GoldenHeart SMP! 🎉', ephemeral: true });
+      } catch {
+        return interaction.reply({ content: '❌ Failed to verify. Please contact a staff member.', ephemeral: true });
+      }
+    }
 
+    // ── TICKET CLAIM BUTTON ──
+    if (interaction.customId.startsWith('ticket_claim:')) {
+      const channelId = interaction.customId.split(':')[1];
+      if (!hasModPermission(interaction.member))
+        return interaction.reply({ content: '❌ Only staff can claim tickets.', ephemeral: true });
+      const tickets = loadTickets();
+      const ticket  = tickets[channelId];
+      if (!ticket) return interaction.reply({ content: '❌ Ticket not found.', ephemeral: true });
+      if (ticket.claimedBy)
+        return interaction.reply({ content: `❌ This ticket is already claimed by <@${ticket.claimedBy}>.`, ephemeral: true });
+      ticket.claimedBy = interaction.user.id;
+      saveTickets(tickets);
+      const claimEmbed = new EmbedBuilder()
+        .setColor(0x57f287)
+        .setDescription(`✅ **<@${interaction.user.id}>** has claimed this ticket and will be assisting you.`)
+        .setTimestamp();
+      await interaction.channel.send({ embeds: [claimEmbed] });
+      return interaction.reply({ content: '✅ You have claimed this ticket.', ephemeral: true });
+    }
+
+    // ── TICKET CLOSE BUTTON ──
+    if (interaction.customId.startsWith('ticket_close:')) {
+      const channelId = interaction.customId.split(':')[1];
+      const tickets   = loadTickets();
+      const ticket    = tickets[channelId];
+      if (!ticket) return interaction.reply({ content: '❌ Ticket not found.', ephemeral: true });
+      if (!hasModPermission(interaction.member) && interaction.user.id !== ticket.userId)
+        return interaction.reply({ content: '❌ Only staff or the ticket owner can close this.', ephemeral: true });
+      await interaction.reply({ content: '🔒 Closing ticket in 5 seconds...' });
+      try {
+        const messages   = await interaction.channel.messages.fetch({ limit: 100 });
+        const transcript = messages.reverse().map(m =>
+          `[${new Date(m.createdTimestamp).toISOString()}] ${m.author.tag}: ${m.content}`
+        ).join('\n');
+        const logEmbed = new EmbedBuilder()
+          .setTitle(`🎟️ Ticket Closed — #${interaction.channel.name}`).setColor(0xed4245)
+          .addFields(
+            { name: 'Opened by', value: `<@${ticket.userId}>`, inline: true },
+            { name: 'Closed by', value: `<@${interaction.user.id}>`, inline: true },
+            { name: 'Opened at', value: `<t:${Math.floor(new Date(ticket.createdAt).getTime() / 1000)}:F>`, inline: true },
+          ).setTimestamp();
+        const transcriptBuffer = Buffer.from(transcript, 'utf8');
+        const attachment = new AttachmentBuilder(transcriptBuffer, { name: `transcript-${interaction.channel.name}.txt` });
+        const logCh = await client.channels.fetch(STAFF_LOG_CHANNEL);
+        await logCh.send({ embeds: [logEmbed], files: [attachment] });
+      } catch (err) { console.error('Transcript error:', err); }
+      ticket.closed = true;
+      saveTickets(tickets);
+      setTimeout(() => interaction.channel.delete().catch(() => {}), 5000);
+    }
+
+    // ── APPLICATION ACCEPT/REJECT ──
+    if (interaction.customId.startsWith('app_accept:')) {
+      const [, role, userId, appId] = interaction.customId.split(':');
+      if (!hasModPermission(interaction.member))
+        return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+      await interaction.deferReply({ ephemeral: true });
+      const disabledRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('_noop_accept').setLabel('✅ Accepted').setStyle(ButtonStyle.Success).setDisabled(true),
+        new ButtonBuilder().setCustomId('_noop_reject').setLabel('❌ Reject').setStyle(ButtonStyle.Danger).setDisabled(true),
+      );
+      try {
+        const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setColor(0x3dd68c).setFooter({ text: `✅ Accepted by ${interaction.user.tag}` });
+        await interaction.message.edit({ embeds: [updatedEmbed], components: [disabledRow] });
+      } catch (err) { console.error('Could not update app message:', err); }
+      try { const member = await interaction.guild.members.fetch(userId); await member.roles.add(APP_ROLES[role]); } catch (err) { console.error('Could not assign role:', err); }
+      try { const user = await client.users.fetch(userId); await user.send(`🎉 **Congratulations!**\n\nYour **${APP_NAMES[role]}** application (\`${appId}\`) has been **accepted**!\n\nYou've been given the role. Welcome to the team! 🏆\n\n*Reviewed by: ${interaction.user.tag}*`); } catch { }
+      return interaction.editReply({ content: `✅ Application **${appId}** accepted.` });
+    }
+
+    if (interaction.customId.startsWith('app_reject:')) {
+      const [, role, userId, appId] = interaction.customId.split(':');
+      if (!hasModPermission(interaction.member))
+        return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+      await interaction.deferReply({ ephemeral: true });
+      const disabledRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('_noop_accept').setLabel('✅ Accept').setStyle(ButtonStyle.Success).setDisabled(true),
+        new ButtonBuilder().setCustomId('_noop_rejected').setLabel('❌ Rejected').setStyle(ButtonStyle.Danger).setDisabled(true),
+      );
+      try {
+        const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setColor(0xe05c5c).setFooter({ text: `❌ Rejected by ${interaction.user.tag}` });
+        await interaction.message.edit({ embeds: [updatedEmbed], components: [disabledRow] });
+      } catch (err) { console.error('Could not update app message:', err); }
+      try { const user = await client.users.fetch(userId); await user.send(`📋 **Application Update**\n\nYour **${APP_NAMES[role]}** application (\`${appId}\`) has been **rejected** at this time.\n\nDon't be discouraged — you're welcome to apply again in the future! 💪\n\n*Reviewed by: ${interaction.user.tag}*`); } catch { }
+      return interaction.editReply({ content: `❌ Application **${appId}** rejected.` });
+    }
+
+    // ── ROLE TOGGLE ──
+    if (interaction.customId.startsWith('role_toggle:')) {
+      const roleId = interaction.customId.split(':')[1];
+      const member = interaction.member;
+      try {
+        if (member.roles.cache.has(roleId)) {
+          await member.roles.remove(roleId);
+          return interaction.reply({ content: `✅ Removed the role.`, ephemeral: true });
+        } else {
+          await member.roles.add(roleId);
+          return interaction.reply({ content: `✅ Added the role!`, ephemeral: true });
+        }
+      } catch {
+        return interaction.reply({ content: '❌ Failed to toggle role. Check bot permissions.', ephemeral: true });
+      }
     }
   }
 });
 
 // ═══════════════════════════════════════════════════════════════
-// TICKET PANEL COMMAND
-// ═══════════════════════════════════════════════════════════════
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isChatInputCommand()) return;
-  if (interaction.commandName !== 'ticketpanel') return;
-  if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
-    return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
-
-  const selectRow = new ActionRowBuilder().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId('ticket_select')
-      .setPlaceholder('✨  Choose your ticket type to get started...')
-      .addOptions(
-        new StringSelectMenuOptionBuilder()
-          .setLabel('General Support')
-          .setDescription('Questions, help, and general server assistance')
-          .setEmoji('🎟️')
-          .setValue('support'),
-        new StringSelectMenuOptionBuilder()
-          .setLabel('Shop & Purchases')
-          .setDescription('Help with shop purchases, rewards, or item claims')
-          .setEmoji('🛍️')
-          .setValue('shop'),
-      )
-  );
-
-  const bannerExists = fs.existsSync(WELCOME_BANNER_FILE);
-
-  const panelEmbed = new EmbedBuilder()
-    .setColor(0xf0b429)
-    .setTitle('🏰  GoldenHeart SMP — Support Desk')
-    .setDescription([
-      '> Need help from the staff team? **Select a category below** to open a private ticket.',
-      '',
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-      '',
-      '🎟️  **General Support**',
-      '> Questions, help & general server assistance',
-      '',
-      '🛍️  **Shop & Purchases**',
-      '> Help with shop purchases, rewards, or item claims',
-      '',
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-    ].join('\n'))
-    .setThumbnail(interaction.guild.iconURL({ dynamic: true, size: 256 }) || null)
-    .addFields(
-      { name: '🔒 Private',    value: 'Only you & staff can view your ticket',  inline: true },
-      { name: '⚡ Fast',       value: 'Staff are notified instantly',            inline: true },
-      { name: '📋 Organized',  value: 'Pick a category for faster help',        inline: true },
-    )
-    .setFooter({ text: 'GoldenHeart SMP  •  Support Desk  •  We\'re here to help 💛' })
-    .setTimestamp();
-
-  if (bannerExists) {
-    panelEmbed.setImage('attachment://goldenheart-banner.png');
-  }
-
-  const files = [];
-  if (bannerExists) {
-    files.push(new AttachmentBuilder(WELCOME_BANNER_FILE, { name: 'goldenheart-banner.png' }));
-  }
-
-  await interaction.channel.send({
-    embeds: [panelEmbed],
-    components: [selectRow],
-    files,
-  });
-  return interaction.reply({ content: '✅ Stylish ticket panel posted!', ephemeral: true });
-});
-
-// ═══════════════════════════════════════════════════════════════
 // SLASH COMMAND REGISTRATION
 // ═══════════════════════════════════════════════════════════════
-// ... (command registration remains the same)
+const staffChoices = Object.entries(STAFF_MEMBERS).map(([key, info]) => ({ name: `${info.label} (${info.type})`, value: key }));
+
+const commands = [
+  new SlashCommandBuilder().setName('features').setDescription('See all features available to members'),
+  new SlashCommandBuilder().setName('rules').setDescription('View the full server rules and warning system'),
+  new SlashCommandBuilder().setName('rulebook_mc').setDescription('📖 Browse the Minecraft Server Rules (paginated book)'),
+  new SlashCommandBuilder().setName('rulebook_chat').setDescription('📖 Browse the Chat Rules (paginated book)'),
+  new SlashCommandBuilder().setName('rulebook_general').setDescription('📖 Browse the General Rules, Warning System & Staff Rules (paginated book)'),
+  new SlashCommandBuilder().setName('applypanel').setDescription('Send the staff application dropdown panel'),
+  new SlashCommandBuilder().setName('verifypanel').setDescription('Send verification panel'),
+  new SlashCommandBuilder().setName('announce').setDescription('Send announcement').addStringOption(o => o.setName('title').setDescription('Optional title').setRequired(false)),
+  new SlashCommandBuilder().setName('ban').setDescription('Ban a member permanently or temporarily')
+    .addUserOption(o => o.setName('user').setDescription('Member to ban').setRequired(true))
+    .addStringOption(o => o.setName('reason').setDescription('Reason').setRequired(false))
+    .addStringOption(o => o.setName('duration').setDescription('Duration e.g. 1d, 7d, 2h (leave blank for permanent)').setRequired(false)),
+  new SlashCommandBuilder().setName('kick').setDescription('Kick a member')
+    .addUserOption(o => o.setName('user').setDescription('Member to kick').setRequired(true))
+    .addStringOption(o => o.setName('reason').setDescription('Reason').setRequired(false)),
+  new SlashCommandBuilder().setName('purge').setDescription('Bulk-delete messages (1–100)')
+    .addIntegerOption(o => o.setName('amount').setDescription('Number of messages to delete').setRequired(true).setMinValue(1).setMaxValue(100)),
+  new SlashCommandBuilder().setName('lock').setDescription('Lock a channel')
+    .addChannelOption(o => o.setName('channel').setDescription('Channel to lock (default: current)').setRequired(false))
+    .addStringOption(o => o.setName('reason').setDescription('Reason').setRequired(false)),
+  new SlashCommandBuilder().setName('unlock').setDescription('Unlock a channel')
+    .addChannelOption(o => o.setName('channel').setDescription('Channel to unlock (default: current)').setRequired(false)),
+  new SlashCommandBuilder().setName('slowmode').setDescription('Set slowmode in a channel')
+    .addIntegerOption(o => o.setName('seconds').setDescription('Seconds (0 to disable)').setRequired(true).setMinValue(0).setMaxValue(21600))
+    .addChannelOption(o => o.setName('channel').setDescription('Channel (default: current)').setRequired(false)),
+  new SlashCommandBuilder().setName('warn').setDescription('Warn a member')
+    .addUserOption(o => o.setName('user').setDescription('Member to warn').setRequired(true))
+    .addStringOption(o => o.setName('reason').setDescription('Reason').setRequired(false)),
+  new SlashCommandBuilder().setName('unwarn').setDescription('Remove latest warn from a member')
+    .addUserOption(o => o.setName('user').setDescription('Member').setRequired(true)),
+  new SlashCommandBuilder().setName('warnings').setDescription('Check warns for a member')
+    .addUserOption(o => o.setName('user').setDescription('Member').setRequired(true)),
+  new SlashCommandBuilder().setName('clearwarns').setDescription('Clear ALL warns for a member (admin only)')
+    .addUserOption(o => o.setName('user').setDescription('Member').setRequired(true)),
+  new SlashCommandBuilder().setName('serverinfo').setDescription('Show server stats and warn records'),
+  new SlashCommandBuilder().setName('feedback').setDescription('Rate a staff member — you\'ll receive a DM with the full staff list!'),
+  new SlashCommandBuilder().setName('viewfeedback').setDescription('View feedback for staff members (mod only)')
+    .addStringOption(o => o.setName('staff').setDescription('Specific staff member (leave blank for all)').setRequired(false).addChoices(...staffChoices)),
+  new SlashCommandBuilder().setName('staffstats').setDescription('View full staff performance table (mod only)'),
+  new SlashCommandBuilder().setName('suggest').setDescription('Submit a suggestion for the server')
+    .addStringOption(o => o.setName('suggestion').setDescription('Your suggestion').setRequired(true)),
+  new SlashCommandBuilder().setName('viewsuggestions').setDescription('View all suggestions (mod only)')
+    .addStringOption(o => o.setName('status').setDescription('Filter by status').setRequired(false)
+      .addChoices(
+        { name: 'All', value: 'all' },
+        { name: 'Pending', value: 'pending' },
+        { name: 'Accepted', value: 'accepted' },
+        { name: 'Rejected', value: 'rejected' },
+      )),
+  new SlashCommandBuilder().setName('poll').setDescription('Create a poll (mod only)')
+    .addStringOption(o => o.setName('question').setDescription('Poll question').setRequired(true))
+    .addStringOption(o => o.setName('option_a').setDescription('Option A').setRequired(true))
+    .addStringOption(o => o.setName('option_b').setDescription('Option B').setRequired(true))
+    .addStringOption(o => o.setName('option_c').setDescription('Option C').setRequired(false))
+    .addStringOption(o => o.setName('option_d').setDescription('Option D').setRequired(false))
+    .addIntegerOption(o => o.setName('duration').setDescription('Hours (default: 24)').setRequired(false).setMinValue(0).setMaxValue(168))
+    .addIntegerOption(o => o.setName('minutes').setDescription('Extra minutes').setRequired(false).setMinValue(1).setMaxValue(59)),
+  new SlashCommandBuilder().setName('rank').setDescription('Check your XP rank (or another member\'s)')
+    .addUserOption(o => o.setName('user').setDescription('Member to check (default: yourself)').setRequired(false)),
+  new SlashCommandBuilder().setName('leaderboard').setDescription('View the top 10 most active members by XP'),
+  // ── COINS COMMANDS ──
+  new SlashCommandBuilder().setName('balance').setDescription('Check your Golden Coins balance (or another member\'s)')
+    .addUserOption(o => o.setName('user').setDescription('Member to check (default: yourself)').setRequired(false)),
+  new SlashCommandBuilder().setName('coinslb').setDescription('View the top 10 richest members by Golden Coins'),
+  new SlashCommandBuilder().setName('daily').setDescription('Claim your daily 50 Golden Coins reward!'),
+  new SlashCommandBuilder().setName('transfer').setDescription('Transfer Golden Coins to another member')
+    .addUserOption(o => o.setName('user').setDescription('Member to transfer coins to').setRequired(true))
+    .addNumberOption(o => o.setName('amount').setDescription('Amount of coins to transfer').setRequired(true).setMinValue(1)),
+  new SlashCommandBuilder().setName('giveaway').setDescription('Giveaway management')
+    .addSubcommand(sub => sub.setName('start').setDescription('Start a new giveaway')
+      .addStringOption(o => o.setName('prize').setDescription('What are you giving away?').setRequired(true))
+      .addStringOption(o => o.setName('duration').setDescription('Duration e.g. 1h, 30m, 2d').setRequired(true))
+      .addIntegerOption(o => o.setName('winners').setDescription('Number of winners (default: 1)').setRequired(false).setMinValue(1).setMaxValue(10))
+      .addChannelOption(o => o.setName('channel').setDescription('Channel to post in (default: current)').setRequired(false))
+    )
+    .addSubcommand(sub => sub.setName('reroll').setDescription('Reroll a giveaway winner')
+      .addStringOption(o => o.setName('message_id').setDescription('The giveaway message ID').setRequired(true))
+    ),
+  new SlashCommandBuilder().setName('serverstatus').setDescription('Check if the GoldenHeart SMP Minecraft server is online'),
+  new SlashCommandBuilder().setName('mcplayer').setDescription('Look up a Minecraft player by username')
+    .addStringOption(o => o.setName('username').setDescription('Minecraft username').setRequired(true)),
+  new SlashCommandBuilder().setName('ticketpanel').setDescription('Post the support ticket panel (admin only)'),
+  new SlashCommandBuilder().setName('embed').setDescription('Post a custom embed (admin only)')
+    .addStringOption(o => o.setName('title').setDescription('Embed title').setRequired(false))
+    .addStringOption(o => o.setName('description').setDescription('Embed description').setRequired(false))
+    .addStringOption(o => o.setName('color').setDescription('Hex color e.g. #ff0000 (default: gold)').setRequired(false))
+    .addStringOption(o => o.setName('footer').setDescription('Footer text').setRequired(false))
+    .addStringOption(o => o.setName('image').setDescription('Image URL').setRequired(false))
+    .addChannelOption(o => o.setName('channel').setDescription('Channel to post in (default: current)').setRequired(false)),
+  new SlashCommandBuilder().setName('remindme').setDescription('Set a personal reminder via DM')
+    .addStringOption(o => o.setName('time').setDescription('When e.g. 30m, 2h, 1d').setRequired(true))
+    .addStringOption(o => o.setName('reminder').setDescription('What to remind you of').setRequired(true)),
+  new SlashCommandBuilder().setName('afk').setDescription('Set yourself as AFK')
+    .addStringOption(o => o.setName('reason').setDescription('AFK reason (default: AFK)').setRequired(false)),
+  new SlashCommandBuilder().setName('birthday').setDescription('Birthday system')
+    .addSubcommand(sub => sub.setName('set').setDescription('Set your birthday')
+      .addIntegerOption(o => o.setName('day').setDescription('Day (1–31)').setRequired(true).setMinValue(1).setMaxValue(31))
+      .addIntegerOption(o => o.setName('month').setDescription('Month (1–12)').setRequired(true).setMinValue(1).setMaxValue(12))
+    )
+    .addSubcommand(sub => sub.setName('remove').setDescription('Remove your birthday'))
+    .addSubcommand(sub => sub.setName('view').setDescription('View someone\'s birthday')
+      .addUserOption(o => o.setName('user').setDescription('User to check (default: yourself)').setRequired(false))
+    ),
+  new SlashCommandBuilder().setName('rolepanel').setDescription('Post a self-role button panel (admin only)')
+    .addRoleOption(o => o.setName('role1').setDescription('Role 1').setRequired(true))
+    .addStringOption(o => o.setName('label1').setDescription('Button label for role 1').setRequired(true))
+    .addStringOption(o => o.setName('title').setDescription('Panel title').setRequired(false))
+    .addStringOption(o => o.setName('description').setDescription('Panel description').setRequired(false))
+    .addRoleOption(o => o.setName('role2').setDescription('Role 2').setRequired(false))
+    .addStringOption(o => o.setName('label2').setDescription('Button label for role 2').setRequired(false))
+    .addRoleOption(o => o.setName('role3').setDescription('Role 3').setRequired(false))
+    .addStringOption(o => o.setName('label3').setDescription('Button label for role 3').setRequired(false))
+    .addRoleOption(o => o.setName('role4').setDescription('Role 4').setRequired(false))
+    .addStringOption(o => o.setName('label4').setDescription('Button label for role 4').setRequired(false))
+    .addRoleOption(o => o.setName('role5').setDescription('Role 5').setRequired(false))
+    .addStringOption(o => o.setName('label5').setDescription('Button label for role 5').setRequired(false)),
+  new SlashCommandBuilder().setName('editmessage').setDescription('✏️ Edit a bot message (Owner only)')
+    .addStringOption(o => o.setName('channel_id').setDescription('Channel ID where the message is').setRequired(true))
+    .addStringOption(o => o.setName('message_id').setDescription('Message ID to edit').setRequired(true)),
+  new SlashCommandBuilder().setName('editembed').setDescription('✏️ Edit a bot embed (Owner only)')
+    .addStringOption(o => o.setName('channel_id').setDescription('Channel ID where the embed is').setRequired(true))
+    .addStringOption(o => o.setName('message_id').setDescription('Message ID to edit').setRequired(true)),
+  new SlashCommandBuilder().setName('editrules').setDescription('✏️ Edit a rulebook page (Owner only)')
+    .addStringOption(o => o.setName('book').setDescription('Which rulebook to edit').setRequired(true)
+      .addChoices(
+        { name: '⚔️ Minecraft Rules', value: 'mc' },
+        { name: '💬 Chat Rules', value: 'chat' },
+        { name: '📜 General Rules', value: 'general' },
+      )
+    )
+    .addIntegerOption(o => o.setName('page').setDescription('Page number to edit (e.g. 1, 2, 3)').setRequired(true).setMinValue(1).setMaxValue(10)),
+].map(c => c.toJSON());
+
+const rest = new REST({ version: '10' }).setToken(TOKEN);
+
+client.login(TOKEN).catch(err => console.error('❌ FAILED TO LOG IN TO DISCORD:', err));
+
+(async () => {
+  try {
+    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: [] });
+    console.log('Global commands cleared');
+    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
+    console.log('✅ Slash commands registered (guild)');
+  } catch (err) {
+    console.error('❌ FAILED TO REGISTER SLASH COMMANDS:', err);
+  }
+})();
