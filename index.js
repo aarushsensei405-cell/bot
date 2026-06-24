@@ -110,12 +110,39 @@ const APP_FILES = {
   mcmod:   path.join(__dirname, 'applicationforminecraftchatmod.json'),
 };
 
-function readJSON(file, fallback) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
-  catch { return fallback; }
+// ─────────────────────────────────────────
+// FORCE CREATE COINS.JSON IF IT DOESN'T EXIST
+// ─────────────────────────────────────────
+if (!fs.existsSync(COINS_FILE)) {
+  fs.writeFileSync(COINS_FILE, JSON.stringify({}, null, 2));
+  console.log('✅ Created new coins.json file');
+} else {
+  try {
+    JSON.parse(fs.readFileSync(COINS_FILE, 'utf8'));
+    console.log('✅ coins.json loaded successfully');
+  } catch (e) {
+    console.log('⚠️ coins.json is corrupted, creating new one');
+    fs.writeFileSync(COINS_FILE, JSON.stringify({}, null, 2));
+  }
 }
+
+function readJSON(file, fallback) {
+  try { 
+    const data = fs.readFileSync(file, 'utf8');
+    return JSON.parse(data);
+  } catch { 
+    return fallback; 
+  }
+}
+
 function writeJSON(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+  try {
+    fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error(`❌ Error writing to ${file}:`, error.message);
+    return false;
+  }
 }
 
 function loadWarns()           { return readJSON(WARNS_FILE, {}); }
@@ -150,8 +177,23 @@ function loadGiveaways()       { return readJSON(GIVEAWAYS_FILE, []); }
 function saveGiveaways(d)      { writeJSON(GIVEAWAYS_FILE, d); }
 function loadReminders()       { return readJSON(REMINDERS_FILE, []); }
 function saveReminders(d)      { writeJSON(REMINDERS_FILE, d); }
-function loadCoins()           { return readJSON(COINS_FILE, {}); }
-function saveCoins(d)          { writeJSON(COINS_FILE, d); }
+
+// ── COINS FUNCTIONS WITH DEBUG LOGGING ──
+function loadCoins() { 
+  const data = readJSON(COINS_FILE, {});
+  console.log(`📊 Loaded coins data for ${Object.keys(data).length} users`);
+  return data; 
+}
+
+function saveCoins(d) { 
+  const result = writeJSON(COINS_FILE, d);
+  if (result) {
+    console.log(`💾 Coins saved successfully! Total users: ${Object.keys(d).length}`);
+  } else {
+    console.log(`❌ Failed to save coins!`);
+  }
+  return result;
+}
 
 const activeSessions  = new Map();
 const pendingFeedback = new Map();
@@ -160,7 +202,7 @@ const messageHistory  = new Map();
 const spamCooldown    = new Map();
 const xpCooldown      = new Map();
 const coinsCooldown   = new Map();
-const pendingTransfers = new Map(); // For /transfer command
+const pendingTransfers = new Map();
 
 const STAR_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
 
@@ -1249,7 +1291,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       
       if (elapsedMinutes >= 1) {
         const coinsToAdd = elapsedMinutes * COINS_PER_VC_MINUTE;
-        const coinsData = loadCoins();
+        let coinsData = loadCoins();
         if (!coinsData[userId]) {
           coinsData[userId] = { 
             username: member.user.tag, 
@@ -1282,7 +1324,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 // INVITE TRACKING FOR COINS
 // ─────────────────────────────────────────
 client.on('inviteCreate', async (invite) => {
-  const inviteData = loadCoins();
+  let inviteData = loadCoins();
   if (!inviteData['invite_codes']) {
     inviteData['invite_codes'] = {};
   }
@@ -1300,14 +1342,14 @@ client.on('guildMemberAdd', async (member) => {
   
   try {
     const invites = await member.guild.invites.fetch();
-    const inviteData = loadCoins();
+    let inviteData = loadCoins();
     const cachedInvites = inviteData['invite_codes'] || {};
     
     for (const [code, invite] of invites) {
       const cached = cachedInvites[code];
       if (cached && invite.uses > cached.uses) {
         const inviterId = invite.inviter.id;
-        const coinsData = loadCoins();
+        let coinsData = loadCoins();
         if (!coinsData[inviterId]) {
           coinsData[inviterId] = { 
             username: invite.inviter.tag, 
@@ -1532,7 +1574,7 @@ client.on('messageCreate', async message => {
     const lastCoins = coinsCooldown.get(message.author.id) || 0;
     if (coinsNow - lastCoins >= COINS_COOLDOWN_MS) {
       coinsCooldown.set(message.author.id, coinsNow);
-      const coinsData = loadCoins();
+      let coinsData = loadCoins();
       const userId = message.author.id;
       if (!coinsData[userId]) {
         coinsData[userId] = { 
@@ -1549,9 +1591,14 @@ client.on('messageCreate', async message => {
       const earnedCoins = Math.floor(coinsData[userId].messages / 5) - Math.floor((coinsData[userId].messages - 1) / 5);
       if (earnedCoins > 0) {
         coinsData[userId].coins += earnedCoins;
+        console.log(`💰 ${message.author.tag} earned ${earnedCoins} coin(s)! Total: ${coinsData[userId].coins}`);
         // Send notification but auto-delete it
-        const sentMsg = await message.channel.send(`🪙 **${message.author.username}** earned **${earnedCoins}** Golden Coin(s)! Total: ${coinsData[userId].coins} 🪙`);
-        autoDelete(sentMsg, 5000);
+        try {
+          const sentMsg = await message.channel.send(`🪙 **${message.author.username}** earned **${earnedCoins}** Golden Coin(s)! Total: ${coinsData[userId].coins} 🪙`);
+          autoDelete(sentMsg, 5000);
+        } catch (err) {
+          console.error('Could not send coin notification:', err);
+        }
       }
       
       saveCoins(coinsData);
