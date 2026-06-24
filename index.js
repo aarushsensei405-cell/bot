@@ -51,6 +51,8 @@ const TICKET_CATEGORY_ID      = '1518439159189213225';
 const LEVEL_UP_CHANNEL_ID     = '1432277463366504484';
 const WELCOME_BANNER_FILE     = path.join(__dirname, 'assets', 'goldenheart-banner.png');
 
+// Updated verification channel
+const VERIFY_CHANNEL_ID = '1513364198850171010';
 const VERIFY_ROLE_ID   = '1432277416109281371';
 const BIRTHDAY_ROLE_ID = '1432277416109281371';
 
@@ -608,7 +610,7 @@ function checkSpam(message) {
 }
 
 // ─────────────────────────────────────────
-// WELCOME CARD IMAGE GENERATOR
+// WELCOME CARD IMAGE GENERATOR (UPDATED)
 // ─────────────────────────────────────────
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -632,13 +634,29 @@ async function generateWelcomeCard(member) {
   const canvas = createCanvas(width, height);
   const ctx    = canvas.getContext('2d');
 
-  const bgGradient = ctx.createLinearGradient(0, 0, width, height);
-  bgGradient.addColorStop(0, '#0d0d1a');
-  bgGradient.addColorStop(0.5, '#1a1230');
-  bgGradient.addColorStop(1, '#0d0d1a');
-  ctx.fillStyle = bgGradient;
+  // Load the banner image from URL
+  const bannerUrl = 'https://i.ibb.co/Y7bNQrLR/Chat-GPT-Image-Jun-22-2026-09-10-20-AM.png';
+  try {
+    const response = await fetch(bannerUrl);
+    const buffer = await response.arrayBuffer();
+    const bannerImage = await loadImage(Buffer.from(buffer));
+    ctx.drawImage(bannerImage, 0, 0, width, height);
+  } catch (err) {
+    console.error('Failed to load banner image:', err);
+    // Fallback gradient background
+    const bgGradient = ctx.createLinearGradient(0, 0, width, height);
+    bgGradient.addColorStop(0, '#0d0d1a');
+    bgGradient.addColorStop(0.5, '#1a1230');
+    bgGradient.addColorStop(1, '#0d0d1a');
+    ctx.fillStyle = bgGradient;
+    ctx.fillRect(0, 0, width, height);
+  }
+
+  // Dark overlay for readability
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
   ctx.fillRect(0, 0, width, height);
 
+  // Decorative glowing orbs
   const drawOrb = (x, y, r, color, alpha) => {
     const radGrad = ctx.createRadialGradient(x, y, 0, x, y, r);
     radGrad.addColorStop(0, color.replace(')', `, ${alpha})`).replace('rgb', 'rgba'));
@@ -652,6 +670,7 @@ async function generateWelcomeCard(member) {
   drawOrb(100, 360, 150, 'rgb(88,101,242)', 0.10);
   drawOrb(500, 200, 200, 'rgb(87,242,135)', 0.04);
 
+  // Star particles
   ctx.fillStyle = 'rgba(255,255,255,0.6)';
   const starPositions = [
     [50,30],[120,80],[200,25],[350,15],[600,40],[750,20],[850,70],[950,30],
@@ -664,6 +683,7 @@ async function generateWelcomeCard(member) {
     ctx.fill();
   }
 
+  // Top golden accent bar with gradient
   const barGrad = ctx.createLinearGradient(0, 0, width, 0);
   barGrad.addColorStop(0, '#b8860b');
   barGrad.addColorStop(0.3, '#f0b429');
@@ -673,6 +693,7 @@ async function generateWelcomeCard(member) {
   ctx.fillRect(0, 0, width, 6);
   ctx.fillRect(0, height - 4, width, 4);
 
+  // Card border glow
   ctx.save();
   roundRect(ctx, 20, 20, width - 40, height - 40, 24);
   ctx.strokeStyle = 'rgba(240,180,41,0.35)';
@@ -683,33 +704,9 @@ async function generateWelcomeCard(member) {
   ctx.fill();
   ctx.restore();
 
-  try {
-    const guild = member.guild;
-    const guildIconURL = guild.iconURL({ extension: 'png', size: 128 });
-    if (guildIconURL) {
-      const guildIcon = await loadImage(guildIconURL);
-      ctx.save();
-      ctx.shadowColor = '#f0b429';
-      ctx.shadowBlur = 20;
-      ctx.beginPath();
-      ctx.arc(920, 70, 42, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(240,180,41,0.2)';
-      ctx.fill();
-      ctx.restore();
-      ctx.save();
-      circleClip(ctx, 920, 70, 38);
-      ctx.drawImage(guildIcon, 882, 32, 76, 76);
-      ctx.restore();
-      ctx.beginPath();
-      ctx.arc(920, 70, 40, 0, Math.PI * 2);
-      ctx.strokeStyle = '#f0b429';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-    }
-  } catch { }
-
+  // === PLAYER AVATAR (on the RIGHT side) ===
   const avatarSize = 160;
-  const avatarCX   = 160;
+  const avatarCX   = width - 180; // Right side
   const avatarCY   = height / 2 + 10;
   try {
     const avatarURL = member.user.displayAvatarURL({ extension: 'png', size: 256 });
@@ -726,10 +723,12 @@ async function generateWelcomeCard(member) {
     ctx.fillStyle = ringGrad;
     ctx.fill();
     ctx.restore();
+
     ctx.save();
     circleClip(ctx, avatarCX, avatarCY, avatarSize / 2);
     ctx.drawImage(avatarImg, avatarCX - avatarSize / 2, avatarCY - avatarSize / 2, avatarSize, avatarSize);
     ctx.restore();
+
     ctx.beginPath();
     ctx.arc(avatarCX, avatarCY, avatarSize / 2 + 3, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255,255,255,0.15)';
@@ -742,17 +741,46 @@ async function generateWelcomeCard(member) {
     ctx.fill();
   }
 
-  const textX  = 290;
+  // === SERVER LOGO (top-left) ===
+  try {
+    const guild = member.guild;
+    const guildIconURL = guild.iconURL({ extension: 'png', size: 128 });
+    if (guildIconURL) {
+      const guildIcon = await loadImage(guildIconURL);
+      ctx.save();
+      ctx.shadowColor = '#f0b429';
+      ctx.shadowBlur = 20;
+      ctx.beginPath();
+      ctx.arc(100, 70, 42, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(240,180,41,0.2)';
+      ctx.fill();
+      ctx.restore();
+      ctx.save();
+      circleClip(ctx, 100, 70, 38);
+      ctx.drawImage(guildIcon, 62, 32, 76, 76);
+      ctx.restore();
+      ctx.beginPath();
+      ctx.arc(100, 70, 40, 0, Math.PI * 2);
+      ctx.strokeStyle = '#f0b429';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    }
+  } catch { /* no guild icon */ }
+
+  // === TEXT SECTION (moved to the left side) ===
+  const textX  = 220;
   const textY0 = 110;
 
+  // "WELCOME TO" label
   ctx.save();
   ctx.font = 'bold 18px sans-serif';
   ctx.fillStyle = 'rgba(240,180,41,0.75)';
   ctx.fillText('✦  W E L C O M E  T O  ✦', textX, textY0);
   ctx.restore();
 
+  // Server name
   ctx.save();
-  const serverNameGrad = ctx.createLinearGradient(textX, 0, textX + 500, 0);
+  const serverNameGrad = ctx.createLinearGradient(textX, 0, textX + 450, 0);
   serverNameGrad.addColorStop(0, '#ffd76e');
   serverNameGrad.addColorStop(0.5, '#ffffff');
   serverNameGrad.addColorStop(1, '#f0b429');
@@ -763,13 +791,15 @@ async function generateWelcomeCard(member) {
   ctx.fillText('GoldenHeart SMP', textX, textY0 + 52);
   ctx.restore();
 
-  const divGrad = ctx.createLinearGradient(textX, 0, textX + 580, 0);
+  // Decorative divider
+  const divGrad = ctx.createLinearGradient(textX, 0, textX + 500, 0);
   divGrad.addColorStop(0, 'rgba(240,180,41,0.8)');
   divGrad.addColorStop(0.5, 'rgba(255,255,255,0.4)');
   divGrad.addColorStop(1, 'rgba(240,180,41,0)');
   ctx.fillStyle = divGrad;
-  ctx.fillRect(textX, textY0 + 62, 580, 2);
+  ctx.fillRect(textX, textY0 + 62, 500, 2);
 
+  // Username
   let displayName = member.user.username;
   if (displayName.length > 20) displayName = displayName.slice(0, 18) + '…';
   ctx.font = 'bold 34px sans-serif';
@@ -779,6 +809,7 @@ async function generateWelcomeCard(member) {
   ctx.fillText(displayName, textX, textY0 + 108);
   ctx.shadowBlur = 0;
 
+  // Member count pill
   const pillText = `✦  Member #${member.guild.memberCount}  ✦`;
   ctx.font = '16px sans-serif';
   const pillW = ctx.measureText(pillText).width + 30;
@@ -792,23 +823,7 @@ async function generateWelcomeCard(member) {
   ctx.fillStyle = '#f0b429';
   ctx.fillText(pillText, textX + 15, textY0 + 145);
 
-  ctx.save();
-  const ctaW = 400;
-  roundRect(ctx, textX, textY0 + 170, ctaW, 46, 12);
-  const ctaGrad = ctx.createLinearGradient(textX, 0, textX + ctaW, 0);
-  ctaGrad.addColorStop(0, 'rgba(87,242,135,0.15)');
-  ctaGrad.addColorStop(1, 'rgba(87,242,135,0.05)');
-  ctx.fillStyle = ctaGrad;
-  ctx.fill();
-  roundRect(ctx, textX, textY0 + 170, ctaW, 46, 12);
-  ctx.strokeStyle = 'rgba(87,242,135,0.5)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-  ctx.fillStyle = '#57f287';
-  ctx.font = 'bold 17px sans-serif';
-  ctx.fillText('🔐  Verify in #verification to get access!', textX + 14, textY0 + 200);
-  ctx.restore();
-
+  // Footer
   ctx.fillStyle = 'rgba(255,255,255,0.25)';
   ctx.font = '13px sans-serif';
   ctx.fillText(`discord.gg/We5SpWv64T  •  goldenheartsmp.minecraftnoob.com:25565`, textX, height - 38);
@@ -1082,6 +1097,7 @@ client.on('guildMemberAdd', async member => {
     }
     const welcomeChannel = await client.channels.fetch(WELCOME_CHANNEL_ID);
 
+    // Updated welcome embed WITHOUT verify button and WITHOUT extra fields
     const welcomeEmbed = new EmbedBuilder()
       .setColor(0xf0b429)
       .setAuthor({
@@ -1099,21 +1115,13 @@ client.on('guildMemberAdd', async member => {
         ``,
         `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
         ``,
-        `> 🔐 **Step 1:** Verify in <#${WELCOME_CHANNEL_ID}> to unlock all channels`,
-        `> 📜 **Step 2:** Read the rules with \`/rules\``,
-        `> ⛏️ **Step 3:** Join the MC server: \`goldenheartsmp.minecraftnoob.com\``,
+        `> 🔐 **Verify here:** <#${VERIFY_CHANNEL_ID}> to unlock all channels`,
+        `> 📜 **Read the rules:** \`/rules\``,
+        `> ⛏️ **Join the MC server:** \`goldenheartsmp.minecraftnoob.com\``,
         ``,
         `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
       ].join('\n'))
       .setImage('attachment://welcome-card.png')
-      .addFields(
-        { name: '👤 Member',       value: `<@${member.id}>`,                      inline: true },
-        { name: '🔢 Member Count', value: `**#${member.guild.memberCount}**`,     inline: true },
-        { name: '📅 Joined',       value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
-        { name: '\u200b',          value: '\u200b',                                inline: false },
-        { name: '🔐 Get Access',   value: '**Click the Verify button** in the verification channel to unlock the full server.', inline: false },
-        { name: '🌍 Minecraft IP', value: '`goldenheartsmp.minecraftnoob.com:25565`', inline: false },
-      )
       .setThumbnail(member.guild.iconURL({ dynamic: true, size: 256 }) || member.user.displayAvatarURL({ dynamic: true }))
       .setFooter({
         text: `GoldenHeart SMP • Your story begins here  •  ${member.guild.memberCount} members`,
@@ -1121,18 +1129,13 @@ client.on('guildMemberAdd', async member => {
       })
       .setTimestamp();
 
-    const verifyRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('verify')
-        .setLabel('✅ Click Here to Verify & Get Access')
-        .setStyle(ButtonStyle.Success),
-    );
+    // No verify button - removed
 
     await welcomeChannel.send({
       content: `🎉 **Welcome <@${member.id}>!** You are our **${member.guild.memberCount}${getOrdinal(member.guild.memberCount)}** member!`,
       embeds: [welcomeEmbed],
       files,
-      components: [verifyRow],
+      // No components - verify button removed
     });
   } catch (err) { console.error('Could not send welcome card:', err); }
 });
@@ -1901,7 +1904,76 @@ client.on('interactionCreate', async interaction => {
   // MODALS
   // ════════════════════════════════════════
   if (interaction.isModalSubmit()) {
-    // ... (modal handlers remain the same)
+
+    if (interaction.customId.startsWith('editmsg_modal:')) {
+      const [, channelId, messageId] = interaction.customId.split(':');
+      const newContent = interaction.fields.getTextInputValue('new_content');
+      try {
+        const ch  = await client.channels.fetch(channelId);
+        const msg = await ch.messages.fetch(messageId);
+        if (msg.author.id !== client.user.id)
+          return interaction.reply({ content: '❌ I can only edit my own messages.', ephemeral: true });
+        await msg.edit(newContent);
+        await interaction.reply({ content: '✅ Message edited successfully!', ephemeral: true });
+        const logEmbed = new EmbedBuilder()
+          .setTitle('✏️ Owner Edited Bot Message').setColor(0x5865f2)
+          .addFields(
+            { name: 'Editor',     value: `<@${interaction.user.id}>`, inline: true },
+            { name: 'Channel',    value: `<#${channelId}>`, inline: true },
+            { name: 'Message ID', value: messageId, inline: true },
+            { name: 'New Content', value: newContent.slice(0, 1024), inline: false },
+          ).setTimestamp();
+        await sendLog(client, logEmbed);
+      } catch (err) {
+        console.error('Edit message error:', err);
+        return interaction.reply({ content: `❌ Failed to edit message: ${err.message}`, ephemeral: true });
+      }
+    }
+
+    if (interaction.customId.startsWith('editembed_modal:')) {
+      const [, channelId, messageId] = interaction.customId.split(':');
+      const newTitle       = interaction.fields.getTextInputValue('embed_title');
+      const newDescription = interaction.fields.getTextInputValue('embed_description');
+      const newColorRaw    = interaction.fields.getTextInputValue('embed_color');
+      const newFooter      = interaction.fields.getTextInputValue('embed_footer');
+      try {
+        const ch  = await client.channels.fetch(channelId);
+        const msg = await ch.messages.fetch(messageId);
+        if (msg.author.id !== client.user.id)
+          return interaction.reply({ content: '❌ I can only edit my own messages.', ephemeral: true });
+        if (!msg.embeds.length)
+          return interaction.reply({ content: '❌ That message has no embed to edit.', ephemeral: true });
+        const colorInt = newColorRaw ? parseInt(newColorRaw.replace('#', ''), 16) : undefined;
+        const updatedEmbed = EmbedBuilder.from(msg.embeds[0]);
+        if (newTitle.trim())       updatedEmbed.setTitle(newTitle.trim());
+        if (newDescription.trim()) updatedEmbed.setDescription(newDescription.trim());
+        if (newColorRaw && !isNaN(colorInt)) updatedEmbed.setColor(colorInt);
+        if (newFooter.trim())      updatedEmbed.setFooter({ text: newFooter.trim() });
+        await msg.edit({ embeds: [updatedEmbed] });
+        await interaction.reply({ content: '✅ Embed edited successfully!', ephemeral: true });
+      } catch (err) {
+        return interaction.reply({ content: `❌ Failed to edit embed: ${err.message}`, ephemeral: true });
+      }
+    }
+
+    if (interaction.customId.startsWith('editrules_modal:')) {
+      const [, bookKey, pageIndexStr] = interaction.customId.split(':');
+      const pageIndex   = parseInt(pageIndexStr, 10);
+      const newTitle   = interaction.fields.getTextInputValue('page_title');
+      const newContent = interaction.fields.getTextInputValue('page_content');
+      const book = RULEBOOKS[bookKey];
+      if (!book || !book.pages[pageIndex])
+        return interaction.reply({ content: '❌ Invalid rulebook or page.', ephemeral: true });
+      book.pages[pageIndex].title   = newTitle.trim();
+      book.pages[pageIndex].content = newContent.trim();
+      saveRulebooks();
+      const embed = buildBookEmbed(book.title, book.pages, pageIndex, book.color);
+      const row   = buildBookRow(pageIndex, book.pages.length, bookKey);
+      await interaction.channel.send({ embeds: [embed], components: [row] });
+      await interaction.reply({ content: `✅ Page ${pageIndex + 1} of **${book.title}** updated and reposted!`, ephemeral: true });
+    }
+
+    return;
   }
 
   // ════════════════════════════════════════
@@ -1915,7 +1987,7 @@ client.on('interactionCreate', async interaction => {
         .setTitle('✨ GoldenHeart SMP — Member Features').setColor(0xf0b429)
         .setDescription('Here\'s everything available to you as a member of GoldenHeart SMP!')
         .addFields(
-          { name: '🔐 Verification',        value: 'Click the **Verify** button in the verification channel to unlock full server access.', inline: false },
+          { name: '🔐 Verification',        value: `Verify in <#${VERIFY_CHANNEL_ID}> to unlock full server access.`, inline: false },
           { name: '📋 Staff Applications',  value: 'Use the **Staff Application panel** to apply for Chat Moderator, Helper, or Minecraft Chat Moderator.', inline: false },
           { name: '⭐ Staff Feedback',       value: 'Use `/feedback` to rate any staff member out of 5 stars via DM. All feedback is **anonymous**.', inline: false },
           { name: '💡 Suggestions',          value: 'Use `/suggest` to submit server ideas. They appear in the suggestions channel with **Accept/Reject** buttons for staff.', inline: false },
@@ -1961,6 +2033,7 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ embeds: [embed] });
     }
 
+    // ── COINS LEADERBOARD WITH LOGGING ──
     if (interaction.commandName === 'coinslb') {
       const leaderboard = getCoinsLeaderboard(10);
       if (leaderboard.length === 0) {
@@ -1983,7 +2056,28 @@ client.on('interactionCreate', async interaction => {
         .setFooter({ text: 'Keep chatting, VCing, and inviting to earn more coins!' })
         .setTimestamp();
       
-      return interaction.reply({ embeds: [embed] });
+      await interaction.reply({ embeds: [embed] });
+      
+      // ── SEND TO STAFF LOGS ──
+      try {
+        const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
+        if (logChannel) {
+          const logEmbed = new EmbedBuilder()
+            .setTitle('🪙 Coins Leaderboard Viewed')
+            .setColor(0xf0b429)
+            .setDescription(`**${interaction.user.tag}** viewed the coins leaderboard`)
+            .addFields(
+              { name: '🪙 Top 10 Richest Members', value: lines, inline: false },
+              { name: '👤 Viewed By', value: `<@${interaction.user.id}>`, inline: true },
+              { name: '📅 Viewed At', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }
+            )
+            .setFooter({ text: `User ID: ${interaction.user.id}` })
+            .setTimestamp();
+          await logChannel.send({ embeds: [logEmbed] });
+        }
+      } catch (err) {
+        console.error('Failed to send coins leaderboard view to logs:', err);
+      }
     }
 
     if (interaction.commandName === 'daily') {
@@ -2089,6 +2183,173 @@ client.on('interactionCreate', async interaction => {
         .setTimestamp();
       
       return interaction.reply({ embeds: [embed] });
+    }
+
+    // ── TEST WELCOME MESSAGE COMMAND ──
+    if (interaction.commandName === 'testwelcomemessage') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
+        return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+      
+      const targetUser = interaction.options.getUser('user') || interaction.user;
+      const targetMember = interaction.guild.members.cache.get(targetUser.id);
+      
+      if (!targetMember) {
+        return interaction.reply({ content: '❌ User not found in this server.', ephemeral: true });
+      }
+      
+      await interaction.deferReply({ ephemeral: true });
+      
+      try {
+        const cardBuffer = await generateWelcomeCard(targetMember);
+        const cardAttachment = new AttachmentBuilder(cardBuffer, { name: 'welcome-card.png' });
+        const files = [cardAttachment];
+        
+        const bannerExists = fs.existsSync(WELCOME_BANNER_FILE);
+        if (bannerExists) {
+          files.unshift(new AttachmentBuilder(WELCOME_BANNER_FILE, { name: 'goldenheart-banner.png' }));
+        }
+        
+        const welcomeEmbed = new EmbedBuilder()
+          .setColor(0xf0b429)
+          .setAuthor({
+            name: `✨ ${targetMember.user.username} just landed in GoldenHeart!`,
+            iconURL: targetMember.user.displayAvatarURL({ dynamic: true, size: 256 }),
+          })
+          .setTitle('🏰 Welcome to GoldenHeart SMP')
+          .setDescription([
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+            ``,
+            `**Hey <@${targetMember.id}>, we're glad you're here!** 💛`,
+            ``,
+            `GoldenHeart SMP is a community-driven Minecraft survival server`,
+            `built on friendship, strategy, and epic adventures.`,
+            ``,
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+            ``,
+            `> 🔐 **Verify here:** <#${VERIFY_CHANNEL_ID}> to unlock all channels`,
+            `> 📜 **Read the rules:** \`/rules\``,
+            `> ⛏️ **Join the MC server:** \`goldenheartsmp.minecraftnoob.com\``,
+            ``,
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+          ].join('\n'))
+          .setImage('attachment://welcome-card.png')
+          .setThumbnail(targetMember.guild.iconURL({ dynamic: true, size: 256 }) || targetMember.user.displayAvatarURL({ dynamic: true }))
+          .setFooter({
+            text: `GoldenHeart SMP • Test Welcome Message  •  ${targetMember.guild.memberCount} members`,
+            iconURL: targetMember.guild.iconURL({ dynamic: true }) || undefined,
+          })
+          .setTimestamp();
+        
+        await interaction.editReply({
+          content: `📨 **Test Welcome Message for ${targetMember.user.username}**`,
+          embeds: [welcomeEmbed],
+          files,
+        });
+        
+      } catch (err) {
+        console.error('Test welcome message error:', err);
+        return interaction.editReply({ content: `❌ Failed to generate welcome message: ${err.message}`, ephemeral: true });
+      }
+    }
+
+    // ── EXPORT LEADERBOARD COMMAND ──
+    if (interaction.commandName === 'exportleaderboard') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
+        return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+      
+      await interaction.deferReply({ ephemeral: true });
+      
+      try {
+        const xpData = loadXP();
+        const xpSorted = Object.entries(xpData)
+          .filter(([, d]) => d.xp > 0)
+          .sort((a, b) => b[1].xp - a[1].xp);
+        
+        const coinsData = loadCoins();
+        const coinsSorted = Object.entries(coinsData)
+          .filter(([key]) => key !== 'invite_codes')
+          .filter(([, d]) => d.coins > 0 || d.messages > 0 || d.voiceMinutes > 0)
+          .sort((a, b) => b[1].coins - a[1].coins);
+        
+        const exportData = {
+          exportedAt: new Date().toISOString(),
+          exportedBy: interaction.user.tag,
+          guildId: interaction.guild.id,
+          guildName: interaction.guild.name,
+          xpLeaderboard: xpSorted.map(([userId, data]) => ({
+            userId: userId,
+            username: data.username || 'Unknown',
+            xp: data.xp,
+            level: getLevelFromXP(data.xp),
+            messages: Math.floor(data.xp / 15),
+          })),
+          coinsLeaderboard: coinsSorted.map(([userId, data]) => ({
+            userId: userId,
+            username: data.username || 'Unknown',
+            coins: data.coins,
+            messages: data.messages || 0,
+            voiceMinutes: data.voiceMinutes || 0,
+            invites: data.invites || 0,
+          })),
+          summary: {
+            totalUsersWithXP: xpSorted.length,
+            totalUsersWithCoins: coinsSorted.length,
+            totalXP: xpSorted.reduce((sum, [, d]) => sum + d.xp, 0),
+            totalCoins: coinsSorted.reduce((sum, [, d]) => sum + d.coins, 0),
+          }
+        };
+        
+        const jsonData = JSON.stringify(exportData, null, 2);
+        const jsonBuffer = Buffer.from(jsonData, 'utf8');
+        const attachment = new AttachmentBuilder(jsonBuffer, { name: `leaderboard-export-${Date.now()}.json` });
+        
+        const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
+        
+        const logEmbed = new EmbedBuilder()
+          .setTitle('📊 Leaderboard Export')
+          .setColor(0x5865f2)
+          .setDescription(`Leaderboard data exported by <@${interaction.user.id}>`)
+          .addFields(
+            { name: '📈 XP Leaderboard', value: `Total users: **${exportData.summary.totalUsersWithXP}**\nTotal XP: **${exportData.summary.totalXP.toLocaleString()}**`, inline: true },
+            { name: '🪙 Coins Leaderboard', value: `Total users: **${exportData.summary.totalUsersWithCoins}**\nTotal Coins: **${exportData.summary.totalCoins.toLocaleString()}**`, inline: true },
+            { name: '📅 Exported At', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false },
+          )
+          .setFooter({ text: `Exported by ${interaction.user.tag}` })
+          .setTimestamp();
+        
+        await logChannel.send({
+          embeds: [logEmbed],
+          files: [attachment],
+        });
+        
+        const xpPreview = xpSorted.slice(0, 5).map(([userId, data], i) => 
+          `${i + 1}. <@${userId}> — **${data.xp} XP** (Level ${getLevelFromXP(data.xp)})`
+        ).join('\n') || 'No XP data';
+        
+        const coinsPreview = coinsSorted.slice(0, 5).map(([userId, data], i) => 
+          `${i + 1}. <@${userId}> — **${data.coins} coins**`
+        ).join('\n') || 'No coins data';
+        
+        const previewEmbed = new EmbedBuilder()
+          .setTitle('📊 Leaderboard Preview (Top 5)')
+          .setColor(0xf0b429)
+          .addFields(
+            { name: '🏆 XP Leaderboard Top 5', value: xpPreview, inline: false },
+            { name: '🪙 Coins Leaderboard Top 5', value: coinsPreview, inline: false },
+          )
+          .setTimestamp();
+        
+        await logChannel.send({ embeds: [previewEmbed] });
+        
+        await interaction.editReply({
+          content: `✅ Leaderboard data exported to <#${STAFF_LOG_CHANNEL}>!\n\n📊 **Summary:**\n• ${exportData.summary.totalUsersWithXP} users with XP\n• ${exportData.summary.totalUsersWithCoins} users with coins\n• Total XP: ${exportData.summary.totalXP.toLocaleString()}\n• Total Coins: ${exportData.summary.totalCoins.toLocaleString()}`,
+          ephemeral: true,
+        });
+        
+      } catch (err) {
+        console.error('Export leaderboard error:', err);
+        return interaction.editReply({ content: `❌ Failed to export leaderboard: ${err.message}`, ephemeral: true });
+      }
     }
 
     // Rules command
@@ -2202,26 +2463,54 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ embeds: [embed] });
     }
 
-    // ── LEADERBOARD COMMAND ──
+    // ── LEADERBOARD COMMAND WITH LOGGING ──
     if (interaction.commandName === 'leaderboard') {
       const xpData = loadXP();
       const sorted = Object.entries(xpData)
         .filter(([, d]) => d.xp > 0)
         .sort((a, b) => b[1].xp - a[1].xp)
         .slice(0, 10);
-      if (sorted.length === 0)
+      
+      if (sorted.length === 0) {
         return interaction.reply({ content: '📊 No XP data yet — start chatting!', ephemeral: true });
+      }
+      
       const medals = ['🥇', '🥈', '🥉'];
-      const lines  = sorted.map(([uid, data], i) => {
+      const lines = sorted.map(([uid, data], i) => {
         const level = getLevelFromXP(data.xp);
         const medal = medals[i] || `\`${i + 1}.\``;
         return `${medal} <@${uid}> — **Level ${level}** (${data.xp} XP)`;
       }).join('\n');
+      
       const embed = new EmbedBuilder()
-        .setTitle('🏆 XP Leaderboard — Top 10').setColor(0xf0b429)
+        .setTitle('🏆 XP Leaderboard — Top 10')
+        .setColor(0xf0b429)
         .setDescription(lines)
-        .setFooter({ text: 'Earn XP by chatting every minute!' }).setTimestamp();
-      return interaction.reply({ embeds: [embed] });
+        .setFooter({ text: 'Earn XP by chatting every minute!' })
+        .setTimestamp();
+      
+      await interaction.reply({ embeds: [embed] });
+      
+      // ── SEND TO STAFF LOGS ──
+      try {
+        const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
+        if (logChannel) {
+          const logEmbed = new EmbedBuilder()
+            .setTitle('📊 XP Leaderboard Viewed')
+            .setColor(0x5865f2)
+            .setDescription(`**${interaction.user.tag}** viewed the XP leaderboard`)
+            .addFields(
+              { name: '📈 Top 10 XP Leaders', value: lines, inline: false },
+              { name: '👤 Viewed By', value: `<@${interaction.user.id}>`, inline: true },
+              { name: '📅 Viewed At', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }
+            )
+            .setFooter({ text: `User ID: ${interaction.user.id}` })
+            .setTimestamp();
+          await logChannel.send({ embeds: [logEmbed] });
+        }
+      } catch (err) {
+        console.error('Failed to send leaderboard view to logs:', err);
+      }
     }
 
     // ── APPLYPANEL COMMAND ──
@@ -2265,6 +2554,83 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
+    // ── VIEWFEEDBACK COMMAND ──
+    if (interaction.commandName === 'viewfeedback') {
+      if (!hasModPermission(interaction.member))
+        return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+      const staffKey     = interaction.options.getString('staff');
+      const feedbackData = loadFeedback();
+      if (staffKey) {
+        const staffInfo = STAFF_MEMBERS[staffKey];
+        const data      = feedbackData[staffKey];
+        if (!data || data.entries.length === 0)
+          return interaction.reply({ content: `📋 No feedback found for **${staffInfo?.label ?? staffKey}**.`, ephemeral: true });
+        const avgRating  = (data.entries.reduce((s, e) => s + e.rating, 0) / data.entries.length).toFixed(1);
+        const recentList = data.entries.slice(-5).reverse().map((e, i) =>
+          `**${i + 1}.** ${starsDisplay(e.rating)} — *"${e.comment || 'No comment'}"* *(${new Date(e.timestamp).toLocaleDateString()})*`
+        ).join('\n');
+        const embed = new EmbedBuilder()
+          .setTitle(`📋 Feedback — ${data.label} (${data.type})`).setColor(0x5b8dee)
+          .addFields(
+            { name: '⭐ Average Rating', value: `${avgRating}/5`, inline: true },
+            { name: '📝 Total Reviews',  value: `${data.entries.length}`, inline: true },
+            { name: '🕐 Recent Feedback (last 5)', value: recentList || 'None', inline: false },
+          ).setTimestamp();
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+      } else {
+        const lines = Object.entries(STAFF_MEMBERS).map(([key, info]) => {
+          const data = feedbackData[key];
+          if (!data || data.entries.length === 0) return `**${info.label}** (${info.type}) — No feedback yet`;
+          const avg = (data.entries.reduce((s, e) => s + e.rating, 0) / data.entries.length).toFixed(1);
+          return `**${info.label}** (${info.type}) — ${starsDisplay(Math.round(Number(avg)))} **${avg}/5** *(${data.entries.length} review${data.entries.length !== 1 ? 's' : ''})*`;
+        }).join('\n');
+        const embed = new EmbedBuilder()
+          .setTitle('📋 Staff Performance Overview').setColor(0xf0b429)
+          .setDescription(lines || 'No feedback data yet.').setTimestamp();
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+      }
+    }
+
+    // ── STAFFSTATS COMMAND ──
+    if (interaction.commandName === 'staffstats') {
+      if (!hasModPermission(interaction.member))
+        return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+      const feedbackData = loadFeedback();
+      const rows = Object.entries(STAFF_MEMBERS).map(([key, info]) => {
+        const data = feedbackData[key];
+        if (!data || data.entries.length === 0) return `**${info.label}** (${info.type})\n> No reviews yet`;
+        const avg  = (data.entries.reduce((s, e) => s + e.rating, 0) / data.entries.length).toFixed(1);
+        const last = data.entries[data.entries.length - 1];
+        const lastDate = new Date(last.timestamp).toLocaleDateString();
+        return `**${info.label}** (${info.type})\n> ${starsDisplay(Math.round(Number(avg)))} **${avg}/5** — ${data.entries.length} review${data.entries.length !== 1 ? 's' : ''} — Last: ${lastDate}`;
+      }).join('\n\n');
+      const embed = new EmbedBuilder()
+        .setTitle('📊 Staff Performance Stats').setColor(0x9b59b6)
+        .setDescription(rows || 'No feedback data yet.')
+        .setFooter({ text: `Requested by ${interaction.user.tag}` }).setTimestamp();
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    // ── VIEWSUGGESTIONS COMMAND ──
+    if (interaction.commandName === 'viewsuggestions') {
+      if (!hasModPermission(interaction.member))
+        return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+      const suggestions = loadSuggestions();
+      if (suggestions.length === 0)
+        return interaction.reply({ content: '📋 No suggestions yet.', ephemeral: true });
+      const statusFilter = interaction.options.getString('status') || 'all';
+      const filtered = statusFilter === 'all' ? suggestions : suggestions.filter(s => s.status === statusFilter);
+      const statusEmoji = { pending: '🟡', accepted: '✅', rejected: '❌' };
+      const lines = filtered.slice(-20).reverse().map((s, i) =>
+        `**${i + 1}.** \`${s.id}\` — ${statusEmoji[s.status] || '🟡'} **${s.status || 'pending'}**\n> ${s.text.slice(0, 80)}${s.text.length > 80 ? '...' : ''}\n> *by ${s.from}*`
+      ).join('\n\n');
+      const embed = new EmbedBuilder()
+        .setTitle('💡 Suggestions').setColor(0xf0b429)
+        .setDescription(lines || 'No suggestions match this filter.')
+        .setFooter({ text: `Showing last 20 | Filter: ${statusFilter}` }).setTimestamp();
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
     // ── SERVERSTATUS COMMAND ──
     if (interaction.commandName === 'serverstatus') {
       await interaction.deferReply();
@@ -2288,6 +2654,33 @@ client.on('interactionCreate', async interaction => {
         )
         .setFooter({ text: 'Powered by mcsrvstat.us' }).setTimestamp();
       return interaction.editReply({ embeds: [embed] });
+    }
+
+    // ── MCPLAYER COMMAND ──
+    if (interaction.commandName === 'mcplayer') {
+      const username = interaction.options.getString('username');
+      await interaction.deferReply();
+      try {
+        const profile = await fetchJSON(`https://api.mojang.com/users/profiles/minecraft/${encodeURIComponent(username)}`);
+        if (!profile || !profile.id) {
+          return interaction.editReply(`❌ Player **${username}** not found. Check the spelling and try again.`);
+        }
+        const uuid      = profile.id;
+        const formatted = `${uuid.slice(0,8)}-${uuid.slice(8,12)}-${uuid.slice(12,16)}-${uuid.slice(16,20)}-${uuid.slice(20)}`;
+        const skinHead  = `https://mc-heads.net/avatar/${uuid}/64`;
+        const embed = new EmbedBuilder()
+          .setTitle(`⛏️ Minecraft Player — ${profile.name}`).setColor(0x3dd68c)
+          .setThumbnail(skinHead)
+          .addFields(
+            { name: '👤 Username', value: profile.name, inline: true },
+            { name: '🆔 UUID',     value: `\`${formatted}\``, inline: false },
+            { name: '✅ Account',  value: 'Valid Java Edition account', inline: true },
+          )
+          .setFooter({ text: 'Data from Mojang API' }).setTimestamp();
+        return interaction.editReply({ embeds: [embed] });
+      } catch (err) {
+        return interaction.editReply(`❌ Could not look up **${username}**. The player may not exist or the Mojang API may be down.`);
+      }
     }
 
     // ── AFK COMMAND ──
@@ -2572,6 +2965,21 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
+    // ── SLOWMODE COMMAND ──
+    if (interaction.commandName === 'slowmode') {
+      if (!hasModPermission(interaction.member))
+        return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+      const seconds = interaction.options.getInteger('seconds');
+      const channel = interaction.options.getChannel('channel') || interaction.channel;
+      try {
+        await channel.setRateLimitPerUser(seconds);
+        const label = seconds === 0 ? 'disabled' : `set to **${seconds}s**`;
+        return interaction.reply(`⏱️ Slowmode in <#${channel.id}> ${label}.`);
+      } catch (err) {
+        return interaction.reply({ content: '❌ Failed to set slowmode.', ephemeral: true });
+      }
+    }
+
     // ── WARN COMMAND ──
     if (interaction.commandName === 'warn') {
       if (!hasModPermission(interaction.member))
@@ -2636,6 +3044,17 @@ client.on('interactionCreate', async interaction => {
         content: `📋 **Warns for ${target.tag}** — ${warnCount}/8\n\n${list}\n\n${nextTimeout ? `⏭️ Next warn → **${nextTimeout}-min timeout**` : warnCount >= 8 ? '🔴 Max warns reached' : ''}`,
         ephemeral: true,
       });
+    }
+
+    // ── CLEARWARNS COMMAND ──
+    if (interaction.commandName === 'clearwarns') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
+        return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+      const target = interaction.options.getUser('user');
+      const warns  = loadWarns();
+      delete warns[target.id];
+      saveWarns(warns);
+      return interaction.reply({ content: `🧹 Cleared all warns for **${target.tag}**.` });
     }
 
     // ── SERVERINFO COMMAND ──
@@ -2780,8 +3199,176 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: '✅ Stylish ticket panel posted!', ephemeral: true });
     }
 
-    // ── ADD MORE COMMANDS AS NEEDED ──
-    // (verifypanel, announce, editmessage, editembed, editrules, etc.)
+    // ── VERIFYPANEL COMMAND ──
+    if (interaction.commandName === 'verifypanel') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
+        return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+      
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('verify')
+          .setLabel('✅ Click to Verify')
+          .setStyle(ButtonStyle.Success)
+      );
+      
+      const embed = new EmbedBuilder()
+        .setTitle('🔐 Verification Required')
+        .setColor(0x57f287)
+        .setDescription(`Click the button below to verify yourself and gain access to the server!\n\n<#${VERIFY_CHANNEL_ID}>`)
+        .setTimestamp();
+      
+      await interaction.channel.send({
+        embeds: [embed],
+        components: [row]
+      });
+      return interaction.reply({ content: '✅ Verify panel sent!', ephemeral: true });
+    }
+
+    // ── ANNOUNCE COMMAND ──
+    if (interaction.commandName === 'announce') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
+        return interaction.reply({ content: 'Only admins can use this command.', ephemeral: true });
+      const title = interaction.options.getString('title');
+      await interaction.reply({
+        content: title ? `📢 Title set: **${title}**\n\nNow send your announcement message in chat.` : '📢 Send your announcement message in chat now.',
+        ephemeral: true,
+      });
+      const collector = interaction.channel.createMessageCollector({ filter: m => m.author.id === interaction.user.id, max: 1, time: 60000 });
+      collector.on('collect', async message => {
+        const text = title
+          ? `📢 @everyone\n\n━━━━━━━━━━━━━━━\n# **${title.toUpperCase()}**\n━━━━━━━━━━━━━━━\n\n${message.content}\n\n━━━━━━━━━━━━━━━`
+          : `📢 @everyone\n\n${message.content}`;
+        await interaction.channel.send({ content: text });
+        await message.delete().catch(() => {});
+      });
+      collector.on('end', (collected, reason) => {
+        if (reason === 'time' && collected.size === 0)
+          interaction.followUp({ content: '⏰ Timed out — no message received.', ephemeral: true }).catch(() => {});
+      });
+    }
+
+    // ── EDITMESSAGE COMMAND ──
+    if (interaction.commandName === 'editmessage') {
+      if (!isGuildOwner(interaction))
+        return interaction.reply({ content: '❌ Only the server owner can use this command.', ephemeral: true });
+      const channelId = interaction.options.getString('channel_id');
+      const messageId = interaction.options.getString('message_id');
+      try {
+        const ch  = await client.channels.fetch(channelId);
+        const msg = await ch.messages.fetch(messageId);
+        if (msg.author.id !== client.user.id)
+          return interaction.reply({ content: '❌ I can only edit my own messages.', ephemeral: true });
+        const modal = new ModalBuilder()
+          .setCustomId(`editmsg_modal:${channelId}:${messageId}`)
+          .setTitle('✏️ Edit Bot Message');
+        const contentInput = new TextInputBuilder()
+          .setCustomId('new_content')
+          .setLabel('New Message Content')
+          .setStyle(TextInputStyle.Paragraph)
+          .setValue(msg.content || '')
+          .setRequired(true)
+          .setMaxLength(2000);
+        modal.addComponents(new ActionRowBuilder().addComponents(contentInput));
+        return interaction.showModal(modal);
+      } catch (err) {
+        return interaction.reply({ content: `❌ Could not find that message: ${err.message}`, ephemeral: true });
+      }
+    }
+
+    // ── EDITEMBED COMMAND ──
+    if (interaction.commandName === 'editembed') {
+      if (!isGuildOwner(interaction))
+        return interaction.reply({ content: '❌ Only the server owner can use this command.', ephemeral: true });
+      const channelId = interaction.options.getString('channel_id');
+      const messageId = interaction.options.getString('message_id');
+      try {
+        const ch  = await client.channels.fetch(channelId);
+        const msg = await ch.messages.fetch(messageId);
+        if (msg.author.id !== client.user.id)
+          return interaction.reply({ content: '❌ I can only edit my own messages.', ephemeral: true });
+        if (!msg.embeds.length)
+          return interaction.reply({ content: '❌ That message has no embed.', ephemeral: true });
+        const existingEmbed = msg.embeds[0];
+        const modal = new ModalBuilder()
+          .setCustomId(`editembed_modal:${channelId}:${messageId}`)
+          .setTitle('✏️ Edit Embed');
+        const titleInput = new TextInputBuilder()
+          .setCustomId('embed_title').setLabel('Embed Title (leave blank to keep)')
+          .setStyle(TextInputStyle.Short).setValue(existingEmbed.title || '').setRequired(false).setMaxLength(256);
+        const descInput = new TextInputBuilder()
+          .setCustomId('embed_description').setLabel('Embed Description (leave blank to keep)')
+          .setStyle(TextInputStyle.Paragraph).setValue(existingEmbed.description || '').setRequired(false).setMaxLength(4000);
+        const colorInput = new TextInputBuilder()
+          .setCustomId('embed_color').setLabel('Color (hex e.g. #f0b429, leave blank to keep)')
+          .setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(7);
+        const footerInput = new TextInputBuilder()
+          .setCustomId('embed_footer').setLabel('Footer text (leave blank to keep)')
+          .setStyle(TextInputStyle.Short).setValue(existingEmbed.footer?.text || '').setRequired(false).setMaxLength(200);
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(titleInput),
+          new ActionRowBuilder().addComponents(descInput),
+          new ActionRowBuilder().addComponents(colorInput),
+          new ActionRowBuilder().addComponents(footerInput),
+        );
+        return interaction.showModal(modal);
+      } catch (err) {
+        return interaction.reply({ content: `❌ Could not find that message: ${err.message}`, ephemeral: true });
+      }
+    }
+
+    // ── EDITRULES COMMAND ──
+    if (interaction.commandName === 'editrules') {
+      if (!isGuildOwner(interaction))
+        return interaction.reply({ content: '❌ Only the server owner can use this command.', ephemeral: true });
+      const bookKey   = interaction.options.getString('book');
+      const pageNum   = interaction.options.getInteger('page');
+      const book      = RULEBOOKS[bookKey];
+      if (!book)
+        return interaction.reply({ content: '❌ Invalid rulebook key.', ephemeral: true });
+      const pageIndex = pageNum - 1;
+      if (pageIndex < 0 || pageIndex >= book.pages.length)
+        return interaction.reply({ content: `❌ Page ${pageNum} doesn't exist in this rulebook (has ${book.pages.length} pages).`, ephemeral: true });
+      const page  = book.pages[pageIndex];
+      const modal = new ModalBuilder()
+        .setCustomId(`editrules_modal:${bookKey}:${pageIndex}`)
+        .setTitle(`✏️ Edit ${book.title.slice(0, 30)} — Page ${pageNum}`);
+      const titleInput = new TextInputBuilder()
+        .setCustomId('page_title').setLabel('Page Title')
+        .setStyle(TextInputStyle.Short).setValue(page.title).setRequired(true).setMaxLength(256);
+      const contentInput = new TextInputBuilder()
+        .setCustomId('page_content').setLabel('Page Content (supports markdown)')
+        .setStyle(TextInputStyle.Paragraph).setValue(page.content).setRequired(true).setMaxLength(4000);
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(titleInput),
+        new ActionRowBuilder().addComponents(contentInput),
+      );
+      return interaction.showModal(modal);
+    }
+
+    // ── ROLEPANEL COMMAND ──
+    if (interaction.commandName === 'rolepanel') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
+        return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+      const title = interaction.options.getString('title') || '🎭 Self-Assign Roles';
+      const desc  = interaction.options.getString('description') || 'Click a button below to add or remove a role.';
+      const rolePairs = [];
+      for (let i = 1; i <= 5; i++) {
+        const role  = interaction.options.getRole(`role${i}`);
+        const label = interaction.options.getString(`label${i}`);
+        if (role && label) rolePairs.push({ role, label });
+      }
+      if (rolePairs.length === 0)
+        return interaction.reply({ content: '❌ You must provide at least one role + label pair.', ephemeral: true });
+      const buttons = rolePairs.map(({ role, label }) =>
+        new ButtonBuilder().setCustomId(`role_toggle:${role.id}`).setLabel(label).setStyle(ButtonStyle.Secondary)
+      );
+      const row   = new ActionRowBuilder().addComponents(...buttons);
+      const embed = new EmbedBuilder()
+        .setTitle(title).setColor(0x5865f2).setDescription(desc)
+        .setFooter({ text: 'Click to toggle a role' }).setTimestamp();
+      await interaction.channel.send({ embeds: [embed], components: [row] });
+      return interaction.reply({ content: '✅ Role panel posted!', ephemeral: true });
+    }
   }
 
   // ════════════════════════════════════════
@@ -3029,6 +3616,22 @@ const commands = [
   new SlashCommandBuilder().setName('applypanel').setDescription('Send the staff application dropdown panel'),
   new SlashCommandBuilder().setName('verifypanel').setDescription('Send verification panel'),
   new SlashCommandBuilder().setName('announce').setDescription('Send announcement').addStringOption(o => o.setName('title').setDescription('Optional title').setRequired(false)),
+  
+  // ── NEW: TEST WELCOME MESSAGE COMMAND ──
+  new SlashCommandBuilder()
+    .setName('testwelcomemessage')
+    .setDescription('Test the welcome message for a specific user (admin only)')
+    .addUserOption(o => 
+      o.setName('user')
+        .setDescription('User to test the welcome message for (default: yourself)')
+        .setRequired(false)
+    ),
+  
+  // ── NEW: EXPORT LEADERBOARD COMMAND ──
+  new SlashCommandBuilder()
+    .setName('exportleaderboard')
+    .setDescription('Export XP and Coins leaderboard data to staff logs (admin only)'),
+  
   new SlashCommandBuilder().setName('ban').setDescription('Ban a member permanently or temporarily')
     .addUserOption(o => o.setName('user').setDescription('Member to ban').setRequired(true))
     .addStringOption(o => o.setName('reason').setDescription('Reason').setRequired(false))
