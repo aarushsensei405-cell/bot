@@ -634,89 +634,137 @@ async function generateWelcomeCard(member) {
   const canvas = createCanvas(width, height);
   const ctx    = canvas.getContext('2d');
 
-  // Load the banner image from URL
-  const bannerUrl = 'https://i.ibb.co/Y7bNQrLR/Chat-GPT-Image-Jun-22-2026-09-10-20-AM.png';
-  try {
-    const response = await fetch(bannerUrl);
-    const buffer = await response.arrayBuffer();
-    const bannerImage = await loadImage(Buffer.from(buffer));
-    ctx.drawImage(bannerImage, 0, 0, width, height);
-  } catch (err) {
-    console.error('Failed to load banner image:', err);
-    // Fallback gradient background
-    const bgGradient = ctx.createLinearGradient(0, 0, width, height);
-    bgGradient.addColorStop(0, '#0d0d1a');
-    bgGradient.addColorStop(0.5, '#1a1230');
-    bgGradient.addColorStop(1, '#0d0d1a');
-    ctx.fillStyle = bgGradient;
-    ctx.fillRect(0, 0, width, height);
-  }
-
-  // Dark overlay for readability
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  // ── Generate custom Minecraft-themed banner ──
+  // Gradient background
+  const bgGradient = ctx.createLinearGradient(0, 0, width, height);
+  bgGradient.addColorStop(0, '#1a0a1a'); // Dark purple
+  bgGradient.addColorStop(0.3, '#2d0a2d');
+  bgGradient.addColorStop(0.6, '#3d1a2d');
+  bgGradient.addColorStop(0.8, '#1a1a0a');
+  bgGradient.addColorStop(1, '#0a1a0a');
+  ctx.fillStyle = bgGradient;
   ctx.fillRect(0, 0, width, height);
 
-  // Decorative glowing orbs
-  const drawOrb = (x, y, r, color, alpha) => {
-    const radGrad = ctx.createRadialGradient(x, y, 0, x, y, r);
-    radGrad.addColorStop(0, color.replace(')', `, ${alpha})`).replace('rgb', 'rgba'));
-    radGrad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = radGrad;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-  };
-  drawOrb(900, 50,  180, 'rgb(240,180,41)', 0.12);
-  drawOrb(100, 360, 150, 'rgb(88,101,242)', 0.10);
-  drawOrb(500, 200, 200, 'rgb(87,242,135)', 0.04);
-
-  // Star particles
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  const starPositions = [
-    [50,30],[120,80],[200,25],[350,15],[600,40],[750,20],[850,70],[950,30],
-    [30,150],[80,220],[160,300],[900,180],[960,250],[40,350],[180,380],
-  ];
-  for (const [sx, sy] of starPositions) {
-    const size = 1.5;
-    ctx.beginPath();
-    ctx.arc(sx, sy, size, 0, Math.PI * 2);
-    ctx.fill();
+  // ── Minecraft grass block pattern at bottom ──
+  const grassColors = ['#6b8c42', '#5a7d32', '#7a9c52', '#4a6d22'];
+  for (let x = 0; x < width; x += 20) {
+    for (let y = height - 30; y < height; y += 20) {
+      const shade = grassColors[Math.floor(Math.random() * grassColors.length)];
+      ctx.fillStyle = shade;
+      ctx.fillRect(x + Math.random() * 10 - 5, y + Math.random() * 10 - 5, 20, 20);
+    }
   }
 
-  // Top golden accent bar with gradient
-  const barGrad = ctx.createLinearGradient(0, 0, width, 0);
-  barGrad.addColorStop(0, '#b8860b');
-  barGrad.addColorStop(0.3, '#f0b429');
-  barGrad.addColorStop(0.7, '#ffd76e');
-  barGrad.addColorStop(1, '#b8860b');
-  ctx.fillStyle = barGrad;
-  ctx.fillRect(0, 0, width, 6);
-  ctx.fillRect(0, height - 4, width, 4);
+  // ── Minecraft dirt/stone texture overlay ──
+  for (let i = 0; i < 200; i++) {
+    const x = Math.random() * width;
+    const y = Math.random() * height;
+    const size = 2 + Math.random() * 4;
+    ctx.fillStyle = `rgba(60, 40, 30, ${0.05 + Math.random() * 0.1})`;
+    ctx.fillRect(x, y, size, size);
+  }
 
-  // Card border glow
-  ctx.save();
-  roundRect(ctx, 20, 20, width - 40, height - 40, 24);
-  ctx.strokeStyle = 'rgba(240,180,41,0.35)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-  roundRect(ctx, 20, 20, width - 40, height - 40, 24);
-  ctx.fillStyle = 'rgba(255,255,255,0.03)';
-  ctx.fill();
-  ctx.restore();
+  // ── Golden Heart logo ──
+  const heartX = 80, heartY = 80, heartSize = 60;
+  ctx.shadowColor = '#f0b429';
+  ctx.shadowBlur = 40;
+  ctx.fillStyle = '#f0b429';
+  ctx.font = '60px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('❤️', heartX, heartY);
+  ctx.shadowBlur = 0;
 
-  // === PLAYER AVATAR (on the RIGHT side) ===
-  const avatarSize = 160;
-  const avatarCX   = width - 180; // Right side
-  const avatarCY   = height / 2 + 10;
+  // ── Title with glow ──
+  ctx.shadowColor = '#f0b429';
+  ctx.shadowBlur = 25;
+  ctx.fillStyle = '#ffd76e';
+  ctx.font = 'bold 52px "Minecraft", "Courier New", monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('GOLDENHEART SMP', 150, 70);
+
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 28px "Minecraft", "Courier New", monospace';
+  ctx.fillText('⚔️ SURVIVAL MULTIPLAYER', 150, 120);
+
+  // ── Minecraft sword decoration ──
+  ctx.fillStyle = '#8a8a8a';
+  ctx.font = '40px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('⚔️', width / 2, 170);
+
+  // ── Player info area (left side) ──
+  const textX = 60;
+  const textY = 180;
+
+  // Username with golden border
+  let displayName = member.user.username;
+  if (displayName.length > 16) displayName = displayName.slice(0, 14) + '…';
+  
+  ctx.shadowColor = '#f0b429';
+  ctx.shadowBlur = 15;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 38px "Minecraft", "Courier New", monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(displayName, textX, textY);
+  
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#f0b429';
+  ctx.font = '20px "Minecraft", "Courier New", monospace';
+  ctx.fillText(`✦ Member #${member.guild.memberCount}`, textX, textY + 45);
+
+  // ── Minecraft-themed info boxes ──
+  const infoY = 250;
+  const infoBoxes = [
+    { icon: '⛏️', label: 'Minecraft', value: '1.20.4+' },
+    { icon: '🌐', label: 'IP', value: 'goldenheartsmp.minecraftnoob.com' },
+    { icon: '👥', label: 'Online', value: `${member.guild.memberCount} Players` },
+  ];
+
+  infoBoxes.forEach((box, i) => {
+    const x = textX + i * 280;
+    // Box background
+    roundRect(ctx, x, infoY, 250, 60, 8);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fill();
+    roundRect(ctx, x, infoY, 250, 60, 8);
+    ctx.strokeStyle = 'rgba(240, 180, 41, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = '#f0b429';
+    ctx.font = '16px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${box.icon} ${box.label}`, x + 10, infoY + 20);
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '14px sans-serif';
+    ctx.fillText(box.value, x + 10, infoY + 45);
+  });
+
+  // ── Avatar (right side) ──
+  const avatarSize = 130;
+  const avatarX = width - 170;
+  const avatarY = height / 2 - 10;
+
   try {
     const avatarURL = member.user.displayAvatarURL({ extension: 'png', size: 256 });
     const avatarImg = await loadImage(avatarURL);
+    
+    // Glowing ring
     ctx.save();
     ctx.shadowColor = '#f0b429';
-    ctx.shadowBlur  = 35;
+    ctx.shadowBlur = 40;
     ctx.beginPath();
-    ctx.arc(avatarCX, avatarCY, avatarSize / 2 + 8, 0, Math.PI * 2);
-    const ringGrad = ctx.createLinearGradient(avatarCX - 90, avatarCY - 90, avatarCX + 90, avatarCY + 90);
+    ctx.arc(avatarX, avatarY, avatarSize / 2 + 8, 0, Math.PI * 2);
+    const ringGrad = ctx.createRadialGradient(
+      avatarX - 40, avatarY - 40, 10,
+      avatarX, avatarY, avatarSize / 2 + 12
+    );
     ringGrad.addColorStop(0, '#ffd76e');
     ringGrad.addColorStop(0.5, '#f0b429');
     ringGrad.addColorStop(1, '#b8860b');
@@ -724,109 +772,50 @@ async function generateWelcomeCard(member) {
     ctx.fill();
     ctx.restore();
 
+    // Avatar image
     ctx.save();
-    circleClip(ctx, avatarCX, avatarCY, avatarSize / 2);
-    ctx.drawImage(avatarImg, avatarCX - avatarSize / 2, avatarCY - avatarSize / 2, avatarSize, avatarSize);
+    circleClip(ctx, avatarX, avatarY, avatarSize / 2);
+    ctx.drawImage(avatarImg, avatarX - avatarSize / 2, avatarY - avatarSize / 2, avatarSize, avatarSize);
     ctx.restore();
 
+    // Border
     ctx.beginPath();
-    ctx.arc(avatarCX, avatarCY, avatarSize / 2 + 3, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.arc(avatarX, avatarY, avatarSize / 2 + 3, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
     ctx.lineWidth = 2;
     ctx.stroke();
+
+    // "Welcome" text under avatar
+    ctx.fillStyle = '#f0b429';
+    ctx.font = 'bold 16px "Minecraft", "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✦ WELCOME ✦', avatarX, avatarY + avatarSize / 2 + 30);
   } catch {
+    // Fallback
     ctx.beginPath();
-    ctx.arc(avatarCX, avatarCY, avatarSize / 2, 0, Math.PI * 2);
+    ctx.arc(avatarX, avatarY, avatarSize / 2, 0, Math.PI * 2);
     ctx.fillStyle = '#333';
     ctx.fill();
   }
 
-  // === SERVER LOGO (top-left) ===
-  try {
-    const guild = member.guild;
-    const guildIconURL = guild.iconURL({ extension: 'png', size: 128 });
-    if (guildIconURL) {
-      const guildIcon = await loadImage(guildIconURL);
-      ctx.save();
-      ctx.shadowColor = '#f0b429';
-      ctx.shadowBlur = 20;
-      ctx.beginPath();
-      ctx.arc(100, 70, 42, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(240,180,41,0.2)';
-      ctx.fill();
-      ctx.restore();
-      ctx.save();
-      circleClip(ctx, 100, 70, 38);
-      ctx.drawImage(guildIcon, 62, 32, 76, 76);
-      ctx.restore();
-      ctx.beginPath();
-      ctx.arc(100, 70, 40, 0, Math.PI * 2);
-      ctx.strokeStyle = '#f0b429';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-    }
-  } catch { /* no guild icon */ }
+  // ── Footer with server info ──
+  ctx.fillStyle = 'rgba(255, 215, 0, 0.4)';
+  ctx.font = '12px "Minecraft", "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('🏰 GoldenHeart SMP • discord.gg/We5SpWv64T • ⛏️ 1.20.4+', width / 2, height - 10);
 
-  // === TEXT SECTION (moved to the left side) ===
-  const textX  = 220;
-  const textY0 = 110;
-
-  // "WELCOME TO" label
-  ctx.save();
-  ctx.font = 'bold 18px sans-serif';
-  ctx.fillStyle = 'rgba(240,180,41,0.75)';
-  ctx.fillText('✦  W E L C O M E  T O  ✦', textX, textY0);
-  ctx.restore();
-
-  // Server name
-  ctx.save();
-  const serverNameGrad = ctx.createLinearGradient(textX, 0, textX + 450, 0);
-  serverNameGrad.addColorStop(0, '#ffd76e');
-  serverNameGrad.addColorStop(0.5, '#ffffff');
-  serverNameGrad.addColorStop(1, '#f0b429');
-  ctx.fillStyle = serverNameGrad;
-  ctx.font = 'bold 46px sans-serif';
-  ctx.shadowColor = 'rgba(240,180,41,0.5)';
-  ctx.shadowBlur = 12;
-  ctx.fillText('GoldenHeart SMP', textX, textY0 + 52);
-  ctx.restore();
-
-  // Decorative divider
-  const divGrad = ctx.createLinearGradient(textX, 0, textX + 500, 0);
-  divGrad.addColorStop(0, 'rgba(240,180,41,0.8)');
-  divGrad.addColorStop(0.5, 'rgba(255,255,255,0.4)');
-  divGrad.addColorStop(1, 'rgba(240,180,41,0)');
-  ctx.fillStyle = divGrad;
-  ctx.fillRect(textX, textY0 + 62, 500, 2);
-
-  // Username
-  let displayName = member.user.username;
-  if (displayName.length > 20) displayName = displayName.slice(0, 18) + '…';
-  ctx.font = 'bold 34px sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.shadowColor = 'rgba(255,255,255,0.2)';
-  ctx.shadowBlur = 8;
-  ctx.fillText(displayName, textX, textY0 + 108);
-  ctx.shadowBlur = 0;
-
-  // Member count pill
-  const pillText = `✦  Member #${member.guild.memberCount}  ✦`;
-  ctx.font = '16px sans-serif';
-  const pillW = ctx.measureText(pillText).width + 30;
-  roundRect(ctx, textX, textY0 + 125, pillW, 30, 15);
-  ctx.fillStyle = 'rgba(240,180,41,0.15)';
-  ctx.fill();
-  roundRect(ctx, textX, textY0 + 125, pillW, 30, 15);
-  ctx.strokeStyle = 'rgba(240,180,41,0.4)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  ctx.fillStyle = '#f0b429';
-  ctx.fillText(pillText, textX + 15, textY0 + 145);
-
-  // Footer
-  ctx.fillStyle = 'rgba(255,255,255,0.25)';
-  ctx.font = '13px sans-serif';
-  ctx.fillText(`discord.gg/We5SpWv64T  •  goldenheartsmp.minecraftnoob.com:25565`, textX, height - 38);
+  // ── Decorative elements ──
+  // Corner decorations
+  const corners = [[20, 20], [width - 20, 20], [20, height - 20], [width - 20, height - 20]];
+  corners.forEach(([cx, cy]) => {
+    ctx.fillStyle = '#f0b429';
+    ctx.font = '16px sans-serif';
+    ctx.textAlign = cx < 50 ? 'left' : 'right';
+    ctx.textBaseline = cy < 50 ? 'top' : 'bottom';
+    ctx.fillText('◆', cx, cy);
+  });
 
   return canvas.toBuffer('image/png');
 }
@@ -1091,17 +1080,13 @@ client.on('guildMemberAdd', async member => {
     const cardBuffer     = await generateWelcomeCard(member);
     const cardAttachment = new AttachmentBuilder(cardBuffer, { name: 'welcome-card.png' });
     const files          = [cardAttachment];
-    const bannerExists   = fs.existsSync(WELCOME_BANNER_FILE);
-    if (bannerExists) {
-      files.unshift(new AttachmentBuilder(WELCOME_BANNER_FILE, { name: 'goldenheart-banner.png' }));
-    }
     const welcomeChannel = await client.channels.fetch(WELCOME_CHANNEL_ID);
 
-    // Updated welcome embed WITHOUT verify button and WITHOUT extra fields
+    // Updated welcome embed with Minecraft theme
     const welcomeEmbed = new EmbedBuilder()
       .setColor(0xf0b429)
       .setAuthor({
-        name: `✨ ${member.user.username} just landed in GoldenHeart!`,
+        name: `⛏️ ${member.user.username} joined GoldenHeart SMP!`,
         iconURL: member.user.displayAvatarURL({ dynamic: true, size: 256 }),
       })
       .setTitle('🏰 Welcome to GoldenHeart SMP')
@@ -1124,18 +1109,15 @@ client.on('guildMemberAdd', async member => {
       .setImage('attachment://welcome-card.png')
       .setThumbnail(member.guild.iconURL({ dynamic: true, size: 256 }) || member.user.displayAvatarURL({ dynamic: true }))
       .setFooter({
-        text: `GoldenHeart SMP • Your story begins here  •  ${member.guild.memberCount} members`,
+        text: `⚔️ GoldenHeart SMP • ${member.guild.memberCount} members • 1.20.4+`,
         iconURL: member.guild.iconURL({ dynamic: true }) || undefined,
       })
       .setTimestamp();
-
-    // No verify button - removed
 
     await welcomeChannel.send({
       content: `🎉 **Welcome <@${member.id}>!** You are our **${member.guild.memberCount}${getOrdinal(member.guild.memberCount)}** member!`,
       embeds: [welcomeEmbed],
       files,
-      // No components - verify button removed
     });
   } catch (err) { console.error('Could not send welcome card:', err); }
 });
@@ -2030,7 +2012,7 @@ client.on('interactionCreate', async interaction => {
         .setFooter({ text: `5 messages = 1 coin • 1 min voice = 1 coin • 1 invite = 50 coins` })
         .setTimestamp();
       
-      return interaction.reply({ embeds: [embed] });
+      return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
     // ── COINS LEADERBOARD WITH LOGGING ──
@@ -2056,7 +2038,7 @@ client.on('interactionCreate', async interaction => {
         .setFooter({ text: 'Keep chatting, VCing, and inviting to earn more coins!' })
         .setTimestamp();
       
-      await interaction.reply({ embeds: [embed] });
+      await interaction.reply({ embeds: [embed], ephemeral: true });
       
       // ── SEND TO STAFF LOGS ──
       try {
@@ -2118,7 +2100,7 @@ client.on('interactionCreate', async interaction => {
         .setFooter({ text: 'Keep earning coins by chatting, VCing, and inviting!' })
         .setTimestamp();
       
-      return interaction.reply({ embeds: [embed] });
+      return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
     // ── TRANSFER COMMAND ──
@@ -2182,7 +2164,79 @@ client.on('interactionCreate', async interaction => {
         )
         .setTimestamp();
       
-      return interaction.reply({ embeds: [embed] });
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+      
+      // DM the receiver
+      try {
+        const receiverUser = await client.users.fetch(target.id);
+        await receiverUser.send(`💸 **Coin Transfer Received!**\n\nYou received **${amount}** Golden Coins from **${interaction.user.username}**!\n\n💰 New Balance: ${coinsData[target.id].coins} coins`);
+      } catch (err) {
+        console.log(`Could not DM user ${target.id} about transfer`);
+      }
+    }
+
+    // ── SETBALANCE COMMAND (Admin only) ──
+    if (interaction.commandName === 'setbalance') {
+      if (!hasModPermission(interaction.member)) {
+        return interaction.reply({ content: '❌ You do not have permission to use this command.', ephemeral: true });
+      }
+      
+      const target = interaction.options.getUser('user');
+      const amount = interaction.options.getNumber('amount');
+      const reason = interaction.options.getString('reason') || 'No reason provided';
+      
+      if (amount < 0) {
+        return interaction.reply({ content: '❌ Amount must be 0 or greater!', ephemeral: true });
+      }
+      
+      let coinsData = loadCoins();
+      
+      if (!coinsData[target.id]) {
+        coinsData[target.id] = { 
+          username: target.tag, 
+          coins: 0, 
+          messages: 0,
+          voiceMinutes: 0,
+          invites: 0
+        };
+      }
+      
+      const oldBalance = coinsData[target.id].coins;
+      coinsData[target.id].coins = amount;
+      coinsData[target.id].username = target.tag;
+      saveCoins(coinsData);
+      
+      const embed = new EmbedBuilder()
+        .setTitle('⚙️ Balance Set')
+        .setColor(0x5865f2)
+        .setDescription(`<@${interaction.user.id}> set the balance for <@${target.id}>!`)
+        .addFields(
+          { name: '👤 User', value: `${target.tag}`, inline: true },
+          { name: '💰 Old Balance', value: `${oldBalance} coins`, inline: true },
+          { name: '💰 New Balance', value: `${amount} coins`, inline: true },
+          { name: '📋 Reason', value: reason, inline: false },
+        )
+        .setTimestamp();
+      
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+      
+      // Log to staff channel
+      try {
+        const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
+        if (logChannel) {
+          await logChannel.send({ embeds: [embed] });
+        }
+      } catch (err) {
+        console.error('Failed to send setbalance log:', err);
+      }
+      
+      // DM the user
+      try {
+        const targetUser = await client.users.fetch(target.id);
+        await targetUser.send(`⚙️ **Balance Updated by Staff**\n\nYour Golden Coins balance has been set to **${amount}** coins.\n\n📋 Reason: ${reason}\n👤 Staff: ${interaction.user.tag}`);
+      } catch (err) {
+        console.log(`Could not DM user ${target.id} about balance update`);
+      }
     }
 
     // ── TEST WELCOME MESSAGE COMMAND ──
@@ -2204,15 +2258,10 @@ client.on('interactionCreate', async interaction => {
         const cardAttachment = new AttachmentBuilder(cardBuffer, { name: 'welcome-card.png' });
         const files = [cardAttachment];
         
-        const bannerExists = fs.existsSync(WELCOME_BANNER_FILE);
-        if (bannerExists) {
-          files.unshift(new AttachmentBuilder(WELCOME_BANNER_FILE, { name: 'goldenheart-banner.png' }));
-        }
-        
         const welcomeEmbed = new EmbedBuilder()
           .setColor(0xf0b429)
           .setAuthor({
-            name: `✨ ${targetMember.user.username} just landed in GoldenHeart!`,
+            name: `⛏️ ${targetMember.user.username} joined GoldenHeart SMP!`,
             iconURL: targetMember.user.displayAvatarURL({ dynamic: true, size: 256 }),
           })
           .setTitle('🏰 Welcome to GoldenHeart SMP')
@@ -2235,7 +2284,7 @@ client.on('interactionCreate', async interaction => {
           .setImage('attachment://welcome-card.png')
           .setThumbnail(targetMember.guild.iconURL({ dynamic: true, size: 256 }) || targetMember.user.displayAvatarURL({ dynamic: true }))
           .setFooter({
-            text: `GoldenHeart SMP • Test Welcome Message  •  ${targetMember.guild.memberCount} members`,
+            text: `⚔️ GoldenHeart SMP • Test Welcome • ${targetMember.guild.memberCount} members • 1.20.4+`,
             iconURL: targetMember.guild.iconURL({ dynamic: true }) || undefined,
           })
           .setTimestamp();
@@ -3006,6 +3055,14 @@ client.on('interactionCreate', async interaction => {
           punishmentText = `\n⚠️ Could not apply timeout (check bot role position)`;
         }
       }
+      
+      // DM the user about the warning
+      try {
+        await target.user.send(`⚠️ **You have been warned in GoldenHeart SMP**\n\n📋 **Reason:** ${reason}\n🔢 **Warn #${warnCount}/8**\n👤 **Warned by:** ${interaction.user.tag}\n\n${timeoutMins ? `⏱️ You have been timed out for ${timeoutMins} minutes.` : ''}\n\nPlease review the server rules and be more careful in the future.`);
+      } catch (err) {
+        console.log(`Could not DM warned user ${target.user.id}`);
+      }
+      
       return interaction.reply({ content: `⚠️ **${target.user.tag}** has been warned.\n📋 **Reason:** ${reason}\n🔢 **Total warns:** ${warnCount}/8${punishmentText}` });
     }
 
@@ -3022,6 +3079,13 @@ client.on('interactionCreate', async interaction => {
       if (warns[userId].warns.length === 0) delete warns[userId];
       saveWarns(warns);
       const remaining = warns[userId]?.warns.length ?? 0;
+      
+      try {
+        await target.send(`✅ **Warning Removed**\n\nOne of your warnings has been removed by **${interaction.user.tag}**.\n🔢 **Remaining warns:** ${remaining}`);
+      } catch (err) {
+        console.log(`Could not DM user ${target.id} about unwarn`);
+      }
+      
       return interaction.reply({ content: `✅ Removed latest warn from **${target.tag}**.\n🔢 **Remaining warns:** ${remaining}` });
     }
 
@@ -3054,6 +3118,13 @@ client.on('interactionCreate', async interaction => {
       const warns  = loadWarns();
       delete warns[target.id];
       saveWarns(warns);
+      
+      try {
+        await target.send(`🧹 **All Warnings Cleared**\n\nAll of your warnings have been cleared by **${interaction.user.tag}**.\nYou have a clean slate!`);
+      } catch (err) {
+        console.log(`Could not DM user ${target.id} about clearwarns`);
+      }
+      
       return interaction.reply({ content: `🧹 Cleared all warns for **${target.tag}**.` });
     }
 
@@ -3631,6 +3702,27 @@ const commands = [
   new SlashCommandBuilder()
     .setName('exportleaderboard')
     .setDescription('Export XP and Coins leaderboard data to staff logs (admin only)'),
+  
+  // ── NEW: SETBALANCE COMMAND ──
+  new SlashCommandBuilder()
+    .setName('setbalance')
+    .setDescription('Set a user\'s coin balance (admin only)')
+    .addUserOption(o => 
+      o.setName('user')
+        .setDescription('User to set balance for')
+        .setRequired(true)
+    )
+    .addNumberOption(o => 
+      o.setName('amount')
+        .setDescription('New balance amount (0 or greater)')
+        .setRequired(true)
+        .setMinValue(0)
+    )
+    .addStringOption(o => 
+      o.setName('reason')
+        .setDescription('Reason for balance change')
+        .setRequired(false)
+    ),
   
   new SlashCommandBuilder().setName('ban').setDescription('Ban a member permanently or temporarily')
     .addUserOption(o => o.setName('user').setDescription('Member to ban').setRequired(true))
