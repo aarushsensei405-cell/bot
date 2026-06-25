@@ -102,6 +102,8 @@ const STARBOARD_THRESHOLD = 3;
 // SHOP CONFIGURATION
 // ─────────────────────────────────────────
 const SHOP_FILE = path.join(__dirname, 'shop.json');
+const COUPONS_FILE = path.join(__dirname, 'coupons.json');
+const CART_FILE = path.join(__dirname, 'carts.json');
 
 // Shop categories and items based on your shop menu
 const SHOP_CATEGORIES = {
@@ -190,7 +192,7 @@ const APP_FILES = {
 };
 
 // ─────────────────────────────────────────
-// FORCE CREATE COINS.JSON IF IT DOESN'T EXIST
+// FORCE CREATE JSON FILES
 // ─────────────────────────────────────────
 try {
   if (!fs.existsSync(COINS_FILE)) {
@@ -207,6 +209,24 @@ try {
   }
 } catch (err) {
   console.error('❌ Error with coins.json:', err.message);
+}
+
+try {
+  if (!fs.existsSync(COUPONS_FILE)) {
+    fs.writeFileSync(COUPONS_FILE, JSON.stringify({ coupons: [] }, null, 2), 'utf8');
+    console.log('✅ Created new coupons.json file');
+  }
+} catch (err) {
+  console.error('❌ Error with coupons.json:', err.message);
+}
+
+try {
+  if (!fs.existsSync(CART_FILE)) {
+    fs.writeFileSync(CART_FILE, JSON.stringify({}, null, 2), 'utf8');
+    console.log('✅ Created new carts.json file');
+  }
+} catch (err) {
+  console.error('❌ Error with carts.json:', err.message);
 }
 
 function readJSON(file, fallback) {
@@ -284,7 +304,7 @@ function saveShopData(data) {
   }
 }
 
-function recordPurchase(userId, itemId, amount, price, category) {
+function recordPurchase(userId, itemId, amount, price, category, couponCode = null, originalPrice = null) {
   const shopData = loadShopData();
   if (!shopData.purchases[userId]) {
     shopData.purchases[userId] = [];
@@ -294,7 +314,9 @@ function recordPurchase(userId, itemId, amount, price, category) {
     amount,
     price,
     category,
-    completed: false, // Track if order has been completed
+    completed: false,
+    couponCode: couponCode,
+    originalPrice: originalPrice,
     purchasedAt: new Date().toISOString()
   });
   saveShopData(shopData);
@@ -318,6 +340,165 @@ function getUserPurchases(userId) {
 function getTotalSpent(userId) {
   const purchases = getUserPurchases(userId);
   return purchases.reduce((total, p) => total + p.price, 0);
+}
+
+// ── COUPON FUNCTIONS ──
+function loadCoupons() {
+  return readJSON(COUPONS_FILE, { coupons: [] });
+}
+
+function saveCoupons(data) {
+  writeJSON(COUPONS_FILE, data);
+}
+
+function generateCouponCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+function createCoupon(amount, type, maxUses = null, expiresAt = null) {
+  const data = loadCoupons();
+  const code = generateCouponCode();
+  data.coupons.push({
+    code,
+    amount,
+    type, // 'fixed' or 'percent'
+    maxUses,
+    usedCount: 0,
+    expiresAt: expiresAt,
+    createdAt: new Date().toISOString(),
+    active: true
+  });
+  saveCoupons(data);
+  return code;
+}
+
+function validateCoupon(code) {
+  const data = loadCoupons();
+  const coupon = data.coupons.find(c => c.code === code && c.active);
+  if (!coupon) return { valid: false, message: 'Coupon not found or inactive' };
+  if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) {
+    return { valid: false, message: 'Coupon has reached its maximum uses' };
+  }
+  if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) {
+    return { valid: false, message: 'Coupon has expired' };
+  }
+  return { valid: true, coupon };
+}
+
+function useCoupon(code) {
+  const data = loadCoupons();
+  const coupon = data.coupons.find(c => c.code === code);
+  if (coupon) {
+    coupon.usedCount += 1;
+    if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) {
+      coupon.active = false;
+    }
+    saveCoupons(data);
+    return true;
+  }
+  return false;
+}
+
+function calculateDiscount(subtotal, coupon) {
+  if (coupon.type === 'fixed') {
+    return Math.min(coupon.amount, subtotal);
+  } else if (coupon.type === 'percent') {
+    return Math.floor(subtotal * (coupon.amount / 100));
+  }
+  return 0;
+}
+
+// ── CART FUNCTIONS ──
+function loadCart(userId) {
+  const data = readJSON(CART_FILE, {});
+  return data[userId] || { items: [], couponCode: null };
+}
+
+function saveCart(userId, cart) {
+  const data = readJSON(CART_FILE, {});
+  data[userId] = cart;
+  writeJSON(CART_FILE, data);
+}
+
+function addToCart(userId, itemId, categoryKey, quantity = 1) {
+  const cart = loadCart(userId);
+  const existing = cart.items.find(i => i.itemId === itemId && i.categoryKey === categoryKey);
+  if (existing) {
+    existing.quantity += quantity;
+  } else {
+    cart.items.push({ itemId, categoryKey, quantity });
+  }
+  saveCart(userId, cart);
+  return cart;
+}
+
+function removeFromCart(userId, itemIndex) {
+  const cart = loadCart(userId);
+  if (cart.items[itemIndex]) {
+    cart.items.splice(itemIndex, 1);
+    saveCart(userId, cart);
+    return true;
+  }
+  return false;
+}
+
+function clearCart(userId) {
+  saveCart(userId, { items: [], couponCode: null });
+}
+
+function getCartTotal(userId) {
+  const cart = loadCart(userId);
+  let total = 0;
+  const items = [];
+  for (const item of cart.items) {
+    const category = SHOP_CATEGORIES[item.categoryKey];
+    if (category) {
+      const shopItem = category.items.find(i => i.id === item.itemId);
+      if (shopItem) {
+        const subtotal = shopItem.price * item.quantity;
+        total += subtotal;
+        items.push({ ...shopItem, quantity: item.quantity, subtotal, categoryKey: item.categoryKey });
+      }
+    }
+  }
+  return { total, items };
+}
+
+function applyCouponToCart(userId, couponCode) {
+  const cart = loadCart(userId);
+  const validation = validateCoupon(couponCode);
+  if (!validation.valid) {
+    return { success: false, message: validation.message };
+  }
+  cart.couponCode = couponCode;
+  saveCart(userId, cart);
+  return { success: true, coupon: validation.coupon };
+}
+
+function getCartWithDiscount(userId) {
+  const cart = loadCart(userId);
+  const { total, items } = getCartTotal(userId);
+  let discount = 0;
+  let couponData = null;
+  
+  if (cart.couponCode) {
+    const validation = validateCoupon(cart.couponCode);
+    if (validation.valid) {
+      discount = calculateDiscount(total, validation.coupon);
+      couponData = validation.coupon;
+    } else {
+      // Remove invalid coupon
+      cart.couponCode = null;
+      saveCart(userId, cart);
+    }
+  }
+  
+  return { total, items, discount, finalTotal: total - discount, coupon: couponData };
 }
 
 // ── COINS FUNCTIONS ──
@@ -372,6 +553,23 @@ function addCoins(userId, username, amount) {
   return coinsData[userId].coins;
 }
 
+function setCoins(userId, username, amount) {
+  const coinsData = loadCoins();
+  if (!coinsData[userId]) {
+    coinsData[userId] = { 
+      username: username || 'Unknown', 
+      coins: 0, 
+      messages: 0,
+      voiceMinutes: 0,
+      invites: 0
+    };
+  }
+  coinsData[userId].username = username || coinsData[userId].username;
+  coinsData[userId].coins = amount;
+  saveCoins(coinsData);
+  return coinsData[userId].coins;
+}
+
 function getCoinsLeaderboard(limit = 10) {
   const coinsData = loadCoins();
   const filtered = Object.entries(coinsData)
@@ -379,6 +577,35 @@ function getCoinsLeaderboard(limit = 10) {
     .filter(([, data]) => data.coins > 0 || data.messages > 0 || data.voiceMinutes > 0)
     .sort((a, b) => b[1].coins - a[1].coins);
   return filtered.slice(0, limit);
+}
+
+// ── IMPORT/EXPORT FUNCTIONS ──
+function importCoinsData(data) {
+  try {
+    const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+    saveCoins(parsed);
+    return { success: true, count: Object.keys(parsed).length };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+function importXPData(data) {
+  try {
+    const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+    saveXP(parsed);
+    return { success: true, count: Object.keys(parsed).length };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+function exportCoinsData() {
+  return loadCoins();
+}
+
+function exportXPData() {
+  return loadXP();
 }
 
 // ─────────────────────────────────────────
@@ -402,6 +629,9 @@ function buildShopEmbed() {
       '• 🎁 **Daily claim** = 50 coins',
       '',
       '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '',
+      '🛒 **Cart System:** Add items to your cart and checkout together!',
+      '🎫 **Coupon Codes:** Use discount codes at checkout!',
       '',
       '⚠️ **Shop prices may change** based on the server economy.',
       '💛 **Use your coins wisely** — every purchase matters!',
@@ -432,7 +662,7 @@ function buildCategoryEmbed(categoryKey) {
       '',
       '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
       '',
-      `💳 **Click the dropdown** to choose an item and complete your purchase.`,
+      `💳 **Click the dropdown** to choose an item and add to cart.`,
     ].join('\n'))
     .setFooter({ text: 'GoldenHeart SMP • Shop' })
     .setTimestamp();
@@ -455,7 +685,7 @@ function buildItemEmbed(item, categoryKey) {
       '',
       '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
       '',
-      'Click the **Purchase** button below to buy this item!',
+      'Click the **Add to Cart** button below to add this item to your cart!',
       '',
       '⚠️ **Note:** This is a virtual purchase. Staff will be notified to fulfill your order.',
     ].join('\n'))
@@ -506,7 +736,7 @@ function buildItemSelectMenu(categoryKey) {
 
   const menu = new StringSelectMenuBuilder()
     .setCustomId(`shop_item_${categoryKey}`)
-    .setPlaceholder('🛒 Select an item to purchase...');
+    .setPlaceholder('🛒 Select an item to add to cart...');
 
   category.items.forEach(item => {
     menu.addOptions(
@@ -529,14 +759,14 @@ function buildBackButton() {
   );
 }
 
-function buildPurchaseButtons(itemId, categoryKey) {
+function buildCartButtons() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`shop_purchase_${categoryKey}_${itemId}`)
-      .setLabel('✅ Purchase')
-      .setStyle(ButtonStyle.Success),
+      .setCustomId('shop_cart_view')
+      .setLabel('🛒 View Cart')
+      .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
-      .setCustomId(`shop_back`)
+      .setCustomId('shop_back')
       .setLabel('◀ Back')
       .setStyle(ButtonStyle.Secondary)
   );
@@ -864,6 +1094,9 @@ function hasModPermission(member) {
 }
 function isGuildOwner(interaction) {
   return interaction.guild?.ownerId === interaction.user.id;
+}
+function isServerOwner(userId) {
+  return userId === SERVER_OWNER_ID;
 }
 function autoDelete(sentMessage, ms = 5000) {
   if (!sentMessage) return;
@@ -2228,6 +2461,142 @@ client.on('interactionCreate', async interaction => {
       await interaction.reply({ content: `✅ Page ${pageIndex + 1} of **${book.title}** updated and reposted!`, ephemeral: true });
     }
 
+    // ── SHOP PRICE EDIT MODAL ──
+    if (interaction.customId.startsWith('edit_price_modal:')) {
+      if (!isServerOwner(interaction.user.id)) {
+        return interaction.reply({ content: '❌ Only the server owner can edit shop prices.', ephemeral: true });
+      }
+      
+      const parts = interaction.customId.split(':');
+      const categoryKey = parts[1];
+      const itemId = parts[2];
+      const newPrice = parseInt(interaction.fields.getTextInputValue('new_price'), 10);
+      
+      if (isNaN(newPrice) || newPrice < 0) {
+        return interaction.reply({ content: '❌ Invalid price. Please enter a valid number.', ephemeral: true });
+      }
+      
+      const category = SHOP_CATEGORIES[categoryKey];
+      if (!category) {
+        return interaction.reply({ content: '❌ Category not found.', ephemeral: true });
+      }
+      
+      const item = category.items.find(i => i.id === itemId);
+      if (!item) {
+        return interaction.reply({ content: '❌ Item not found.', ephemeral: true });
+      }
+      
+      const oldPrice = item.price;
+      item.price = newPrice;
+      
+      // Save to file
+      fs.writeFileSync(SHOP_FILE, JSON.stringify({ categories: SHOP_CATEGORIES, purchases: loadShopData().purchases }, null, 2));
+      
+      const embed = new EmbedBuilder()
+        .setTitle('💰 Shop Price Updated')
+        .setColor(0x57f287)
+        .setDescription(`**${item.name}** price has been updated!`)
+        .addFields(
+          { name: '📂 Category', value: `${category.emoji} ${category.name}`, inline: true },
+          { name: '🛒 Item', value: item.name, inline: true },
+          { name: '💰 Old Price', value: `${oldPrice} coins`, inline: true },
+          { name: '💰 New Price', value: `${newPrice} coins`, inline: true },
+          { name: '👤 Updated By', value: `<@${interaction.user.id}>`, inline: true },
+        )
+        .setTimestamp();
+      
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+      
+      try {
+        const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
+        await logChannel.send({ embeds: [embed] });
+      } catch (err) {
+        console.error('Could not send price update log:', err);
+      }
+    }
+
+    // ── COUPON CREATE MODAL ──
+    if (interaction.customId === 'create_coupon_modal') {
+      if (!isServerOwner(interaction.user.id)) {
+        return interaction.reply({ content: '❌ Only the server owner can create coupons.', ephemeral: true });
+      }
+      
+      const amount = parseInt(interaction.fields.getTextInputValue('coupon_amount'), 10);
+      const type = interaction.fields.getTextInputValue('coupon_type');
+      const maxUses = parseInt(interaction.fields.getTextInputValue('coupon_max_uses'), 10) || null;
+      const expiresIn = interaction.fields.getTextInputValue('coupon_expires');
+      
+      if (isNaN(amount) || amount <= 0) {
+        return interaction.reply({ content: '❌ Invalid amount. Please enter a valid number greater than 0.', ephemeral: true });
+      }
+      
+      if (!['fixed', 'percent'].includes(type)) {
+        return interaction.reply({ content: '❌ Invalid type. Must be "fixed" or "percent".', ephemeral: true });
+      }
+      
+      let expiresAt = null;
+      if (expiresIn) {
+        const ms = parseDuration(expiresIn);
+        if (ms) {
+          expiresAt = new Date(Date.now() + ms).toISOString();
+        }
+      }
+      
+      const code = createCoupon(amount, type, maxUses, expiresAt);
+      
+      const embed = new EmbedBuilder()
+        .setTitle('🎫 Coupon Created!')
+        .setColor(0x57f287)
+        .setDescription(`A new coupon has been created!`)
+        .addFields(
+          { name: '🎟️ Coupon Code', value: `\`${code}\``, inline: true },
+          { name: '💰 Amount', value: type === 'fixed' ? `${amount} coins off` : `${amount}% off`, inline: true },
+          { name: '📊 Type', value: type === 'fixed' ? 'Fixed Discount' : 'Percentage Discount', inline: true },
+          { name: '📝 Max Uses', value: maxUses ? `${maxUses}` : 'Unlimited', inline: true },
+          { name: '⏰ Expires', value: expiresAt ? `<t:${Math.floor(new Date(expiresAt).getTime() / 1000)}:F>` : 'Never', inline: true },
+          { name: '👤 Created By', value: `<@${interaction.user.id}>`, inline: true },
+        )
+        .setTimestamp();
+      
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+      
+      try {
+        const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
+        await logChannel.send({ embeds: [embed] });
+      } catch (err) {
+        console.error('Could not send coupon creation log:', err);
+      }
+    }
+
+    // ── APPLY COUPON MODAL ──
+    if (interaction.customId === 'apply_coupon_modal') {
+      const couponCode = interaction.fields.getTextInputValue('coupon_code').toUpperCase().trim();
+      const userId = interaction.user.id;
+      
+      const result = applyCouponToCart(userId, couponCode);
+      
+      if (!result.success) {
+        return interaction.reply({ 
+          content: `❌ ${result.message}`, 
+          ephemeral: true 
+        });
+      }
+      
+      const cartData = getCartWithDiscount(userId);
+      
+      const embed = new EmbedBuilder()
+        .setTitle('🎫 Coupon Applied!')
+        .setColor(0x57f287)
+        .setDescription(`Coupon **${couponCode}** has been applied to your cart!`)
+        .addFields(
+          { name: '💰 Discount', value: `${cartData.discount} coins`, inline: true },
+          { name: '💳 New Total', value: `${cartData.finalTotal} coins`, inline: true },
+        )
+        .setTimestamp();
+      
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
     return;
   }
 
@@ -2240,15 +2609,78 @@ client.on('interactionCreate', async interaction => {
     if (interaction.commandName === 'shop') {
       const embed = buildShopEmbed();
       const selectRow = buildCategorySelectMenu();
+      const cartRow = buildCartButtons();
       
       await interaction.reply({
         embeds: [embed],
-        components: [selectRow],
+        components: [selectRow, cartRow],
         ephemeral: true
       });
       return;
     }
 
+    // ── SHOP CART VIEW ──
+    if (interaction.commandName === 'cart') {
+      const userId = interaction.user.id;
+      const cartData = getCartWithDiscount(userId);
+      
+      if (cartData.items.length === 0) {
+        return interaction.reply({
+          content: '🛒 Your cart is empty! Browse the shop with `/shop` to add items.',
+          ephemeral: true
+        });
+      }
+      
+      const itemsList = cartData.items.map((item, i) => 
+        `**${i + 1}.** ${item.name} x${item.quantity} — ${item.subtotal} coins`
+      ).join('\n');
+      
+      const embed = new EmbedBuilder()
+        .setTitle('🛒 Your Shopping Cart')
+        .setColor(0xf0b429)
+        .setDescription([
+          itemsList,
+          '',
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+          `💰 **Subtotal:** ${cartData.total} coins`,
+          cartData.coupon ? `🎫 **Discount:** -${cartData.discount} coins` : '',
+          `💳 **Total:** ${cartData.finalTotal} coins`,
+          '',
+          cartData.coupon ? `✅ **Coupon Applied:** \`${cartData.coupon.code}\`` : '',
+          '',
+          'Use the buttons below to checkout or apply a coupon!',
+        ].filter(Boolean).join('\n'))
+        .setFooter({ text: `${cartData.items.length} items in cart` })
+        .setTimestamp();
+      
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('cart_checkout')
+          .setLabel('💳 Checkout')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId('cart_coupon')
+          .setLabel('🎫 Apply Coupon')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('cart_clear')
+          .setLabel('🗑️ Clear Cart')
+          .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId('shop_back')
+          .setLabel('◀ Back to Shop')
+          .setStyle(ButtonStyle.Secondary)
+      );
+      
+      await interaction.reply({
+        embeds: [embed],
+        components: [row],
+        ephemeral: true
+      });
+      return;
+    }
+
+    // ── SHOP BALANCE ──
     if (interaction.commandName === 'shop_balance') {
       const target = interaction.options.getUser('user') || interaction.user;
       const coinsData = loadCoins();
@@ -2267,7 +2699,8 @@ client.on('interactionCreate', async interaction => {
           { name: '📊 Recent Purchases', value: purchases.length > 0 ? 
             purchases.slice(-5).reverse().map((p, i) => {
               const status = p.completed ? '✅' : '⏳';
-              return `**${i + 1}.** ${p.itemId} (${p.amount}x) — ${p.price} coins ${status}`;
+              const discountInfo = p.couponCode ? ` (coupon: ${p.couponCode})` : '';
+              return `**${i + 1}.** ${p.itemId} (${p.amount}x) — ${p.price} coins ${status}${discountInfo}`;
             }).join('\n') : 'No purchases yet!',
             inline: false
           },
@@ -2278,6 +2711,7 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
+    // ── SHOP PURCHASES ──
     if (interaction.commandName === 'shop_purchases') {
       const target = interaction.options.getUser('user') || interaction.user;
       const purchases = getUserPurchases(target.id);
@@ -2296,7 +2730,8 @@ client.on('interactionCreate', async interaction => {
         .setDescription(
           purchases.map((p, i) => {
             const status = p.completed ? '✅ Completed' : '⏳ Pending';
-            return `**${i + 1}.** ${p.itemId} (${p.amount}x) — ${p.price} coins ${status}\n> ${new Date(p.purchasedAt).toLocaleDateString()}`;
+            const discountInfo = p.couponCode ? ` (Coupon: ${p.couponCode}${p.originalPrice ? `, Original: ${p.originalPrice}` : ''})` : '';
+            return `**${i + 1}.** ${p.itemId} (${p.amount}x) — ${p.price} coins ${status}${discountInfo}\n> ${new Date(p.purchasedAt).toLocaleDateString()}`;
           }).join('\n\n')
         )
         .setFooter({ text: `Total: ${purchases.length} purchases • Total spent: ${getTotalSpent(target.id)} coins` })
@@ -2306,22 +2741,311 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
+    // ── SHOP PANEL ──
     if (interaction.commandName === 'shoppanel') {
       if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
         return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
       
       const embed = buildShopEmbed();
       const selectRow = buildCategorySelectMenu();
+      const cartRow = buildCartButtons();
       
       await interaction.channel.send({
         embeds: [embed],
-        components: [selectRow],
+        components: [selectRow, cartRow],
       });
       
       return interaction.reply({ content: '✅ Shop panel posted!', ephemeral: true });
     }
 
-    // Features command
+    // ── SHOP EDIT PRICE ──
+    if (interaction.commandName === 'shop_editprice') {
+      if (!isServerOwner(interaction.user.id)) {
+        return interaction.reply({ content: '❌ Only the server owner can edit shop prices.', ephemeral: true });
+      }
+      
+      const categoryKey = interaction.options.getString('category');
+      const itemId = interaction.options.getString('item');
+      
+      const category = SHOP_CATEGORIES[categoryKey];
+      if (!category) {
+        return interaction.reply({ content: '❌ Category not found.', ephemeral: true });
+      }
+      
+      const item = category.items.find(i => i.id === itemId);
+      if (!item) {
+        return interaction.reply({ content: '❌ Item not found in this category.', ephemeral: true });
+      }
+      
+      const modal = new ModalBuilder()
+        .setCustomId(`edit_price_modal:${categoryKey}:${itemId}`)
+        .setTitle(`Edit Price: ${item.name}`);
+      
+      const priceInput = new TextInputBuilder()
+        .setCustomId('new_price')
+        .setLabel(`Current Price: ${item.price} coins - New Price:`)
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setPlaceholder('Enter new price in coins');
+      
+      modal.addComponents(new ActionRowBuilder().addComponents(priceInput));
+      
+      await interaction.showModal(modal);
+      return;
+    }
+
+    // ── SHOP LIST ITEMS ──
+    if (interaction.commandName === 'shop_listitems') {
+      if (!isServerOwner(interaction.user.id)) {
+        return interaction.reply({ content: '❌ Only the server owner can view this.', ephemeral: true });
+      }
+      
+      let description = '';
+      for (const [key, category] of Object.entries(SHOP_CATEGORIES)) {
+        description += `\n**${category.emoji} ${category.name}**\n`;
+        category.items.forEach(item => {
+          description += `\`${item.id}\` — ${item.name} — **${item.price}** coins\n`;
+        });
+      }
+      
+      const embed = new EmbedBuilder()
+        .setTitle('📋 Shop Items List')
+        .setColor(0xf0b429)
+        .setDescription(description || 'No items found.')
+        .setFooter({ text: 'Use /shop_editprice to change prices' })
+        .setTimestamp();
+      
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+      return;
+    }
+
+    // ── IMPORT DATA ──
+    if (interaction.commandName === 'import_data') {
+      if (!isServerOwner(interaction.user.id)) {
+        return interaction.reply({ content: '❌ Only the server owner can import data.', ephemeral: true });
+      }
+      
+      const attachment = interaction.options.getAttachment('file');
+      const dataType = interaction.options.getString('type');
+      
+      if (!attachment) {
+        return interaction.reply({ content: '❌ Please attach a JSON file.', ephemeral: true });
+      }
+      
+      if (!attachment.contentType || !attachment.contentType.includes('json')) {
+        return interaction.reply({ content: '❌ File must be a JSON file.', ephemeral: true });
+      }
+      
+      await interaction.deferReply({ ephemeral: true });
+      
+      try {
+        const response = await fetch(attachment.url);
+        const text = await response.text();
+        let result;
+        
+        if (dataType === 'coins') {
+          result = importCoinsData(text);
+        } else if (dataType === 'xp') {
+          result = importXPData(text);
+        } else {
+          return interaction.editReply({ content: '❌ Invalid data type. Use "coins" or "xp".' });
+        }
+        
+        if (result.success) {
+          const embed = new EmbedBuilder()
+            .setTitle('✅ Data Imported Successfully')
+            .setColor(0x57f287)
+            .setDescription(`Successfully imported **${dataType.toUpperCase()}** data!`)
+            .addFields(
+              { name: '📊 Records Imported', value: `${result.count}`, inline: true },
+              { name: '📅 Imported At', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
+              { name: '👤 Imported By', value: `<@${interaction.user.id}>`, inline: true },
+            )
+            .setTimestamp();
+          
+          await interaction.editReply({ embeds: [embed] });
+          
+          try {
+            const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
+            await logChannel.send({ embeds: [embed] });
+          } catch (err) {
+            console.error('Could not send import log:', err);
+          }
+        } else {
+          await interaction.editReply({ 
+            content: `❌ Failed to import data: ${result.error}` 
+          });
+        }
+      } catch (error) {
+        await interaction.editReply({ 
+          content: `❌ Failed to read file: ${error.message}` 
+        });
+      }
+      return;
+    }
+
+    // ── EXPORT DATA ──
+    if (interaction.commandName === 'export_data') {
+      if (!isServerOwner(interaction.user.id)) {
+        return interaction.reply({ content: '❌ Only the server owner can export data.', ephemeral: true });
+      }
+      
+      const dataType = interaction.options.getString('type');
+      
+      await interaction.deferReply({ ephemeral: true });
+      
+      try {
+        let data;
+        let filename;
+        
+        if (dataType === 'coins') {
+          data = exportCoinsData();
+          filename = `coins_export_${Date.now()}.json`;
+        } else if (dataType === 'xp') {
+          data = exportXPData();
+          filename = `xp_export_${Date.now()}.json`;
+        } else {
+          return interaction.editReply({ content: '❌ Invalid data type. Use "coins" or "xp".' });
+        }
+        
+        const jsonString = JSON.stringify(data, null, 2);
+        const buffer = Buffer.from(jsonString, 'utf8');
+        const attachment = new AttachmentBuilder(buffer, { name: filename });
+        
+        const embed = new EmbedBuilder()
+          .setTitle('📤 Data Exported')
+          .setColor(0x5865f2)
+          .setDescription(`**${dataType.toUpperCase()}** data has been exported!`)
+          .addFields(
+            { name: '📊 Records Exported', value: `${Object.keys(data).length}`, inline: true },
+            { name: '📅 Exported At', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
+            { name: '👤 Exported By', value: `<@${interaction.user.id}>`, inline: true },
+          )
+          .setTimestamp();
+        
+        await interaction.editReply({ 
+          embeds: [embed],
+          files: [attachment]
+        });
+        
+        try {
+          const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
+          await logChannel.send({ 
+            embeds: [embed],
+            files: [attachment]
+          });
+        } catch (err) {
+          console.error('Could not send export log:', err);
+        }
+      } catch (error) {
+        await interaction.editReply({ 
+          content: `❌ Failed to export data: ${error.message}` 
+        });
+      }
+      return;
+    }
+
+    // ── CREATE COUPON ──
+    if (interaction.commandName === 'create_coupon') {
+      if (!isServerOwner(interaction.user.id)) {
+        return interaction.reply({ content: '❌ Only the server owner can create coupons.', ephemeral: true });
+      }
+      
+      const modal = new ModalBuilder()
+        .setCustomId('create_coupon_modal')
+        .setTitle('🎫 Create Coupon');
+      
+      const amountInput = new TextInputBuilder()
+        .setCustomId('coupon_amount')
+        .setLabel('Discount Amount (coins or %)')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setPlaceholder('e.g., 50 or 20');
+      
+      const typeInput = new TextInputBuilder()
+        .setCustomId('coupon_type')
+        .setLabel('Type: "fixed" or "percent"')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setPlaceholder('fixed');
+      
+      const maxUsesInput = new TextInputBuilder()
+        .setCustomId('coupon_max_uses')
+        .setLabel('Max Uses (optional, leave blank for unlimited)')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false)
+        .setPlaceholder('e.g., 10');
+      
+      const expiresInput = new TextInputBuilder()
+        .setCustomId('coupon_expires')
+        .setLabel('Expires (optional, e.g., 7d, 30d)')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false)
+        .setPlaceholder('e.g., 7d');
+      
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(amountInput),
+        new ActionRowBuilder().addComponents(typeInput),
+        new ActionRowBuilder().addComponents(maxUsesInput),
+        new ActionRowBuilder().addComponents(expiresInput)
+      );
+      
+      await interaction.showModal(modal);
+      return;
+    }
+
+    // ── LIST COUPONS ──
+    if (interaction.commandName === 'list_coupons') {
+      if (!isServerOwner(interaction.user.id)) {
+        return interaction.reply({ content: '❌ Only the server owner can view coupons.', ephemeral: true });
+      }
+      
+      const data = loadCoupons();
+      
+      if (data.coupons.length === 0) {
+        return interaction.reply({ content: '📋 No coupons have been created yet.', ephemeral: true });
+      }
+      
+      const activeCoupons = data.coupons.filter(c => c.active);
+      const inactiveCoupons = data.coupons.filter(c => !c.active);
+      
+      let description = '**Active Coupons:**\n';
+      activeCoupons.forEach(c => {
+        const uses = c.maxUses ? `${c.usedCount}/${c.maxUses}` : `${c.usedCount} used`;
+        description += `\`${c.code}\` — ${c.type === 'fixed' ? `${c.amount} coins off` : `${c.amount}% off`} — Uses: ${uses}`;
+        if (c.expiresAt) {
+          description += ` — Expires: <t:${Math.floor(new Date(c.expiresAt).getTime() / 1000)}:R>`;
+        }
+        description += '\n';
+      });
+      
+      if (inactiveCoupons.length > 0) {
+        description += '\n**Inactive Coupons:**\n';
+        inactiveCoupons.slice(0, 5).forEach(c => {
+          description += `\`${c.code}\` — ${c.type === 'fixed' ? `${c.amount} coins off` : `${c.amount}% off`} — Used: ${c.usedCount}\n`;
+        });
+        if (inactiveCoupons.length > 5) {
+          description += `... and ${inactiveCoupons.length - 5} more inactive coupons.\n`;
+        }
+      }
+      
+      const embed = new EmbedBuilder()
+        .setTitle('🎫 Coupon List')
+        .setColor(0xf0b429)
+        .setDescription(description)
+        .addFields(
+          { name: '📊 Total Coupons', value: `${data.coupons.length}`, inline: true },
+          { name: '✅ Active', value: `${activeCoupons.length}`, inline: true },
+          { name: '❌ Inactive', value: `${inactiveCoupons.length}`, inline: true },
+        )
+        .setFooter({ text: 'Use /create_coupon to create new coupons' })
+        .setTimestamp();
+      
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+      return;
+    }
+
+    // ── Features command ──
     if (interaction.commandName === 'features') {
       const embed = new EmbedBuilder()
         .setTitle('✨ GoldenHeart SMP — Member Features').setColor(0xf0b429)
@@ -2334,7 +3058,8 @@ client.on('interactionCreate', async interaction => {
           { name: '🌍 Minecraft Server',     value: 'Type `ip` in any channel to get the MC server IP.\n> `goldenheartsmp.minecraftnoob.com:25565`', inline: false },
           { name: '📊 Leveling & XP',        value: 'Earn XP by chatting! Use `/rank` to see your level and `/leaderboard` for the top 10.', inline: false },
           { name: '🪙 Golden Coins',         value: 'Earn **Golden Coins** by chatting (5 messages = 1 coin), joining voice chat (1 coin per minute), and inviting members (50 coins per invite)! Use `/balance`, `/coinslb`, `/daily`, and `/transfer` to manage your coins.', inline: false },
-          { name: '🛒 Golden Coins Shop',    value: 'Spend your hard-earned Golden Coins on useful resources and gear! Use `/shop` to browse and purchase items.', inline: false },
+          { name: '🛒 Golden Coins Shop',    value: 'Spend your hard-earned Golden Coins on useful resources and gear! Use `/shop` to browse, add items to your cart, and checkout! Use coupons for discounts!', inline: false },
+          { name: '🎫 Coupons',              value: 'Use coupon codes at checkout to get discounts on your purchases!', inline: false },
           { name: '🎉 Giveaways',            value: 'Watch for giveaway announcements — react with 🎉 to enter!', inline: false },
           { name: '💤 AFK System',           value: 'Use `/afk <reason>` to mark yourself AFK. The bot will notify others who ping you.', inline: false },
           { name: '⏰ Reminders',            value: 'Use `/remindme <time> <text>` to set a personal reminder via DM.', inline: false },
@@ -2347,7 +3072,7 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ embeds: [embed] });
     }
 
-    // Rules command
+    // ── Rules command ──
     if (interaction.commandName === 'rules') {
       const embed = new EmbedBuilder()
         .setTitle('📜 GoldenHeart SMP — Server Rules').setColor(0xed4245)
@@ -3851,12 +4576,44 @@ client.on('interactionCreate', async interaction => {
         return;
       }
       
-      const embed = buildItemEmbed(item, categoryKey);
-      const purchaseRow = buildPurchaseButtons(itemId, categoryKey);
+      // Add to cart
+      addToCart(interaction.user.id, itemId, categoryKey);
+      
+      const embed = new EmbedBuilder()
+        .setTitle('🛒 Added to Cart!')
+        .setColor(0x57f287)
+        .setDescription([
+          `**${item.name}** has been added to your cart!`,
+          '',
+          `📦 **Item:** ${item.amount}x ${item.name.replace(/[^\w\s]/g, '').trim()}`,
+          `💰 **Price:** ${item.price} coins each`,
+          `📂 **Category:** ${category.emoji} ${category.name}`,
+          '',
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+          '',
+          'Continue shopping or view your cart with the buttons below!',
+        ].join('\n'))
+        .setFooter({ text: 'Click "View Cart" to checkout' })
+        .setTimestamp();
+      
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('shop_cart_view')
+          .setLabel('🛒 View Cart')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId(`shop_item_${categoryKey}`)
+          .setLabel('🔄 Add More')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId('shop_back')
+          .setLabel('◀ Back')
+          .setStyle(ButtonStyle.Secondary)
+      );
       
       await interaction.update({
         embeds: [embed],
-        components: [purchaseRow],
+        components: [row],
       });
       return;
     }
@@ -3866,6 +4623,368 @@ client.on('interactionCreate', async interaction => {
   // BUTTONS
   // ════════════════════════════════════════
   if (interaction.isButton()) {
+
+    // ── SHOP CART VIEW ──
+    if (interaction.customId === 'shop_cart_view') {
+      const userId = interaction.user.id;
+      const cartData = getCartWithDiscount(userId);
+      
+      if (cartData.items.length === 0) {
+        return interaction.reply({
+          content: '🛒 Your cart is empty! Browse the shop to add items.',
+          ephemeral: true
+        });
+      }
+      
+      const itemsList = cartData.items.map((item, i) => 
+        `**${i + 1}.** ${item.name} x${item.quantity} — ${item.subtotal} coins`
+      ).join('\n');
+      
+      const embed = new EmbedBuilder()
+        .setTitle('🛒 Your Shopping Cart')
+        .setColor(0xf0b429)
+        .setDescription([
+          itemsList,
+          '',
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+          `💰 **Subtotal:** ${cartData.total} coins`,
+          cartData.coupon ? `🎫 **Discount:** -${cartData.discount} coins` : '',
+          `💳 **Total:** ${cartData.finalTotal} coins`,
+          '',
+          cartData.coupon ? `✅ **Coupon Applied:** \`${cartData.coupon.code}\`` : '',
+          '',
+          'Use the buttons below to checkout or manage your cart!',
+        ].filter(Boolean).join('\n'))
+        .setFooter({ text: `${cartData.items.length} items in cart` })
+        .setTimestamp();
+      
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('cart_checkout')
+          .setLabel('💳 Checkout')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId('cart_coupon')
+          .setLabel('🎫 Apply Coupon')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('cart_remove_item')
+          .setLabel('🗑️ Remove Item')
+          .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId('cart_clear')
+          .setLabel('🗑️ Clear All')
+          .setStyle(ButtonStyle.Danger)
+      );
+      const backRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('shop_back')
+          .setLabel('◀ Back to Shop')
+          .setStyle(ButtonStyle.Secondary)
+      );
+      
+      await interaction.reply({
+        embeds: [embed],
+        components: [row, backRow],
+        ephemeral: true
+      });
+      return;
+    }
+
+    // ── CART REMOVE ITEM ──
+    if (interaction.customId === 'cart_remove_item') {
+      const userId = interaction.user.id;
+      const cart = loadCart(userId);
+      
+      if (cart.items.length === 0) {
+        return interaction.reply({
+          content: '🛒 Your cart is empty!',
+          ephemeral: true
+        });
+      }
+      
+      // Create a select menu to choose which item to remove
+      const options = cart.items.map((item, i) => {
+        const category = SHOP_CATEGORIES[item.categoryKey];
+        const shopItem = category?.items.find(ci => ci.id === item.itemId);
+        const name = shopItem ? shopItem.name : item.itemId;
+        return new StringSelectMenuOptionBuilder()
+          .setLabel(`${name} x${item.quantity}`)
+          .setDescription(`Remove this item from cart`)
+          .setValue(`${i}`);
+      });
+      
+      const menu = new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId('cart_remove_select')
+          .setPlaceholder('Select item to remove...')
+          .addOptions(options)
+      );
+      
+      await interaction.reply({
+        content: 'Select the item you want to remove from your cart:',
+        components: [menu],
+        ephemeral: true
+      });
+      return;
+    }
+
+    // ── CART REMOVE SELECT ──
+    if (interaction.customId === 'cart_remove_select') {
+      const userId = interaction.user.id;
+      const itemIndex = parseInt(interaction.values[0], 10);
+      
+      const success = removeFromCart(userId, itemIndex);
+      
+      if (success) {
+        await interaction.reply({
+          content: '✅ Item removed from cart!',
+          ephemeral: true
+        });
+        
+        // Show updated cart
+        const cartData = getCartWithDiscount(userId);
+        if (cartData.items.length === 0) {
+          await interaction.followUp({
+            content: '🛒 Your cart is now empty.',
+            ephemeral: true
+          });
+        } else {
+          const itemsList = cartData.items.map((item, i) => 
+            `**${i + 1}.** ${item.name} x${item.quantity} — ${item.subtotal} coins`
+          ).join('\n');
+          
+          const embed = new EmbedBuilder()
+            .setTitle('🛒 Updated Cart')
+            .setColor(0xf0b429)
+            .setDescription([
+              itemsList,
+              '',
+              `💰 **Total:** ${cartData.finalTotal} coins`,
+              cartData.coupon ? `✅ **Coupon Applied:** \`${cartData.coupon.code}\`` : '',
+            ].filter(Boolean).join('\n'))
+            .setTimestamp();
+          
+          await interaction.followUp({
+            embeds: [embed],
+            ephemeral: true
+          });
+        }
+      } else {
+        await interaction.reply({
+          content: '❌ Failed to remove item.',
+          ephemeral: true
+        });
+      }
+      return;
+    }
+
+    // ── CART COUPON ──
+    if (interaction.customId === 'cart_coupon') {
+      const modal = new ModalBuilder()
+        .setCustomId('apply_coupon_modal')
+        .setTitle('🎫 Apply Coupon');
+      
+      const codeInput = new TextInputBuilder()
+        .setCustomId('coupon_code')
+        .setLabel('Enter Coupon Code')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setPlaceholder('e.g., SUMMER2024');
+      
+      modal.addComponents(new ActionRowBuilder().addComponents(codeInput));
+      
+      await interaction.showModal(modal);
+      return;
+    }
+
+    // ── CART CLEAR ──
+    if (interaction.customId === 'cart_clear') {
+      const userId = interaction.user.id;
+      clearCart(userId);
+      
+      await interaction.reply({
+        content: '🗑️ Your cart has been cleared!',
+        ephemeral: true
+      });
+      return;
+    }
+
+    // ── CART CHECKOUT ──
+    if (interaction.customId === 'cart_checkout') {
+      const userId = interaction.user.id;
+      const cartData = getCartWithDiscount(userId);
+      
+      if (cartData.items.length === 0) {
+        return interaction.reply({
+          content: '🛒 Your cart is empty! Add some items first.',
+          ephemeral: true
+        });
+      }
+      
+      // Check if user has enough coins
+      const coinsData = loadCoins();
+      const userData = coinsData[userId];
+      const currentBalance = userData?.coins || 0;
+      
+      if (currentBalance < cartData.finalTotal) {
+        const embed = new EmbedBuilder()
+          .setTitle('❌ Insufficient Coins!')
+          .setColor(0xed4245)
+          .setDescription([
+            `You don't have enough Golden Coins to complete your purchase!`,
+            '',
+            `💰 **Your Balance:** ${currentBalance} coins`,
+            `💳 **Cart Total:** ${cartData.finalTotal} coins`,
+            `📉 **Shortage:** ${cartData.finalTotal - currentBalance} coins`,
+            '',
+            '💡 **Ways to earn more coins:**',
+            '• 💬 5 messages = 1 coin',
+            '• 🎤 1 minute in VC = 1 coin', 
+            '• 📨 1 invite = 50 coins',
+            '• 🎁 Daily reward = 50 coins',
+          ].join('\n'))
+          .setTimestamp();
+        
+        return interaction.reply({
+          embeds: [embed],
+          ephemeral: true
+        });
+      }
+      
+      // Process checkout - deduct coins and record purchases
+      let totalDeducted = 0;
+      const purchases = [];
+      
+      for (const item of cartData.items) {
+        const category = SHOP_CATEGORIES[item.categoryKey];
+        const shopItem = category?.items.find(i => i.id === item.itemId);
+        if (shopItem) {
+          // Calculate discounted price per item
+          let itemPrice = shopItem.price * item.quantity;
+          const originalPrice = itemPrice;
+          
+          // Apply discount proportionally
+          if (cartData.discount > 0 && cartData.total > 0) {
+            const discountRatio = cartData.discount / cartData.total;
+            const itemDiscount = Math.floor(originalPrice * discountRatio);
+            itemPrice = originalPrice - itemDiscount;
+          }
+          
+          // Record each item as a separate purchase
+          for (let i = 0; i < item.quantity; i++) {
+            const singlePrice = Math.floor(itemPrice / item.quantity);
+            recordPurchase(
+              userId, 
+              item.itemId, 
+              shopItem.amount, 
+              singlePrice, 
+              item.categoryKey,
+              cartData.coupon ? cartData.coupon.code : null,
+              shopItem.price
+            );
+            totalDeducted += singlePrice;
+          }
+          
+          purchases.push({
+            name: shopItem.name,
+            amount: shopItem.amount * item.quantity,
+            price: itemPrice
+          });
+        }
+      }
+      
+      // Deduct coins
+      coinsData[userId].coins -= totalDeducted;
+      saveCoins(coinsData);
+      
+      // Clear cart
+      clearCart(userId);
+      
+      // Create confirmation embed
+      const purchaseSummary = purchases.map((p, i) => 
+        `**${i + 1}.** ${p.name} x${p.amount} — ${p.price} coins`
+      ).join('\n');
+      
+      const embed = new EmbedBuilder()
+        .setTitle('✅ Purchase Complete!')
+        .setColor(0x57f287)
+        .setDescription([
+          `You successfully completed your purchase! 🎉`,
+          '',
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+          '',
+          purchaseSummary,
+          '',
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+          `💰 **Total:** ${totalDeducted} coins`,
+          cartData.coupon ? `🎫 **Coupon Used:** \`${cartData.coupon.code}\` (${cartData.discount} coins saved!)` : '',
+          `💳 **New Balance:** ${coinsData[userId].coins} coins`,
+          '',
+          '📋 **Staff have been notified** to fulfill your order.',
+          'Please wait for a staff member to deliver your items.',
+        ].filter(Boolean).join('\n'))
+        .setFooter({ text: `Order • ${new Date().toLocaleString()}` })
+        .setTimestamp();
+      
+      const backButton = buildBackButton();
+      
+      await interaction.reply({
+        embeds: [embed],
+        components: [backButton],
+        ephemeral: true
+      });
+      
+      // Notify staff channel
+      try {
+        const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
+        const logEmbed = new EmbedBuilder()
+          .setTitle('🪙 Shop Purchase (Cart Checkout)')
+          .setColor(0xf0b429)
+          .setDescription(`**${interaction.user.tag}** made a bulk purchase!`)
+          .addFields(
+            { name: '📦 Items', value: purchases.map(p => `${p.name} x${p.amount}`).join('\n'), inline: false },
+            { name: '💰 Total', value: `${totalDeducted} coins`, inline: true },
+            { name: '💳 New Balance', value: `${coinsData[userId].coins} coins`, inline: true },
+            { name: '🎫 Coupon', value: cartData.coupon ? `${cartData.coupon.code} (${cartData.discount} coins off)` : 'None', inline: true },
+          )
+          .setFooter({ text: `User ID: ${userId}` })
+          .setTimestamp();
+        
+        const staffPing = MOD_ROLE_IDS.map(id => `<@&${id}>`).join(' ');
+        
+        await logChannel.send({
+          content: `📦 **New Bulk Shop Order!** ${staffPing}\n<@${userId}> purchased ${purchases.length} item types for **${totalDeducted}** coins.`,
+          embeds: [logEmbed],
+        });
+      } catch (err) {
+        console.error('Could not send shop log:', err);
+      }
+      
+      // Send DM confirmation
+      try {
+        await interaction.user.send({
+          content: [
+            `✅ **Purchase Confirmed!**`,
+            '',
+            `You completed a bulk purchase from the Golden Coins Shop!`,
+            `💰 **Total Spent:** ${totalDeducted} coins`,
+            `💳 **New Balance:** ${coinsData[userId].coins} coins`,
+            cartData.coupon ? `🎫 **Coupon Used:** ${cartData.coupon.code} (${cartData.discount} coins saved!)` : '',
+            '',
+            `📦 **Items Purchased:**`,
+            ...purchases.map(p => `• ${p.name} x${p.amount}`),
+            '',
+            `📋 **Order Status:** Pending fulfillment by staff`,
+            `⏰ **Time:** ${new Date().toLocaleString()}`,
+          ].join('\n')
+        });
+      } catch (err) {
+        console.log('Could not send DM to user:', err);
+      }
+      
+      return;
+    }
 
     // ── SHOP PURCHASE BUTTON ──
     if (interaction.customId.startsWith('shop_purchase_')) {
@@ -3918,11 +5037,11 @@ client.on('interactionCreate', async interaction => {
       // Record the purchase
       recordPurchase(interaction.user.id, itemId, item.amount, item.price, categoryKey);
       
-      // Get the purchase index (newly added)
+      // Get the purchase index
       const purchases = getUserPurchases(interaction.user.id);
       const purchaseIndex = purchases.length - 1;
       
-      // Create confirmation embed with completion status
+      // Create confirmation embed
       const embed = new EmbedBuilder()
         .setTitle('✅ Purchase Complete!')
         .setColor(0x57f287)
@@ -3943,7 +5062,6 @@ client.on('interactionCreate', async interaction => {
         .setFooter({ text: `Order #${purchaseIndex + 1} • ${new Date().toLocaleString()}` })
         .setTimestamp();
       
-      // Create the back button
       const backButton = buildBackButton();
       
       // Check if the user has permission to mark as completed
@@ -3952,7 +5070,6 @@ client.on('interactionCreate', async interaction => {
       
       let components = [backButton];
       
-      // Add Completed button if user has permission
       if (canComplete) {
         const completedButton = new ActionRowBuilder().addComponents(
           new ButtonBuilder()
@@ -4101,10 +5218,11 @@ client.on('interactionCreate', async interaction => {
     if (interaction.customId === 'shop_back') {
       const embed = buildShopEmbed();
       const selectRow = buildCategorySelectMenu();
+      const cartRow = buildCartButtons();
       
       await interaction.update({
         embeds: [embed],
-        components: [selectRow],
+        components: [selectRow, cartRow],
       });
       return;
     }
@@ -4315,6 +5433,19 @@ client.on('interactionCreate', async interaction => {
 // ═══════════════════════════════════════════════════════════════
 const staffChoices = Object.entries(STAFF_MEMBERS).map(([key, info]) => ({ name: `${info.label} (${info.type})`, value: key }));
 
+// Category choices for shop edit price
+const categoryChoices = Object.keys(SHOP_CATEGORIES).map(key => {
+  const category = SHOP_CATEGORIES[key];
+  return { name: `${category.emoji} ${category.name}`, value: key };
+});
+
+// Item choices for shop edit price - dynamically generated
+function getItemChoices(categoryKey) {
+  const category = SHOP_CATEGORIES[categoryKey];
+  if (!category) return [];
+  return category.items.map(item => ({ name: `${item.name} (${item.price} coins)`, value: item.id }));
+}
+
 const commands = [
   // ── EXISTING COMMANDS ──
   new SlashCommandBuilder().setName('features').setDescription('See all features available to members'),
@@ -4335,9 +5466,53 @@ const commands = [
     .setName('exportleaderboard')
     .setDescription('Export XP and Coins leaderboard data to staff logs (admin only)'),
   
+  // ── IMPORT/EXPORT DATA COMMANDS ──
   new SlashCommandBuilder()
-    .setName('setbalance')
-    .setDescription('Set a user\'s coin balance (admin only)')
+    .setName('import_data')
+    .setDescription('Import coins or XP data from a JSON file (Owner only)')
+    .addAttachmentOption(o => o.setName('file').setDescription('JSON file to import').setRequired(true))
+    .addStringOption(o => o.setName('type').setDescription('Data type to import').setRequired(true)
+      .addChoices(
+        { name: 'Coins Data', value: 'coins' },
+        { name: 'XP Data', value: 'xp' }
+      )),
+  
+  new SlashCommandBuilder()
+    .setName('export_data')
+    .setDescription('Export coins or XP data to a JSON file (Owner only)')
+    .addStringOption(o => o.setName('type').setDescription('Data type to export').setRequired(true)
+      .addChoices(
+        { name: 'Coins Data', value: 'coins' },
+        { name: 'XP Data', value: 'xp' }
+      )),
+  
+  // ── SHOP PRICE EDIT COMMANDS ──
+  new SlashCommandBuilder()
+    .setName('shop_editprice')
+    .setDescription('Edit the price of a shop item (Owner only)')
+    .addStringOption(o => o.setName('category').setDescription('Category of the item').setRequired(true)
+      .addChoices(...categoryChoices))
+    .addStringOption(o => o.setName('item').setDescription('Item ID to edit').setRequired(true)),
+  
+  new SlashCommandBuilder()
+    .setName('shop_listitems')
+    .setDescription('List all shop items with their IDs and prices (Owner only)'),
+  
+  // ── COUPON COMMANDS ──
+  new SlashCommandBuilder()
+    .setName('create_coupon')
+    .setDescription('Create a new coupon code (Owner only)'),
+  
+  new SlashCommandBuilder()
+    .setName('list_coupons')
+    .setDescription('List all coupons (Owner only)'),
+  
+  // ── SHOP COMMANDS ──
+  new SlashCommandBuilder()
+    .setName('cart')
+    .setDescription('View your shopping cart'),
+  
+  new SlashCommandBuilder().setName('setbalance').setDescription('Set a user\'s coin balance (admin only)')
     .addUserOption(o => o.setName('user').setDescription('User to set balance for').setRequired(true))
     .addNumberOption(o => o.setName('amount').setDescription('New balance amount (0 or greater)').setRequired(true).setMinValue(0))
     .addStringOption(o => o.setName('reason').setDescription('Reason for balance change').setRequired(false)),
@@ -4489,6 +5664,8 @@ client.login(TOKEN).catch(err => console.error('❌ FAILED TO LOG IN TO DISCORD:
     await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
     console.log('✅ Slash commands registered (guild)');
     console.log('✅ Shop commands registered!');
+    console.log('✅ Import/Export commands registered!');
+    console.log('✅ Coupon commands registered!');
   } catch (err) {
     console.error('❌ FAILED TO REGISTER SLASH COMMANDS:', err);
   }
