@@ -1,72 +1,104 @@
 {
-  "1481209596700790882": {
-    "username": "Soul Killer",
-    "coins": 439,
-    "messages": 2197,
-    "voiceMinutes": 0,
-    "invites": 0
-  },
-  "1009724690744475678": {
-    "username": "draco",
-    "coins": 169,
-    "messages": 847,
-    "voiceMinutes": 0,
-    "invites": 0
-  },
-  "1319564029672292413": {
-    "username": "VioLenceTheGoat",
-    "coins": 150,
-    "messages": 750,
-    "voiceMinutes": 0,
-    "invites": 0
-  },
-  "1374401583982448796": {
-    "username": "Dzeewi",
-    "coins": 109,
-    "messages": 547,
-    "voiceMinutes": 0,
-    "invites": 0
-  },
-  "1163302675396440186": {
-    "username": "ZEROX",
-    "coins": 88,
-    "messages": 442,
-    "voiceMinutes": 0,
-    "invites": 0
-  },
-  "1512811804189917264": {
-    "username": "Alya",
-    "coins": 64,
-    "messages": 322,
-    "voiceMinutes": 0,
-    "invites": 0
-  },
-  "825754323815366696": {
-    "username": "aarush405",
-    "coins": 55,
-    "messages": 277,
-    "voiceMinutes": 0,
-    "invites": 0
-  },
-  "885470207332728832": {
-    "username": "ghost",
-    "coins": 24,
-    "messages": 120,
-    "voiceMinutes": 0,
-    "invites": 0
-  },
-  "1516130995156422787": {
-    "username": "Zawackystom_56",
-    "coins": 16,
-    "messages": 82,
-    "voiceMinutes": 0,
-    "invites": 0
-  },
-  "760739039141429269": {
-    "username": "SMARE",
-    "coins": 9,
-    "messages": 45,
-    "voiceMinutes": 0,
-    "invites": 0
-  }
-}
+      "userId": "825754323815366696",
+      "username": "aarush405",
+      "coins": 499850,
+      "messages": 277,
+      "voiceMinutes": 123,
+      "invites": 0
+    },
+    {
+      "userId": "1481209596700790882",
+      "username": "soul_killer123",
+      "coins": 860,
+      "messages": 2220,
+      "voiceMinutes": 254,
+      "invites": 0
+    },
+    {
+      "userId": "1009724690744475678",
+      "username": "draco_cv",
+      "coins": 220,
+      "messages": 847,
+      "voiceMinutes": 0,
+      "invites": 0
+    },
+    {
+      "userId": "1319564029672292413",
+      "username": "VioLenceTheGoat",
+      "coins": 150,
+      "messages": 750,
+      "voiceMinutes": 0,
+      "invites": 0
+    },
+    {
+      "userId": "1374401583982448796",
+      "username": "Dzeewi",
+      "coins": 109,
+      "messages": 547,
+      "voiceMinutes": 0,
+      "invites": 0
+    },
+    {
+      "userId": "1163302675396440186",
+      "username": "ZEROX",
+      "coins": 88,
+      "messages": 442,
+      "voiceMinutes": 0,
+      "invites": 0
+    },
+    {
+      "userId": "1512811804189917264",
+      "username": "Alya",
+      "coins": 64,
+      "messages": 322,
+      "voiceMinutes": 0,
+      "invites": 0
+    },
+    {
+      "userId": "1497886984033796126",
+      "username": "pompy0517",
+      "coins": 29,
+      "messages": 1,
+      "voiceMinutes": 29,
+      "invites": 0
+    },
+    {
+      "userId": "1060834964305887273",
+      "username": "ayushman1244",
+      "coins": 27,
+      "messages": 0,
+      "voiceMinutes": 27,
+      "invites": 0
+    },
+    {
+      "userId": "885470207332728832",
+      "username": "ishaan4721",
+      "coins": 24,
+      "messages": 121,
+      "voiceMinutes": 0,
+      "invites": 0
+    },
+    {
+      "userId": "1516130995156422787",
+      "username": "Zawackystom_56",
+      "coins": 16,
+      "messages": 82,
+      "voiceMinutes": 0,
+      "invites": 0
+    },
+    {
+      "userId": "760739039141429269",
+      "username": "SMARE",
+      "coins": 9,
+      "messages": 45,
+      "voiceMinutes": 0,
+      "invites": 0
+    },
+    {
+      "userId": "935050795299250197",
+      "username": "iam_sky_boy",
+      "coins": 0,
+      "messages": 3,
+      "voiceMinutes": 0,
+      "invites": 0
+    }
