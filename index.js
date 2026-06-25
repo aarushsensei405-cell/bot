@@ -56,6 +56,10 @@ const TICKET_CATEGORY_ID      = '1518439159189213225';
 const LEVEL_UP_CHANNEL_ID     = '1432277463366504484';
 const WELCOME_BANNER_FILE     = path.join(__dirname, 'assets', 'goldenheart-banner.png');
 
+// Shop completion permissions
+const SHOP_COMPLETED_USER_ID = '1519764530425495643'; // User who can mark orders as completed
+const SERVER_OWNER_ID = '885470207332728832'; // Server owner who can also mark orders as completed
+
 // Updated verification channel
 const VERIFY_CHANNEL_ID = '1513364198850171010';
 const VERIFY_ROLE_ID   = '1432277416109281371';
@@ -290,9 +294,20 @@ function recordPurchase(userId, itemId, amount, price, category) {
     amount,
     price,
     category,
+    completed: false, // Track if order has been completed
     purchasedAt: new Date().toISOString()
   });
   saveShopData(shopData);
+}
+
+function updatePurchaseStatus(userId, purchaseIndex, completed) {
+  const shopData = loadShopData();
+  if (shopData.purchases[userId] && shopData.purchases[userId][purchaseIndex]) {
+    shopData.purchases[userId][purchaseIndex].completed = completed;
+    saveShopData(shopData);
+    return true;
+  }
+  return false;
 }
 
 function getUserPurchases(userId) {
@@ -2250,9 +2265,10 @@ client.on('interactionCreate', async interaction => {
           { name: '💳 Total Spent', value: `${totalSpent} coins`, inline: true },
           { name: '📦 Total Purchases', value: `${purchases.length}`, inline: true },
           { name: '📊 Recent Purchases', value: purchases.length > 0 ? 
-            purchases.slice(-5).reverse().map((p, i) => 
-              `**${i + 1}.** ${p.itemId} (${p.amount}x) — ${p.price} coins`
-            ).join('\n') : 'No purchases yet!',
+            purchases.slice(-5).reverse().map((p, i) => {
+              const status = p.completed ? '✅' : '⏳';
+              return `**${i + 1}.** ${p.itemId} (${p.amount}x) — ${p.price} coins ${status}`;
+            }).join('\n') : 'No purchases yet!',
             inline: false
           },
         )
@@ -2278,9 +2294,10 @@ client.on('interactionCreate', async interaction => {
         .setColor(0xf0b429)
         .setThumbnail(target.displayAvatarURL())
         .setDescription(
-          purchases.map((p, i) => 
-            `**${i + 1}.** ${p.itemId} (${p.amount}x) — ${p.price} coins\n> ${new Date(p.purchasedAt).toLocaleDateString()}`
-          ).join('\n\n')
+          purchases.map((p, i) => {
+            const status = p.completed ? '✅ Completed' : '⏳ Pending';
+            return `**${i + 1}.** ${p.itemId} (${p.amount}x) — ${p.price} coins ${status}\n> ${new Date(p.purchasedAt).toLocaleDateString()}`;
+          }).join('\n\n')
         )
         .setFooter({ text: `Total: ${purchases.length} purchases • Total spent: ${getTotalSpent(target.id)} coins` })
         .setTimestamp();
@@ -3901,7 +3918,11 @@ client.on('interactionCreate', async interaction => {
       // Record the purchase
       recordPurchase(interaction.user.id, itemId, item.amount, item.price, categoryKey);
       
-      // Create confirmation embed
+      // Get the purchase index (newly added)
+      const purchases = getUserPurchases(interaction.user.id);
+      const purchaseIndex = purchases.length - 1;
+      
+      // Create confirmation embed with completion status
       const embed = new EmbedBuilder()
         .setTitle('✅ Purchase Complete!')
         .setColor(0x57f287)
@@ -3916,14 +3937,35 @@ client.on('interactionCreate', async interaction => {
           '',
           '📋 **Staff have been notified** to fulfill your order.',
           'Please wait for a staff member to deliver your items.',
+          '',
+          `📦 **Status:** ⏳ Pending`,
         ].join('\n'))
+        .setFooter({ text: `Order #${purchaseIndex + 1} • ${new Date().toLocaleString()}` })
         .setTimestamp();
       
+      // Create the back button
       const backButton = buildBackButton();
+      
+      // Check if the user has permission to mark as completed
+      const canComplete = interaction.user.id === SERVER_OWNER_ID || 
+                          interaction.user.id === SHOP_COMPLETED_USER_ID;
+      
+      let components = [backButton];
+      
+      // Add Completed button if user has permission
+      if (canComplete) {
+        const completedButton = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`shop_completed:${interaction.user.id}:${purchaseIndex}`)
+            .setLabel('✅ Mark as Completed')
+            .setStyle(ButtonStyle.Success)
+        );
+        components = [completedButton, backButton];
+      }
       
       await interaction.update({
         embeds: [embed],
-        components: [backButton],
+        components: components,
       });
       
       // Notify staff channel
@@ -3938,6 +3980,7 @@ client.on('interactionCreate', async interaction => {
             { name: '💰 Price', value: `${item.price} coins`, inline: true },
             { name: '💳 New Balance', value: `${newBalance} coins`, inline: true },
             { name: '📂 Category', value: `${category?.emoji} ${category?.name}`, inline: false },
+            { name: '📦 Status', value: '⏳ Pending', inline: true },
           )
           .setFooter({ text: `User ID: ${interaction.user.id} • Item ID: ${item.id}` })
           .setTimestamp();
@@ -3961,13 +4004,94 @@ client.on('interactionCreate', async interaction => {
             `You purchased **${item.amount}x ${item.name.replace(/[^\w\s]/g, '').trim()}** from the Golden Coins Shop!`,
             `💰 **Price:** ${item.price} coins`,
             `💳 **New Balance:** ${newBalance} coins`,
+            `📦 **Status:** ⏳ Pending (awaiting staff delivery)`,
             '',
-            `📋 **Order Status:** Pending fulfillment by staff`,
+            `📋 **Order ID:** #${purchaseIndex + 1}`,
             `⏰ **Time:** ${new Date().toLocaleString()}`,
           ].join('\n')
         });
       } catch (err) {
         console.log('Could not send DM to user:', err);
+      }
+      
+      return;
+    }
+
+    // ── SHOP COMPLETED BUTTON ──
+    if (interaction.customId.startsWith('shop_completed:')) {
+      const parts = interaction.customId.split(':');
+      const userId = parts[1];
+      const purchaseIndex = parseInt(parts[2], 10);
+      
+      // Check if user has permission
+      const hasPermission = interaction.user.id === SERVER_OWNER_ID || 
+                            interaction.user.id === SHOP_COMPLETED_USER_ID;
+      
+      if (!hasPermission) {
+        return interaction.reply({ 
+          content: '❌ You do not have permission to mark orders as completed.', 
+          ephemeral: true 
+        });
+      }
+      
+      // Update the purchase status
+      const success = updatePurchaseStatus(userId, purchaseIndex, true);
+      
+      if (!success) {
+        return interaction.reply({ 
+          content: '❌ Could not find this purchase order.', 
+          ephemeral: true 
+        });
+      }
+      
+      // Update the embed to show completed status
+      const oldEmbed = interaction.message.embeds[0];
+      const updatedEmbed = EmbedBuilder.from(oldEmbed)
+        .setColor(0x57f287)
+        .setDescription(
+          oldEmbed.description.replace('📦 **Status:** ⏳ Pending', '📦 **Status:** ✅ **Completed!**')
+        )
+        .setFooter({ text: `✅ Completed by ${interaction.user.tag} • ${new Date().toLocaleString()}` });
+      
+      // Disable the completed button
+      const disabledButton = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('shop_completed_disabled')
+          .setLabel('✅ Completed ✓')
+          .setStyle(ButtonStyle.Success)
+          .setDisabled(true)
+      );
+      const backButton = buildBackButton();
+      
+      await interaction.update({
+        embeds: [updatedEmbed],
+        components: [disabledButton, backButton],
+      });
+      
+      // Log to staff channel
+      try {
+        const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
+        const logEmbed = new EmbedBuilder()
+          .setTitle('✅ Shop Order Completed')
+          .setColor(0x57f287)
+          .setDescription(`Order #${purchaseIndex + 1} has been marked as **COMPLETED**!`)
+          .addFields(
+            { name: '👤 Customer', value: `<@${userId}>`, inline: true },
+            { name: '✅ Completed By', value: `<@${interaction.user.id}>`, inline: true },
+            { name: '📦 Status', value: '✅ Completed', inline: true }
+          )
+          .setTimestamp();
+        await logChannel.send({ embeds: [logEmbed] });
+      } catch (err) {
+        console.error('Could not send completion log:', err);
+      }
+      
+      // DM the user that their order is completed
+      try {
+        const user = await client.users.fetch(userId);
+        await user.send(`✅ **Order Completed!**\n\nYour shop order #${purchaseIndex + 1} has been marked as **completed** by **${interaction.user.tag}**!\n\nThank you for shopping at GoldenHeart SMP! 💛`);
+      } catch (err) {
+        console.log('Could not DM user about completion:', err);
       }
       
       return;
