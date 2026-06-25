@@ -1,3 +1,8 @@
+// ─────────────────────────────────────────
+// GOLDENHEART SMP DISCORD BOT - COMPLETE
+// WITH SHOP INTEGRATION - FULL CODE
+// ─────────────────────────────────────────
+
 const express = require('express');
 const {
   Client,
@@ -88,6 +93,74 @@ const APP_NAMES = {
 };
 
 const STARBOARD_THRESHOLD = 3;
+
+// ─────────────────────────────────────────
+// SHOP CONFIGURATION
+// ─────────────────────────────────────────
+const SHOP_FILE = path.join(__dirname, 'shop.json');
+
+// Shop categories and items based on your shop menu
+const SHOP_CATEGORIES = {
+  food: {
+    name: '🌿 Food & Resources',
+    emoji: '🌿',
+    items: [
+      { id: 'bread', name: '🍞 Bread', amount: 16, price: 75, description: '16 Bread' },
+      { id: 'apples', name: '🍎 Apples', amount: 16, price: 75, description: '16 Apples' },
+      { id: 'cooked_beef', name: '🥩 Cooked Beef', amount: 16, price: 125, description: '16 Cooked Beef' },
+      { id: 'wheat', name: '🌾 Wheat', amount: 32, price: 100, description: '32 Wheat' },
+      { id: 'logs', name: '🪵 Logs', amount: 32, price: 150, description: '32 Logs (Any Type)' },
+    ]
+  },
+  materials: {
+    name: '⛏️ Materials',
+    emoji: '⛏️',
+    items: [
+      { id: 'cobblestone', name: '🪨 Cobblestone', amount: 64, price: 50, description: '64 Cobblestone' },
+      { id: 'planks', name: '🪵 Wood Planks', amount: 64, price: 100, description: '64 Wood Planks' },
+      { id: 'coal', name: '⚫ Coal', amount: 32, price: 175, description: '32 Coal' },
+      { id: 'iron_ingots', name: '🔩 Iron Ingots', amount: 16, price: 350, description: '16 Iron Ingots' },
+      { id: 'gold_ingots', name: '✨ Gold Ingots', amount: 8, price: 300, description: '8 Gold Ingots' },
+      { id: 'diamonds', name: '💎 Diamonds', amount: 2, price: 500, description: '2 Diamonds' },
+    ]
+  },
+  tools: {
+    name: '🔧 Tools',
+    emoji: '🔧',
+    items: [
+      { id: 'iron_pickaxe', name: '⛏️ Iron Pickaxe', amount: 1, price: 350, description: 'Iron Pickaxe' },
+      { id: 'iron_axe', name: '🪓 Iron Axe', amount: 1, price: 300, description: 'Iron Axe' },
+      { id: 'iron_sword', name: '⚔️ Iron Sword', amount: 1, price: 350, description: 'Iron Sword' },
+      { id: 'bow', name: '🏹 Bow', amount: 1, price: 500, description: 'Bow' },
+      { id: 'arrows', name: '➡️ Arrows', amount: 32, price: 150, description: '32 Arrows' },
+    ]
+  },
+  armor: {
+    name: '🛡️ Armor',
+    emoji: '🛡️',
+    items: [
+      { id: 'iron_helmet', name: '🪖 Iron Helmet', amount: 1, price: 500, description: 'Iron Helmet' },
+      { id: 'iron_chestplate', name: '🛡️ Iron Chestplate', amount: 1, price: 900, description: 'Iron Chestplate' },
+      { id: 'iron_leggings', name: '👖 Iron Leggings', amount: 1, price: 750, description: 'Iron Leggings' },
+      { id: 'iron_boots', name: '👢 Iron Boots', amount: 1, price: 450, description: 'Iron Boots' },
+      { id: 'diamond_helmet', name: '💎 Diamond Helmet', amount: 1, price: 2500, description: 'Diamond Helmet' },
+      { id: 'diamond_chestplate', name: '💎 Diamond Chestplate', amount: 1, price: 4500, description: 'Diamond Chestplate' },
+      { id: 'diamond_leggings', name: '💎 Diamond Leggings', amount: 1, price: 4000, description: 'Diamond Leggings' },
+      { id: 'diamond_boots', name: '💎 Diamond Boots', amount: 1, price: 2000, description: 'Diamond Boots' },
+    ]
+  },
+  miscellaneous: {
+    name: '🎁 Miscellaneous',
+    emoji: '🎁',
+    items: [
+      { id: 'bed', name: '🛏️ Bed', amount: 1, price: 100, description: 'Bed' },
+      { id: 'shulker_box', name: '📦 Shulker Box', amount: 1, price: 2000, description: 'Shulker Box' },
+      { id: 'torches', name: '🕯️ Torches', amount: 16, price: 50, description: '16 Torches' },
+      { id: 'compass', name: '🧭 Compass', amount: 1, price: 300, description: 'Compass' },
+      { id: 'water_bucket', name: '🪣 Water Bucket', amount: 1, price: 150, description: 'Water Bucket' },
+    ]
+  }
+};
 
 // ─────────────────────────────────────────
 // FILE STORAGE HELPERS
@@ -184,7 +257,55 @@ function saveGiveaways(d)      { writeJSON(GIVEAWAYS_FILE, d); }
 function loadReminders()       { return readJSON(REMINDERS_FILE, []); }
 function saveReminders(d)      { writeJSON(REMINDERS_FILE, d); }
 
-// ── FIXED COINS FUNCTIONS WITH DIRECT FILE ACCESS ──
+// ── SHOP FILE FUNCTIONS ──
+function loadShopData() {
+  try {
+    if (!fs.existsSync(SHOP_FILE)) {
+      fs.writeFileSync(SHOP_FILE, JSON.stringify({ purchases: {} }, null, 2));
+    }
+    return JSON.parse(fs.readFileSync(SHOP_FILE, 'utf8'));
+  } catch (error) {
+    console.error('Error loading shop data:', error);
+    return { purchases: {} };
+  }
+}
+
+function saveShopData(data) {
+  try {
+    fs.writeFileSync(SHOP_FILE, JSON.stringify(data, null, 2));
+    return true;
+  } catch (error) {
+    console.error('Error saving shop data:', error);
+    return false;
+  }
+}
+
+function recordPurchase(userId, itemId, amount, price, category) {
+  const shopData = loadShopData();
+  if (!shopData.purchases[userId]) {
+    shopData.purchases[userId] = [];
+  }
+  shopData.purchases[userId].push({
+    itemId,
+    amount,
+    price,
+    category,
+    purchasedAt: new Date().toISOString()
+  });
+  saveShopData(shopData);
+}
+
+function getUserPurchases(userId) {
+  const shopData = loadShopData();
+  return shopData.purchases[userId] || [];
+}
+
+function getTotalSpent(userId) {
+  const purchases = getUserPurchases(userId);
+  return purchases.reduce((total, p) => total + p.price, 0);
+}
+
+// ── COINS FUNCTIONS ──
 function loadCoins() { 
   try {
     const data = fs.readFileSync(COINS_FILE, 'utf8');
@@ -214,6 +335,201 @@ function saveCoins(data) {
   }
 }
 
+function getCoins(userId) {
+  const coinsData = loadCoins();
+  return coinsData[userId] || null;
+}
+
+function addCoins(userId, username, amount) {
+  const coinsData = loadCoins();
+  if (!coinsData[userId]) {
+    coinsData[userId] = { 
+      username: username || 'Unknown', 
+      coins: 0, 
+      messages: 0,
+      voiceMinutes: 0,
+      invites: 0
+    };
+  }
+  coinsData[userId].username = username || coinsData[userId].username;
+  coinsData[userId].coins += amount;
+  saveCoins(coinsData);
+  return coinsData[userId].coins;
+}
+
+function getCoinsLeaderboard(limit = 10) {
+  const coinsData = loadCoins();
+  const filtered = Object.entries(coinsData)
+    .filter(([key]) => key !== 'invite_codes')
+    .filter(([, data]) => data.coins > 0 || data.messages > 0 || data.voiceMinutes > 0)
+    .sort((a, b) => b[1].coins - a[1].coins);
+  return filtered.slice(0, limit);
+}
+
+// ─────────────────────────────────────────
+// SHOP UI BUILDERS
+// ─────────────────────────────────────────
+function buildShopEmbed() {
+  const embed = new EmbedBuilder()
+    .setTitle('🪙 Golden Coins Shop')
+    .setColor(0xf0b429)
+    .setDescription([
+      'Welcome to the **Golden Coins Shop**! 🛒',
+      '',
+      'Use the dropdown below to browse different categories.',
+      '',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '',
+      '💡 **How to earn coins:**',
+      '• 💬 **5 messages** = 1 coin',
+      '• 🎤 **1 minute in VC** = 1 coin',
+      '• 📨 **1 invite** = 50 coins',
+      '• 🎁 **Daily claim** = 50 coins',
+      '',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '',
+      '⚠️ **Shop prices may change** based on the server economy.',
+      '💛 **Use your coins wisely** — every purchase matters!',
+    ].join('\n'))
+    .setFooter({ text: 'GoldenHeart SMP • Shop' })
+    .setTimestamp();
+
+  return embed;
+}
+
+function buildCategoryEmbed(categoryKey) {
+  const category = SHOP_CATEGORIES[categoryKey];
+  if (!category) return null;
+
+  const itemsList = category.items.map((item, index) => 
+    `\`${String(index + 1).padStart(2, ' ')}\` ${item.name} — **${item.price}** coins`
+  ).join('\n');
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${category.emoji} ${category.name}`)
+    .setColor(0xf0b429)
+    .setDescription([
+      `Select an item from the dropdown below to purchase!`,
+      '',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '',
+      itemsList,
+      '',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '',
+      `💳 **Click the dropdown** to choose an item and complete your purchase.`,
+    ].join('\n'))
+    .setFooter({ text: 'GoldenHeart SMP • Shop' })
+    .setTimestamp();
+
+  return embed;
+}
+
+function buildItemEmbed(item, categoryKey) {
+  const category = SHOP_CATEGORIES[categoryKey];
+  if (!category) return null;
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${item.name}`)
+    .setColor(0x57f287)
+    .setDescription([
+      `📦 **${item.amount}x** ${item.name.replace(/[^\w\s]/g, '').trim()}`,
+      '',
+      `💰 **Price:** ${item.price} Golden Coins`,
+      `📂 **Category:** ${category.emoji} ${category.name}`,
+      '',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '',
+      'Click the **Purchase** button below to buy this item!',
+      '',
+      '⚠️ **Note:** This is a virtual purchase. Staff will be notified to fulfill your order.',
+    ].join('\n'))
+    .setFooter({ text: `Item ID: ${item.id} • GoldenHeart SMP Shop` })
+    .setTimestamp();
+
+  return embed;
+}
+
+function buildCategorySelectMenu() {
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId('shop_category')
+    .setPlaceholder('📂 Select a category to browse...')
+    .addOptions(
+      new StringSelectMenuOptionBuilder()
+        .setLabel('🌿 Food & Resources')
+        .setDescription('Food and resource items')
+        .setEmoji('🌿')
+        .setValue('food'),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('⛏️ Materials')
+        .setDescription('Building materials and ores')
+        .setEmoji('⛏️')
+        .setValue('materials'),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('🔧 Tools')
+        .setDescription('Weapons and tools')
+        .setEmoji('🔧')
+        .setValue('tools'),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('🛡️ Armor')
+        .setDescription('Protective gear')
+        .setEmoji('🛡️')
+        .setValue('armor'),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('🎁 Miscellaneous')
+        .setDescription('Other useful items')
+        .setEmoji('🎁')
+        .setValue('miscellaneous'),
+    );
+
+  return new ActionRowBuilder().addComponents(menu);
+}
+
+function buildItemSelectMenu(categoryKey) {
+  const category = SHOP_CATEGORIES[categoryKey];
+  if (!category) return null;
+
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId(`shop_item_${categoryKey}`)
+    .setPlaceholder('🛒 Select an item to purchase...');
+
+  category.items.forEach(item => {
+    menu.addOptions(
+      new StringSelectMenuOptionBuilder()
+        .setLabel(`${item.name} — ${item.price} coins`)
+        .setDescription(`${item.amount}x ${item.name.replace(/[^\w\s]/g, '').trim()}`)
+        .setValue(item.id)
+    );
+  });
+
+  return new ActionRowBuilder().addComponents(menu);
+}
+
+function buildBackButton() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('shop_back')
+      .setLabel('◀ Back to Categories')
+      .setStyle(ButtonStyle.Secondary)
+  );
+}
+
+function buildPurchaseButtons(itemId, categoryKey) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`shop_purchase_${categoryKey}_${itemId}`)
+      .setLabel('✅ Purchase')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`shop_back`)
+      .setLabel('◀ Back')
+      .setStyle(ButtonStyle.Secondary)
+  );
+}
+
+// ─────────────────────────────────────────
+// ACTIVE SESSIONS
+// ─────────────────────────────────────────
 const activeSessions  = new Map();
 const pendingFeedback = new Map();
 const pollVotes       = new Map();
@@ -222,6 +538,7 @@ const spamCooldown    = new Map();
 const xpCooldown      = new Map();
 const coinsCooldown   = new Map();
 const pendingTransfers = new Map();
+const voiceTracking   = new Map();
 
 const STAR_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
 
@@ -610,7 +927,7 @@ function checkSpam(message) {
 }
 
 // ─────────────────────────────────────────
-// WELCOME CARD IMAGE GENERATOR (UPDATED)
+// WELCOME CARD IMAGE GENERATOR
 // ─────────────────────────────────────────
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -635,9 +952,8 @@ async function generateWelcomeCard(member) {
   const ctx    = canvas.getContext('2d');
 
   // ── Generate custom Minecraft-themed banner ──
-  // Gradient background
   const bgGradient = ctx.createLinearGradient(0, 0, width, height);
-  bgGradient.addColorStop(0, '#1a0a1a'); // Dark purple
+  bgGradient.addColorStop(0, '#1a0a1a');
   bgGradient.addColorStop(0.3, '#2d0a2d');
   bgGradient.addColorStop(0.6, '#3d1a2d');
   bgGradient.addColorStop(0.8, '#1a1a0a');
@@ -645,7 +961,6 @@ async function generateWelcomeCard(member) {
   ctx.fillStyle = bgGradient;
   ctx.fillRect(0, 0, width, height);
 
-  // ── Minecraft grass block pattern at bottom ──
   const grassColors = ['#6b8c42', '#5a7d32', '#7a9c52', '#4a6d22'];
   for (let x = 0; x < width; x += 20) {
     for (let y = height - 30; y < height; y += 20) {
@@ -655,7 +970,6 @@ async function generateWelcomeCard(member) {
     }
   }
 
-  // ── Minecraft dirt/stone texture overlay ──
   for (let i = 0; i < 200; i++) {
     const x = Math.random() * width;
     const y = Math.random() * height;
@@ -664,7 +978,6 @@ async function generateWelcomeCard(member) {
     ctx.fillRect(x, y, size, size);
   }
 
-  // ── Golden Heart logo ──
   const heartX = 80, heartY = 80, heartSize = 60;
   ctx.shadowColor = '#f0b429';
   ctx.shadowBlur = 40;
@@ -675,7 +988,6 @@ async function generateWelcomeCard(member) {
   ctx.fillText('❤️', heartX, heartY);
   ctx.shadowBlur = 0;
 
-  // ── Title with glow ──
   ctx.shadowColor = '#f0b429';
   ctx.shadowBlur = 25;
   ctx.fillStyle = '#ffd76e';
@@ -689,17 +1001,14 @@ async function generateWelcomeCard(member) {
   ctx.font = 'bold 28px "Minecraft", "Courier New", monospace';
   ctx.fillText('⚔️ SURVIVAL MULTIPLAYER', 150, 120);
 
-  // ── Minecraft sword decoration ──
   ctx.fillStyle = '#8a8a8a';
   ctx.font = '40px sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText('⚔️', width / 2, 170);
 
-  // ── Player info area (left side) ──
   const textX = 60;
   const textY = 180;
 
-  // Username with golden border
   let displayName = member.user.username;
   if (displayName.length > 16) displayName = displayName.slice(0, 14) + '…';
   
@@ -716,7 +1025,6 @@ async function generateWelcomeCard(member) {
   ctx.font = '20px "Minecraft", "Courier New", monospace';
   ctx.fillText(`✦ Member #${member.guild.memberCount}`, textX, textY + 45);
 
-  // ── Minecraft-themed info boxes ──
   const infoY = 250;
   const infoBoxes = [
     { icon: '⛏️', label: 'Minecraft', value: '1.20.4+' },
@@ -726,7 +1034,6 @@ async function generateWelcomeCard(member) {
 
   infoBoxes.forEach((box, i) => {
     const x = textX + i * 280;
-    // Box background
     roundRect(ctx, x, infoY, 250, 60, 8);
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     ctx.fill();
@@ -746,7 +1053,6 @@ async function generateWelcomeCard(member) {
     ctx.fillText(box.value, x + 10, infoY + 45);
   });
 
-  // ── Avatar (right side) ──
   const avatarSize = 130;
   const avatarX = width - 170;
   const avatarY = height / 2 - 10;
@@ -755,7 +1061,6 @@ async function generateWelcomeCard(member) {
     const avatarURL = member.user.displayAvatarURL({ extension: 'png', size: 256 });
     const avatarImg = await loadImage(avatarURL);
     
-    // Glowing ring
     ctx.save();
     ctx.shadowColor = '#f0b429';
     ctx.shadowBlur = 40;
@@ -772,42 +1077,35 @@ async function generateWelcomeCard(member) {
     ctx.fill();
     ctx.restore();
 
-    // Avatar image
     ctx.save();
     circleClip(ctx, avatarX, avatarY, avatarSize / 2);
     ctx.drawImage(avatarImg, avatarX - avatarSize / 2, avatarY - avatarSize / 2, avatarSize, avatarSize);
     ctx.restore();
 
-    // Border
     ctx.beginPath();
     ctx.arc(avatarX, avatarY, avatarSize / 2 + 3, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // "Welcome" text under avatar
     ctx.fillStyle = '#f0b429';
     ctx.font = 'bold 16px "Minecraft", "Courier New", monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('✦ WELCOME ✦', avatarX, avatarY + avatarSize / 2 + 30);
   } catch {
-    // Fallback
     ctx.beginPath();
     ctx.arc(avatarX, avatarY, avatarSize / 2, 0, Math.PI * 2);
     ctx.fillStyle = '#333';
     ctx.fill();
   }
 
-  // ── Footer with server info ──
   ctx.fillStyle = 'rgba(255, 215, 0, 0.4)';
   ctx.font = '12px "Minecraft", "Courier New", monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
   ctx.fillText('🏰 GoldenHeart SMP • discord.gg/We5SpWv64T • ⛏️ 1.20.4+', width / 2, height - 10);
 
-  // ── Decorative elements ──
-  // Corner decorations
   const corners = [[20, 20], [width - 20, 20], [20, height - 20], [width - 20, height - 20]];
   corners.forEach(([cx, cy]) => {
     ctx.fillStyle = '#f0b429';
@@ -964,11 +1262,6 @@ async function checkTempBans(client) {
 }
 
 // ─────────────────────────────────────────
-// VOICE CHANNEL TRACKING FOR COINS
-// ─────────────────────────────────────────
-const voiceTracking = new Map();
-
-// ─────────────────────────────────────────
 // GLOBAL ERROR HANDLERS
 // ─────────────────────────────────────────
 process.on('unhandledRejection', err => console.error('❌ UNHANDLED REJECTION:', err));
@@ -1082,7 +1375,6 @@ client.on('guildMemberAdd', async member => {
     const files          = [cardAttachment];
     const welcomeChannel = await client.channels.fetch(WELCOME_CHANNEL_ID);
 
-    // Updated welcome embed with Minecraft theme
     const welcomeEmbed = new EmbedBuilder()
       .setColor(0xf0b429)
       .setAuthor({
@@ -1381,40 +1673,6 @@ client.on('guildMemberAdd', async (member) => {
     console.error('Error tracking invite:', err);
   }
 });
-
-// ─────────────────────────────────────────
-// COINS HELPERS
-// ─────────────────────────────────────────
-function addCoins(userId, username, amount) {
-  const coinsData = loadCoins();
-  if (!coinsData[userId]) {
-    coinsData[userId] = { 
-      username: username || 'Unknown', 
-      coins: 0, 
-      messages: 0,
-      voiceMinutes: 0,
-      invites: 0
-    };
-  }
-  coinsData[userId].username = username || coinsData[userId].username;
-  coinsData[userId].coins += amount;
-  saveCoins(coinsData);
-  return coinsData[userId].coins;
-}
-
-function getCoins(userId) {
-  const coinsData = loadCoins();
-  return coinsData[userId] || null;
-}
-
-function getCoinsLeaderboard(limit = 10) {
-  const coinsData = loadCoins();
-  const filtered = Object.entries(coinsData)
-    .filter(([key]) => key !== 'invite_codes')
-    .filter(([, data]) => data.coins > 0 || data.messages > 0 || data.voiceMinutes > 0)
-    .sort((a, b) => b[1].coins - a[1].coins);
-  return filtered.slice(0, limit);
-}
 
 // ═══════════════════════════════════════════════════════════════
 // STARBOARD
@@ -1963,6 +2221,89 @@ client.on('interactionCreate', async interaction => {
   // ════════════════════════════════════════
   if (interaction.isChatInputCommand()) {
 
+    // ── SHOP COMMANDS ──
+    if (interaction.commandName === 'shop') {
+      const embed = buildShopEmbed();
+      const selectRow = buildCategorySelectMenu();
+      
+      await interaction.reply({
+        embeds: [embed],
+        components: [selectRow],
+        ephemeral: true
+      });
+      return;
+    }
+
+    if (interaction.commandName === 'shop_balance') {
+      const target = interaction.options.getUser('user') || interaction.user;
+      const coinsData = loadCoins();
+      const userData = coinsData[target.id];
+      const totalSpent = getTotalSpent(target.id);
+      const purchases = getUserPurchases(target.id);
+      
+      const embed = new EmbedBuilder()
+        .setTitle(`💰 ${target.username}'s Shop Info`)
+        .setColor(0xf0b429)
+        .setThumbnail(target.displayAvatarURL())
+        .addFields(
+          { name: '🪙 Balance', value: `${userData?.coins || 0} coins`, inline: true },
+          { name: '💳 Total Spent', value: `${totalSpent} coins`, inline: true },
+          { name: '📦 Total Purchases', value: `${purchases.length}`, inline: true },
+          { name: '📊 Recent Purchases', value: purchases.length > 0 ? 
+            purchases.slice(-5).reverse().map((p, i) => 
+              `**${i + 1}.** ${p.itemId} (${p.amount}x) — ${p.price} coins`
+            ).join('\n') : 'No purchases yet!',
+            inline: false
+          },
+        )
+        .setTimestamp();
+      
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+      return;
+    }
+
+    if (interaction.commandName === 'shop_purchases') {
+      const target = interaction.options.getUser('user') || interaction.user;
+      const purchases = getUserPurchases(target.id);
+      
+      if (purchases.length === 0) {
+        return interaction.reply({
+          content: `📋 **${target.username}** hasn't made any purchases yet!`,
+          ephemeral: true
+        });
+      }
+      
+      const embed = new EmbedBuilder()
+        .setTitle(`📋 ${target.username}'s Purchase History`)
+        .setColor(0xf0b429)
+        .setThumbnail(target.displayAvatarURL())
+        .setDescription(
+          purchases.map((p, i) => 
+            `**${i + 1}.** ${p.itemId} (${p.amount}x) — ${p.price} coins\n> ${new Date(p.purchasedAt).toLocaleDateString()}`
+          ).join('\n\n')
+        )
+        .setFooter({ text: `Total: ${purchases.length} purchases • Total spent: ${getTotalSpent(target.id)} coins` })
+        .setTimestamp();
+      
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+      return;
+    }
+
+    if (interaction.commandName === 'shoppanel') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
+        return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+      
+      const embed = buildShopEmbed();
+      const selectRow = buildCategorySelectMenu();
+      
+      await interaction.channel.send({
+        embeds: [embed],
+        components: [selectRow],
+      });
+      
+      return interaction.reply({ content: '✅ Shop panel posted!', ephemeral: true });
+    }
+
     // Features command
     if (interaction.commandName === 'features') {
       const embed = new EmbedBuilder()
@@ -1976,6 +2317,7 @@ client.on('interactionCreate', async interaction => {
           { name: '🌍 Minecraft Server',     value: 'Type `ip` in any channel to get the MC server IP.\n> `goldenheartsmp.minecraftnoob.com:25565`', inline: false },
           { name: '📊 Leveling & XP',        value: 'Earn XP by chatting! Use `/rank` to see your level and `/leaderboard` for the top 10.', inline: false },
           { name: '🪙 Golden Coins',         value: 'Earn **Golden Coins** by chatting (5 messages = 1 coin), joining voice chat (1 coin per minute), and inviting members (50 coins per invite)! Use `/balance`, `/coinslb`, `/daily`, and `/transfer` to manage your coins.', inline: false },
+          { name: '🛒 Golden Coins Shop',    value: 'Spend your hard-earned Golden Coins on useful resources and gear! Use `/shop` to browse and purchase items.', inline: false },
           { name: '🎉 Giveaways',            value: 'Watch for giveaway announcements — react with 🎉 to enter!', inline: false },
           { name: '💤 AFK System',           value: 'Use `/afk <reason>` to mark yourself AFK. The bot will notify others who ping you.', inline: false },
           { name: '⏰ Reminders',            value: 'Use `/remindme <time> <text>` to set a personal reminder via DM.', inline: false },
@@ -1986,419 +2328,6 @@ client.on('interactionCreate', async interaction => {
         )
         .setFooter({ text: 'GoldenHeart SMP — Glad to have you here! 💛' }).setTimestamp();
       return interaction.reply({ embeds: [embed] });
-    }
-
-    // ── COINS COMMANDS ──
-    if (interaction.commandName === 'balance') {
-      const target = interaction.options.getUser('user') || interaction.user;
-      const coinsData = getCoins(target.id);
-      if (!coinsData || coinsData.coins === 0) {
-        return interaction.reply({ 
-          content: `🪙 **${target.username}** has 0 Golden Coins. Start chatting to earn some! 💰`,
-          ephemeral: true 
-        });
-      }
-      
-      const embed = new EmbedBuilder()
-        .setTitle(`🪙 ${target.username}'s Golden Coins`)
-        .setColor(0xf0b429)
-        .setThumbnail(target.displayAvatarURL())
-        .addFields(
-          { name: '💰 Balance', value: `${coinsData.coins} Golden Coins`, inline: true },
-          { name: '💬 Messages', value: `${coinsData.messages || 0}`, inline: true },
-          { name: '🎤 Voice Minutes', value: `${coinsData.voiceMinutes || 0} min`, inline: true },
-          { name: '📨 Invites', value: `${coinsData.invites || 0}`, inline: true },
-        )
-        .setFooter({ text: `5 messages = 1 coin • 1 min voice = 1 coin • 1 invite = 50 coins` })
-        .setTimestamp();
-      
-      return interaction.reply({ embeds: [embed], ephemeral: true });
-    }
-
-    // ── COINS LEADERBOARD WITH LOGGING ──
-    if (interaction.commandName === 'coinslb') {
-      const leaderboard = getCoinsLeaderboard(10);
-      if (leaderboard.length === 0) {
-        return interaction.reply({ content: '🪙 No coins have been earned yet! Be the first to earn some! 💰', ephemeral: true });
-      }
-      
-      const medals = ['🥇', '🥈', '🥉'];
-      const lines = leaderboard.map(([userId, data], index) => {
-        const medal = medals[index] || `\`${index + 1}.\``;
-        return `${medal} <@${userId}> — **${data.coins}** coins (${data.messages || 0} msgs, ${data.voiceMinutes || 0} min VC)`;
-      }).join('\n');
-      
-      const embed = new EmbedBuilder()
-        .setTitle('🪙 Golden Coins Leaderboard — Top 10')
-        .setColor(0xf0b429)
-        .setDescription(lines)
-        .addFields(
-          { name: '📊 How to Earn', value: '💬 5 messages = 1 coin\n🎤 1 min voice = 1 coin\n📨 1 invite = 50 coins' }
-        )
-        .setFooter({ text: 'Keep chatting, VCing, and inviting to earn more coins!' })
-        .setTimestamp();
-      
-      await interaction.reply({ embeds: [embed], ephemeral: true });
-      
-      // ── SEND TO STAFF LOGS ──
-      try {
-        const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
-        if (logChannel) {
-          const logEmbed = new EmbedBuilder()
-            .setTitle('🪙 Coins Leaderboard Viewed')
-            .setColor(0xf0b429)
-            .setDescription(`**${interaction.user.tag}** viewed the coins leaderboard`)
-            .addFields(
-              { name: '🪙 Top 10 Richest Members', value: lines, inline: false },
-              { name: '👤 Viewed By', value: `<@${interaction.user.id}>`, inline: true },
-              { name: '📅 Viewed At', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }
-            )
-            .setFooter({ text: `User ID: ${interaction.user.id}` })
-            .setTimestamp();
-          await logChannel.send({ embeds: [logEmbed] });
-        }
-      } catch (err) {
-        console.error('Failed to send coins leaderboard view to logs:', err);
-      }
-    }
-
-    if (interaction.commandName === 'daily') {
-      const userId = interaction.user.id;
-      const coinsData = loadCoins();
-      
-      const today = new Date().toDateString();
-      if (coinsData[userId] && coinsData[userId].lastDaily === today) {
-        return interaction.reply({ 
-          content: `⏰ You already claimed your daily reward today! Come back tomorrow for another **50 Golden Coins**! 💰`,
-          ephemeral: true 
-        });
-      }
-      
-      if (!coinsData[userId]) {
-        coinsData[userId] = { 
-          username: interaction.user.tag, 
-          coins: 0, 
-          messages: 0,
-          voiceMinutes: 0,
-          invites: 0
-        };
-      }
-      
-      coinsData[userId].username = interaction.user.tag;
-      coinsData[userId].coins += 50;
-      coinsData[userId].lastDaily = today;
-      saveCoins(coinsData);
-      
-      const embed = new EmbedBuilder()
-        .setTitle('🎉 Daily Reward Claimed!')
-        .setColor(0x57f287)
-        .setDescription(`💰 You received **50 Golden Coins**!`)
-        .addFields(
-          { name: '💳 New Balance', value: `${coinsData[userId].coins} coins`, inline: true },
-          { name: '⏰ Next Claim', value: 'Tomorrow!', inline: true },
-        )
-        .setFooter({ text: 'Keep earning coins by chatting, VCing, and inviting!' })
-        .setTimestamp();
-      
-      return interaction.reply({ embeds: [embed], ephemeral: true });
-    }
-
-    // ── TRANSFER COMMAND ──
-    if (interaction.commandName === 'transfer') {
-      const target = interaction.options.getUser('user');
-      const amount = interaction.options.getNumber('amount');
-      
-      if (amount <= 0) {
-        return interaction.reply({ content: '❌ Amount must be greater than 0!', ephemeral: true });
-      }
-      
-      if (target.id === interaction.user.id) {
-        return interaction.reply({ content: '❌ You cannot transfer coins to yourself!', ephemeral: true });
-      }
-      
-      const senderCoins = getCoins(interaction.user.id);
-      const senderBalance = senderCoins ? senderCoins.coins : 0;
-      
-      if (senderBalance < amount) {
-        return interaction.reply({ 
-          content: `❌ You don't have enough coins! You have **${senderBalance}** coins but tried to transfer **${amount}**.`,
-          ephemeral: true 
-        });
-      }
-      
-      let coinsData = loadCoins();
-      
-      if (!coinsData[interaction.user.id]) {
-        coinsData[interaction.user.id] = { 
-          username: interaction.user.tag, 
-          coins: 0, 
-          messages: 0,
-          voiceMinutes: 0,
-          invites: 0
-        };
-      }
-      coinsData[interaction.user.id].coins -= amount;
-      coinsData[interaction.user.id].username = interaction.user.tag;
-      
-      if (!coinsData[target.id]) {
-        coinsData[target.id] = { 
-          username: target.tag, 
-          coins: 0, 
-          messages: 0,
-          voiceMinutes: 0,
-          invites: 0
-        };
-      }
-      coinsData[target.id].coins += amount;
-      coinsData[target.id].username = target.tag;
-      
-      saveCoins(coinsData);
-      
-      const embed = new EmbedBuilder()
-        .setTitle('💸 Transfer Complete!')
-        .setColor(0x57f287)
-        .setDescription(`<@${interaction.user.id}> successfully transferred **${amount}** Golden Coins to <@${target.id}>!`)
-        .addFields(
-          { name: '📤 Sender\'s New Balance', value: `${coinsData[interaction.user.id].coins} coins`, inline: true },
-          { name: '📥 Receiver\'s New Balance', value: `${coinsData[target.id].coins} coins`, inline: true },
-        )
-        .setTimestamp();
-      
-      await interaction.reply({ embeds: [embed], ephemeral: true });
-      
-      // DM the receiver
-      try {
-        const receiverUser = await client.users.fetch(target.id);
-        await receiverUser.send(`💸 **Coin Transfer Received!**\n\nYou received **${amount}** Golden Coins from **${interaction.user.username}**!\n\n💰 New Balance: ${coinsData[target.id].coins} coins`);
-      } catch (err) {
-        console.log(`Could not DM user ${target.id} about transfer`);
-      }
-    }
-
-    // ── SETBALANCE COMMAND (Admin only) ──
-    if (interaction.commandName === 'setbalance') {
-      if (!hasModPermission(interaction.member)) {
-        return interaction.reply({ content: '❌ You do not have permission to use this command.', ephemeral: true });
-      }
-      
-      const target = interaction.options.getUser('user');
-      const amount = interaction.options.getNumber('amount');
-      const reason = interaction.options.getString('reason') || 'No reason provided';
-      
-      if (amount < 0) {
-        return interaction.reply({ content: '❌ Amount must be 0 or greater!', ephemeral: true });
-      }
-      
-      let coinsData = loadCoins();
-      
-      if (!coinsData[target.id]) {
-        coinsData[target.id] = { 
-          username: target.tag, 
-          coins: 0, 
-          messages: 0,
-          voiceMinutes: 0,
-          invites: 0
-        };
-      }
-      
-      const oldBalance = coinsData[target.id].coins;
-      coinsData[target.id].coins = amount;
-      coinsData[target.id].username = target.tag;
-      saveCoins(coinsData);
-      
-      const embed = new EmbedBuilder()
-        .setTitle('⚙️ Balance Set')
-        .setColor(0x5865f2)
-        .setDescription(`<@${interaction.user.id}> set the balance for <@${target.id}>!`)
-        .addFields(
-          { name: '👤 User', value: `${target.tag}`, inline: true },
-          { name: '💰 Old Balance', value: `${oldBalance} coins`, inline: true },
-          { name: '💰 New Balance', value: `${amount} coins`, inline: true },
-          { name: '📋 Reason', value: reason, inline: false },
-        )
-        .setTimestamp();
-      
-      await interaction.reply({ embeds: [embed], ephemeral: true });
-      
-      // Log to staff channel
-      try {
-        const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
-        if (logChannel) {
-          await logChannel.send({ embeds: [embed] });
-        }
-      } catch (err) {
-        console.error('Failed to send setbalance log:', err);
-      }
-      
-      // DM the user
-      try {
-        const targetUser = await client.users.fetch(target.id);
-        await targetUser.send(`⚙️ **Balance Updated by Staff**\n\nYour Golden Coins balance has been set to **${amount}** coins.\n\n📋 Reason: ${reason}\n👤 Staff: ${interaction.user.tag}`);
-      } catch (err) {
-        console.log(`Could not DM user ${target.id} about balance update`);
-      }
-    }
-
-    // ── TEST WELCOME MESSAGE COMMAND ──
-    if (interaction.commandName === 'testwelcomemessage') {
-      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
-        return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
-      
-      const targetUser = interaction.options.getUser('user') || interaction.user;
-      const targetMember = interaction.guild.members.cache.get(targetUser.id);
-      
-      if (!targetMember) {
-        return interaction.reply({ content: '❌ User not found in this server.', ephemeral: true });
-      }
-      
-      await interaction.deferReply({ ephemeral: true });
-      
-      try {
-        const cardBuffer = await generateWelcomeCard(targetMember);
-        const cardAttachment = new AttachmentBuilder(cardBuffer, { name: 'welcome-card.png' });
-        const files = [cardAttachment];
-        
-        const welcomeEmbed = new EmbedBuilder()
-          .setColor(0xf0b429)
-          .setAuthor({
-            name: `⛏️ ${targetMember.user.username} joined GoldenHeart SMP!`,
-            iconURL: targetMember.user.displayAvatarURL({ dynamic: true, size: 256 }),
-          })
-          .setTitle('🏰 Welcome to GoldenHeart SMP')
-          .setDescription([
-            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-            ``,
-            `**Hey <@${targetMember.id}>, we're glad you're here!** 💛`,
-            ``,
-            `GoldenHeart SMP is a community-driven Minecraft survival server`,
-            `built on friendship, strategy, and epic adventures.`,
-            ``,
-            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-            ``,
-            `> 🔐 **Verify here:** <#${VERIFY_CHANNEL_ID}> to unlock all channels`,
-            `> 📜 **Read the rules:** \`/rules\``,
-            `> ⛏️ **Join the MC server:** \`goldenheartsmp.minecraftnoob.com\``,
-            ``,
-            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-          ].join('\n'))
-          .setImage('attachment://welcome-card.png')
-          .setThumbnail(targetMember.guild.iconURL({ dynamic: true, size: 256 }) || targetMember.user.displayAvatarURL({ dynamic: true }))
-          .setFooter({
-            text: `⚔️ GoldenHeart SMP • Test Welcome • ${targetMember.guild.memberCount} members • 1.20.4+`,
-            iconURL: targetMember.guild.iconURL({ dynamic: true }) || undefined,
-          })
-          .setTimestamp();
-        
-        await interaction.editReply({
-          content: `📨 **Test Welcome Message for ${targetMember.user.username}**`,
-          embeds: [welcomeEmbed],
-          files,
-        });
-        
-      } catch (err) {
-        console.error('Test welcome message error:', err);
-        return interaction.editReply({ content: `❌ Failed to generate welcome message: ${err.message}`, ephemeral: true });
-      }
-    }
-
-    // ── EXPORT LEADERBOARD COMMAND ──
-    if (interaction.commandName === 'exportleaderboard') {
-      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
-        return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
-      
-      await interaction.deferReply({ ephemeral: true });
-      
-      try {
-        const xpData = loadXP();
-        const xpSorted = Object.entries(xpData)
-          .filter(([, d]) => d.xp > 0)
-          .sort((a, b) => b[1].xp - a[1].xp);
-        
-        const coinsData = loadCoins();
-        const coinsSorted = Object.entries(coinsData)
-          .filter(([key]) => key !== 'invite_codes')
-          .filter(([, d]) => d.coins > 0 || d.messages > 0 || d.voiceMinutes > 0)
-          .sort((a, b) => b[1].coins - a[1].coins);
-        
-        const exportData = {
-          exportedAt: new Date().toISOString(),
-          exportedBy: interaction.user.tag,
-          guildId: interaction.guild.id,
-          guildName: interaction.guild.name,
-          xpLeaderboard: xpSorted.map(([userId, data]) => ({
-            userId: userId,
-            username: data.username || 'Unknown',
-            xp: data.xp,
-            level: getLevelFromXP(data.xp),
-            messages: Math.floor(data.xp / 15),
-          })),
-          coinsLeaderboard: coinsSorted.map(([userId, data]) => ({
-            userId: userId,
-            username: data.username || 'Unknown',
-            coins: data.coins,
-            messages: data.messages || 0,
-            voiceMinutes: data.voiceMinutes || 0,
-            invites: data.invites || 0,
-          })),
-          summary: {
-            totalUsersWithXP: xpSorted.length,
-            totalUsersWithCoins: coinsSorted.length,
-            totalXP: xpSorted.reduce((sum, [, d]) => sum + d.xp, 0),
-            totalCoins: coinsSorted.reduce((sum, [, d]) => sum + d.coins, 0),
-          }
-        };
-        
-        const jsonData = JSON.stringify(exportData, null, 2);
-        const jsonBuffer = Buffer.from(jsonData, 'utf8');
-        const attachment = new AttachmentBuilder(jsonBuffer, { name: `leaderboard-export-${Date.now()}.json` });
-        
-        const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
-        
-        const logEmbed = new EmbedBuilder()
-          .setTitle('📊 Leaderboard Export')
-          .setColor(0x5865f2)
-          .setDescription(`Leaderboard data exported by <@${interaction.user.id}>`)
-          .addFields(
-            { name: '📈 XP Leaderboard', value: `Total users: **${exportData.summary.totalUsersWithXP}**\nTotal XP: **${exportData.summary.totalXP.toLocaleString()}**`, inline: true },
-            { name: '🪙 Coins Leaderboard', value: `Total users: **${exportData.summary.totalUsersWithCoins}**\nTotal Coins: **${exportData.summary.totalCoins.toLocaleString()}**`, inline: true },
-            { name: '📅 Exported At', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false },
-          )
-          .setFooter({ text: `Exported by ${interaction.user.tag}` })
-          .setTimestamp();
-        
-        await logChannel.send({
-          embeds: [logEmbed],
-          files: [attachment],
-        });
-        
-        const xpPreview = xpSorted.slice(0, 5).map(([userId, data], i) => 
-          `${i + 1}. <@${userId}> — **${data.xp} XP** (Level ${getLevelFromXP(data.xp)})`
-        ).join('\n') || 'No XP data';
-        
-        const coinsPreview = coinsSorted.slice(0, 5).map(([userId, data], i) => 
-          `${i + 1}. <@${userId}> — **${data.coins} coins**`
-        ).join('\n') || 'No coins data';
-        
-        const previewEmbed = new EmbedBuilder()
-          .setTitle('📊 Leaderboard Preview (Top 5)')
-          .setColor(0xf0b429)
-          .addFields(
-            { name: '🏆 XP Leaderboard Top 5', value: xpPreview, inline: false },
-            { name: '🪙 Coins Leaderboard Top 5', value: coinsPreview, inline: false },
-          )
-          .setTimestamp();
-        
-        await logChannel.send({ embeds: [previewEmbed] });
-        
-        await interaction.editReply({
-          content: `✅ Leaderboard data exported to <#${STAFF_LOG_CHANNEL}>!\n\n📊 **Summary:**\n• ${exportData.summary.totalUsersWithXP} users with XP\n• ${exportData.summary.totalUsersWithCoins} users with coins\n• Total XP: ${exportData.summary.totalXP.toLocaleString()}\n• Total Coins: ${exportData.summary.totalCoins.toLocaleString()}`,
-          ephemeral: true,
-        });
-        
-      } catch (err) {
-        console.error('Export leaderboard error:', err);
-        return interaction.editReply({ content: `❌ Failed to export leaderboard: ${err.message}`, ephemeral: true });
-      }
     }
 
     // Rules command
@@ -2512,7 +2441,7 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ embeds: [embed] });
     }
 
-    // ── LEADERBOARD COMMAND WITH LOGGING ──
+    // ── LEADERBOARD COMMAND ──
     if (interaction.commandName === 'leaderboard') {
       const xpData = loadXP();
       const sorted = Object.entries(xpData)
@@ -2540,7 +2469,6 @@ client.on('interactionCreate', async interaction => {
       
       await interaction.reply({ embeds: [embed] });
       
-      // ── SEND TO STAFF LOGS ──
       try {
         const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
         if (logChannel) {
@@ -2881,6 +2809,416 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
+    // ── BALANCE COMMAND ──
+    if (interaction.commandName === 'balance') {
+      const target = interaction.options.getUser('user') || interaction.user;
+      const coinsData = getCoins(target.id);
+      if (!coinsData || coinsData.coins === 0) {
+        return interaction.reply({ 
+          content: `🪙 **${target.username}** has 0 Golden Coins. Start chatting to earn some! 💰`,
+          ephemeral: true 
+        });
+      }
+      
+      const embed = new EmbedBuilder()
+        .setTitle(`🪙 ${target.username}'s Golden Coins`)
+        .setColor(0xf0b429)
+        .setThumbnail(target.displayAvatarURL())
+        .addFields(
+          { name: '💰 Balance', value: `${coinsData.coins} Golden Coins`, inline: true },
+          { name: '💬 Messages', value: `${coinsData.messages || 0}`, inline: true },
+          { name: '🎤 Voice Minutes', value: `${coinsData.voiceMinutes || 0} min`, inline: true },
+          { name: '📨 Invites', value: `${coinsData.invites || 0}`, inline: true },
+        )
+        .setFooter({ text: `5 messages = 1 coin • 1 min voice = 1 coin • 1 invite = 50 coins` })
+        .setTimestamp();
+      
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    // ── COINS LEADERBOARD ──
+    if (interaction.commandName === 'coinslb') {
+      const leaderboard = getCoinsLeaderboard(10);
+      if (leaderboard.length === 0) {
+        return interaction.reply({ content: '🪙 No coins have been earned yet! Be the first to earn some! 💰', ephemeral: true });
+      }
+      
+      const medals = ['🥇', '🥈', '🥉'];
+      const lines = leaderboard.map(([userId, data], index) => {
+        const medal = medals[index] || `\`${index + 1}.\``;
+        return `${medal} <@${userId}> — **${data.coins}** coins (${data.messages || 0} msgs, ${data.voiceMinutes || 0} min VC)`;
+      }).join('\n');
+      
+      const embed = new EmbedBuilder()
+        .setTitle('🪙 Golden Coins Leaderboard — Top 10')
+        .setColor(0xf0b429)
+        .setDescription(lines)
+        .addFields(
+          { name: '📊 How to Earn', value: '💬 5 messages = 1 coin\n🎤 1 min voice = 1 coin\n📨 1 invite = 50 coins' }
+        )
+        .setFooter({ text: 'Keep chatting, VCing, and inviting to earn more coins!' })
+        .setTimestamp();
+      
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+      
+      try {
+        const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
+        if (logChannel) {
+          const logEmbed = new EmbedBuilder()
+            .setTitle('🪙 Coins Leaderboard Viewed')
+            .setColor(0xf0b429)
+            .setDescription(`**${interaction.user.tag}** viewed the coins leaderboard`)
+            .addFields(
+              { name: '🪙 Top 10 Richest Members', value: lines, inline: false },
+              { name: '👤 Viewed By', value: `<@${interaction.user.id}>`, inline: true },
+              { name: '📅 Viewed At', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }
+            )
+            .setFooter({ text: `User ID: ${interaction.user.id}` })
+            .setTimestamp();
+          await logChannel.send({ embeds: [logEmbed] });
+        }
+      } catch (err) {
+        console.error('Failed to send coins leaderboard view to logs:', err);
+      }
+    }
+
+    // ── DAILY COMMAND ──
+    if (interaction.commandName === 'daily') {
+      const userId = interaction.user.id;
+      const coinsData = loadCoins();
+      
+      const today = new Date().toDateString();
+      if (coinsData[userId] && coinsData[userId].lastDaily === today) {
+        return interaction.reply({ 
+          content: `⏰ You already claimed your daily reward today! Come back tomorrow for another **50 Golden Coins**! 💰`,
+          ephemeral: true 
+        });
+      }
+      
+      if (!coinsData[userId]) {
+        coinsData[userId] = { 
+          username: interaction.user.tag, 
+          coins: 0, 
+          messages: 0,
+          voiceMinutes: 0,
+          invites: 0
+        };
+      }
+      
+      coinsData[userId].username = interaction.user.tag;
+      coinsData[userId].coins += 50;
+      coinsData[userId].lastDaily = today;
+      saveCoins(coinsData);
+      
+      const embed = new EmbedBuilder()
+        .setTitle('🎉 Daily Reward Claimed!')
+        .setColor(0x57f287)
+        .setDescription(`💰 You received **50 Golden Coins**!`)
+        .addFields(
+          { name: '💳 New Balance', value: `${coinsData[userId].coins} coins`, inline: true },
+          { name: '⏰ Next Claim', value: 'Tomorrow!', inline: true },
+        )
+        .setFooter({ text: 'Keep earning coins by chatting, VCing, and inviting!' })
+        .setTimestamp();
+      
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    // ── TRANSFER COMMAND ──
+    if (interaction.commandName === 'transfer') {
+      const target = interaction.options.getUser('user');
+      const amount = interaction.options.getNumber('amount');
+      
+      if (amount <= 0) {
+        return interaction.reply({ content: '❌ Amount must be greater than 0!', ephemeral: true });
+      }
+      
+      if (target.id === interaction.user.id) {
+        return interaction.reply({ content: '❌ You cannot transfer coins to yourself!', ephemeral: true });
+      }
+      
+      const senderCoins = getCoins(interaction.user.id);
+      const senderBalance = senderCoins ? senderCoins.coins : 0;
+      
+      if (senderBalance < amount) {
+        return interaction.reply({ 
+          content: `❌ You don't have enough coins! You have **${senderBalance}** coins but tried to transfer **${amount}**.`,
+          ephemeral: true 
+        });
+      }
+      
+      let coinsData = loadCoins();
+      
+      if (!coinsData[interaction.user.id]) {
+        coinsData[interaction.user.id] = { 
+          username: interaction.user.tag, 
+          coins: 0, 
+          messages: 0,
+          voiceMinutes: 0,
+          invites: 0
+        };
+      }
+      coinsData[interaction.user.id].coins -= amount;
+      coinsData[interaction.user.id].username = interaction.user.tag;
+      
+      if (!coinsData[target.id]) {
+        coinsData[target.id] = { 
+          username: target.tag, 
+          coins: 0, 
+          messages: 0,
+          voiceMinutes: 0,
+          invites: 0
+        };
+      }
+      coinsData[target.id].coins += amount;
+      coinsData[target.id].username = target.tag;
+      
+      saveCoins(coinsData);
+      
+      const embed = new EmbedBuilder()
+        .setTitle('💸 Transfer Complete!')
+        .setColor(0x57f287)
+        .setDescription(`<@${interaction.user.id}> successfully transferred **${amount}** Golden Coins to <@${target.id}>!`)
+        .addFields(
+          { name: '📤 Sender\'s New Balance', value: `${coinsData[interaction.user.id].coins} coins`, inline: true },
+          { name: '📥 Receiver\'s New Balance', value: `${coinsData[target.id].coins} coins`, inline: true },
+        )
+        .setTimestamp();
+      
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+      
+      try {
+        const receiverUser = await client.users.fetch(target.id);
+        await receiverUser.send(`💸 **Coin Transfer Received!**\n\nYou received **${amount}** Golden Coins from **${interaction.user.username}**!\n\n💰 New Balance: ${coinsData[target.id].coins} coins`);
+      } catch (err) {
+        console.log(`Could not DM user ${target.id} about transfer`);
+      }
+    }
+
+    // ── SETBALANCE COMMAND ──
+    if (interaction.commandName === 'setbalance') {
+      if (!hasModPermission(interaction.member)) {
+        return interaction.reply({ content: '❌ You do not have permission to use this command.', ephemeral: true });
+      }
+      
+      const target = interaction.options.getUser('user');
+      const amount = interaction.options.getNumber('amount');
+      const reason = interaction.options.getString('reason') || 'No reason provided';
+      
+      if (amount < 0) {
+        return interaction.reply({ content: '❌ Amount must be 0 or greater!', ephemeral: true });
+      }
+      
+      let coinsData = loadCoins();
+      
+      if (!coinsData[target.id]) {
+        coinsData[target.id] = { 
+          username: target.tag, 
+          coins: 0, 
+          messages: 0,
+          voiceMinutes: 0,
+          invites: 0
+        };
+      }
+      
+      const oldBalance = coinsData[target.id].coins;
+      coinsData[target.id].coins = amount;
+      coinsData[target.id].username = target.tag;
+      saveCoins(coinsData);
+      
+      const embed = new EmbedBuilder()
+        .setTitle('⚙️ Balance Set')
+        .setColor(0x5865f2)
+        .setDescription(`<@${interaction.user.id}> set the balance for <@${target.id}>!`)
+        .addFields(
+          { name: '👤 User', value: `${target.tag}`, inline: true },
+          { name: '💰 Old Balance', value: `${oldBalance} coins`, inline: true },
+          { name: '💰 New Balance', value: `${amount} coins`, inline: true },
+          { name: '📋 Reason', value: reason, inline: false },
+        )
+        .setTimestamp();
+      
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+      
+      try {
+        const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
+        if (logChannel) {
+          await logChannel.send({ embeds: [embed] });
+        }
+      } catch (err) {
+        console.error('Failed to send setbalance log:', err);
+      }
+      
+      try {
+        const targetUser = await client.users.fetch(target.id);
+        await targetUser.send(`⚙️ **Balance Updated by Staff**\n\nYour Golden Coins balance has been set to **${amount}** coins.\n\n📋 Reason: ${reason}\n👤 Staff: ${interaction.user.tag}`);
+      } catch (err) {
+        console.log(`Could not DM user ${target.id} about balance update`);
+      }
+    }
+
+    // ── TEST WELCOME MESSAGE COMMAND ──
+    if (interaction.commandName === 'testwelcomemessage') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
+        return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+      
+      const targetUser = interaction.options.getUser('user') || interaction.user;
+      const targetMember = interaction.guild.members.cache.get(targetUser.id);
+      
+      if (!targetMember) {
+        return interaction.reply({ content: '❌ User not found in this server.', ephemeral: true });
+      }
+      
+      await interaction.deferReply({ ephemeral: true });
+      
+      try {
+        const cardBuffer = await generateWelcomeCard(targetMember);
+        const cardAttachment = new AttachmentBuilder(cardBuffer, { name: 'welcome-card.png' });
+        const files = [cardAttachment];
+        
+        const welcomeEmbed = new EmbedBuilder()
+          .setColor(0xf0b429)
+          .setAuthor({
+            name: `⛏️ ${targetMember.user.username} joined GoldenHeart SMP!`,
+            iconURL: targetMember.user.displayAvatarURL({ dynamic: true, size: 256 }),
+          })
+          .setTitle('🏰 Welcome to GoldenHeart SMP')
+          .setDescription([
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+            ``,
+            `**Hey <@${targetMember.id}>, we're glad you're here!** 💛`,
+            ``,
+            `GoldenHeart SMP is a community-driven Minecraft survival server`,
+            `built on friendship, strategy, and epic adventures.`,
+            ``,
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+            ``,
+            `> 🔐 **Verify here:** <#${VERIFY_CHANNEL_ID}> to unlock all channels`,
+            `> 📜 **Read the rules:** \`/rules\``,
+            `> ⛏️ **Join the MC server:** \`goldenheartsmp.minecraftnoob.com\``,
+            ``,
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+          ].join('\n'))
+          .setImage('attachment://welcome-card.png')
+          .setThumbnail(targetMember.guild.iconURL({ dynamic: true, size: 256 }) || targetMember.user.displayAvatarURL({ dynamic: true }))
+          .setFooter({
+            text: `⚔️ GoldenHeart SMP • Test Welcome • ${targetMember.guild.memberCount} members • 1.20.4+`,
+            iconURL: targetMember.guild.iconURL({ dynamic: true }) || undefined,
+          })
+          .setTimestamp();
+        
+        await interaction.editReply({
+          content: `📨 **Test Welcome Message for ${targetMember.user.username}**`,
+          embeds: [welcomeEmbed],
+          files,
+        });
+        
+      } catch (err) {
+        console.error('Test welcome message error:', err);
+        return interaction.editReply({ content: `❌ Failed to generate welcome message: ${err.message}`, ephemeral: true });
+      }
+    }
+
+    // ── EXPORT LEADERBOARD COMMAND ──
+    if (interaction.commandName === 'exportleaderboard') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
+        return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+      
+      await interaction.deferReply({ ephemeral: true });
+      
+      try {
+        const xpData = loadXP();
+        const xpSorted = Object.entries(xpData)
+          .filter(([, d]) => d.xp > 0)
+          .sort((a, b) => b[1].xp - a[1].xp);
+        
+        const coinsData = loadCoins();
+        const coinsSorted = Object.entries(coinsData)
+          .filter(([key]) => key !== 'invite_codes')
+          .filter(([, d]) => d.coins > 0 || d.messages > 0 || d.voiceMinutes > 0)
+          .sort((a, b) => b[1].coins - a[1].coins);
+        
+        const exportData = {
+          exportedAt: new Date().toISOString(),
+          exportedBy: interaction.user.tag,
+          guildId: interaction.guild.id,
+          guildName: interaction.guild.name,
+          xpLeaderboard: xpSorted.map(([userId, data]) => ({
+            userId: userId,
+            username: data.username || 'Unknown',
+            xp: data.xp,
+            level: getLevelFromXP(data.xp),
+            messages: Math.floor(data.xp / 15),
+          })),
+          coinsLeaderboard: coinsSorted.map(([userId, data]) => ({
+            userId: userId,
+            username: data.username || 'Unknown',
+            coins: data.coins,
+            messages: data.messages || 0,
+            voiceMinutes: data.voiceMinutes || 0,
+            invites: data.invites || 0,
+          })),
+          summary: {
+            totalUsersWithXP: xpSorted.length,
+            totalUsersWithCoins: coinsSorted.length,
+            totalXP: xpSorted.reduce((sum, [, d]) => sum + d.xp, 0),
+            totalCoins: coinsSorted.reduce((sum, [, d]) => sum + d.coins, 0),
+          }
+        };
+        
+        const jsonData = JSON.stringify(exportData, null, 2);
+        const jsonBuffer = Buffer.from(jsonData, 'utf8');
+        const attachment = new AttachmentBuilder(jsonBuffer, { name: `leaderboard-export-${Date.now()}.json` });
+        
+        const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
+        
+        const logEmbed = new EmbedBuilder()
+          .setTitle('📊 Leaderboard Export')
+          .setColor(0x5865f2)
+          .setDescription(`Leaderboard data exported by <@${interaction.user.id}>`)
+          .addFields(
+            { name: '📈 XP Leaderboard', value: `Total users: **${exportData.summary.totalUsersWithXP}**\nTotal XP: **${exportData.summary.totalXP.toLocaleString()}**`, inline: true },
+            { name: '🪙 Coins Leaderboard', value: `Total users: **${exportData.summary.totalUsersWithCoins}**\nTotal Coins: **${exportData.summary.totalCoins.toLocaleString()}**`, inline: true },
+            { name: '📅 Exported At', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false },
+          )
+          .setFooter({ text: `Exported by ${interaction.user.tag}` })
+          .setTimestamp();
+        
+        await logChannel.send({
+          embeds: [logEmbed],
+          files: [attachment],
+        });
+        
+        const xpPreview = xpSorted.slice(0, 5).map(([userId, data], i) => 
+          `${i + 1}. <@${userId}> — **${data.xp} XP** (Level ${getLevelFromXP(data.xp)})`
+        ).join('\n') || 'No XP data';
+        
+        const coinsPreview = coinsSorted.slice(0, 5).map(([userId, data], i) => 
+          `${i + 1}. <@${userId}> — **${data.coins} coins**`
+        ).join('\n') || 'No coins data';
+        
+        const previewEmbed = new EmbedBuilder()
+          .setTitle('📊 Leaderboard Preview (Top 5)')
+          .setColor(0xf0b429)
+          .addFields(
+            { name: '🏆 XP Leaderboard Top 5', value: xpPreview, inline: false },
+            { name: '🪙 Coins Leaderboard Top 5', value: coinsPreview, inline: false },
+          )
+          .setTimestamp();
+        
+        await logChannel.send({ embeds: [previewEmbed] });
+        
+        await interaction.editReply({
+          content: `✅ Leaderboard data exported to <#${STAFF_LOG_CHANNEL}>!\n\n📊 **Summary:**\n• ${exportData.summary.totalUsersWithXP} users with XP\n• ${exportData.summary.totalUsersWithCoins} users with coins\n• Total XP: ${exportData.summary.totalXP.toLocaleString()}\n• Total Coins: ${exportData.summary.totalCoins.toLocaleString()}`,
+          ephemeral: true,
+        });
+        
+      } catch (err) {
+        console.error('Export leaderboard error:', err);
+        return interaction.editReply({ content: `❌ Failed to export leaderboard: ${err.message}`, ephemeral: true });
+      }
+    }
+
     // ── BAN COMMAND ──
     if (interaction.commandName === 'ban') {
       if (!hasModPermission(interaction.member))
@@ -3056,7 +3394,6 @@ client.on('interactionCreate', async interaction => {
         }
       }
       
-      // DM the user about the warning
       try {
         await target.user.send(`⚠️ **You have been warned in GoldenHeart SMP**\n\n📋 **Reason:** ${reason}\n🔢 **Warn #${warnCount}/8**\n👤 **Warned by:** ${interaction.user.tag}\n\n${timeoutMins ? `⏱️ You have been timed out for ${timeoutMins} minutes.` : ''}\n\nPlease review the server rules and be more careful in the future.`);
       } catch (err) {
@@ -3465,12 +3802,188 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: `❌ I couldn't DM you! Please enable **Direct Messages** from server members in your Privacy Settings and try again.`, ephemeral: true });
       }
     }
+
+    // ── SHOP CATEGORY SELECTION ──
+    if (interaction.customId === 'shop_category') {
+      const categoryKey = interaction.values[0];
+      const embed = buildCategoryEmbed(categoryKey);
+      if (!embed) {
+        await interaction.reply({ content: '❌ Category not found!', ephemeral: true });
+        return;
+      }
+      
+      const itemMenu = buildItemSelectMenu(categoryKey);
+      const backButton = buildBackButton();
+      
+      await interaction.update({
+        embeds: [embed],
+        components: [itemMenu, backButton],
+      });
+      return;
+    }
+
+    // ── SHOP ITEM SELECTION ──
+    if (interaction.customId.startsWith('shop_item_')) {
+      const categoryKey = interaction.customId.replace('shop_item_', '');
+      const itemId = interaction.values[0];
+      const category = SHOP_CATEGORIES[categoryKey];
+      const item = category?.items.find(i => i.id === itemId);
+      
+      if (!item) {
+        await interaction.reply({ content: '❌ Item not found!', ephemeral: true });
+        return;
+      }
+      
+      const embed = buildItemEmbed(item, categoryKey);
+      const purchaseRow = buildPurchaseButtons(itemId, categoryKey);
+      
+      await interaction.update({
+        embeds: [embed],
+        components: [purchaseRow],
+      });
+      return;
+    }
   }
 
   // ════════════════════════════════════════
   // BUTTONS
   // ════════════════════════════════════════
   if (interaction.isButton()) {
+
+    // ── SHOP PURCHASE BUTTON ──
+    if (interaction.customId.startsWith('shop_purchase_')) {
+      const parts = interaction.customId.split('_');
+      const categoryKey = parts[2];
+      const itemId = parts[3];
+      const category = SHOP_CATEGORIES[categoryKey];
+      const item = category?.items.find(i => i.id === itemId);
+      
+      if (!item) {
+        await interaction.reply({ content: '❌ Item not found!', ephemeral: true });
+        return;
+      }
+      
+      // Check if user has enough coins
+      const coinsData = loadCoins();
+      const userData = coinsData[interaction.user.id];
+      const currentBalance = userData?.coins || 0;
+      
+      if (currentBalance < item.price) {
+        const embed = new EmbedBuilder()
+          .setTitle('❌ Insufficient Coins!')
+          .setColor(0xed4245)
+          .setDescription([
+            `You don't have enough Golden Coins to purchase **${item.name}**!`,
+            '',
+            `💰 **Your Balance:** ${currentBalance} coins`,
+            `💰 **Item Price:** ${item.price} coins`,
+            '',
+            '💡 **Ways to earn coins:**',
+            '• 💬 5 messages = 1 coin',
+            '• 🎤 1 minute in VC = 1 coin', 
+            '• 📨 1 invite = 50 coins',
+            '• 🎁 Daily reward = 50 coins',
+          ].join('\n'))
+          .setTimestamp();
+        
+        await interaction.reply({
+          embeds: [embed],
+          ephemeral: true,
+        });
+        return;
+      }
+      
+      // Process the purchase
+      const newBalance = currentBalance - item.price;
+      coinsData[interaction.user.id].coins = newBalance;
+      saveCoins(coinsData);
+      
+      // Record the purchase
+      recordPurchase(interaction.user.id, itemId, item.amount, item.price, categoryKey);
+      
+      // Create confirmation embed
+      const embed = new EmbedBuilder()
+        .setTitle('✅ Purchase Complete!')
+        .setColor(0x57f287)
+        .setDescription([
+          `You successfully purchased **${item.amount}x ${item.name.replace(/[^\w\s]/g, '').trim()}**!`,
+          '',
+          `💰 **Price:** ${item.price} coins`,
+          `💳 **New Balance:** ${newBalance} coins`,
+          `📂 **Category:** ${category?.emoji} ${category?.name}`,
+          '',
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+          '',
+          '📋 **Staff have been notified** to fulfill your order.',
+          'Please wait for a staff member to deliver your items.',
+        ].join('\n'))
+        .setTimestamp();
+      
+      const backButton = buildBackButton();
+      
+      await interaction.update({
+        embeds: [embed],
+        components: [backButton],
+      });
+      
+      // Notify staff channel
+      try {
+        const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
+        const logEmbed = new EmbedBuilder()
+          .setTitle('🪙 Shop Purchase')
+          .setColor(0xf0b429)
+          .setDescription(`**${interaction.user.tag}** made a shop purchase!`)
+          .addFields(
+            { name: '🛒 Item', value: `${item.amount}x ${item.name.replace(/[^\w\s]/g, '').trim()}`, inline: true },
+            { name: '💰 Price', value: `${item.price} coins`, inline: true },
+            { name: '💳 New Balance', value: `${newBalance} coins`, inline: true },
+            { name: '📂 Category', value: `${category?.emoji} ${category?.name}`, inline: false },
+          )
+          .setFooter({ text: `User ID: ${interaction.user.id} • Item ID: ${item.id}` })
+          .setTimestamp();
+        
+        const staffPing = MOD_ROLE_IDS.map(id => `<@&${id}>`).join(' ');
+        
+        await logChannel.send({
+          content: `📦 **New Shop Order!** ${staffPing}\n<@${interaction.user.id}> purchased **${item.amount}x ${item.name.replace(/[^\w\s]/g, '').trim()}** for **${item.price}** coins.`,
+          embeds: [logEmbed],
+        });
+      } catch (err) {
+        console.error('Could not send shop log:', err);
+      }
+      
+      // Send DM confirmation
+      try {
+        await interaction.user.send({
+          content: [
+            `✅ **Purchase Confirmed!**`,
+            '',
+            `You purchased **${item.amount}x ${item.name.replace(/[^\w\s]/g, '').trim()}** from the Golden Coins Shop!`,
+            `💰 **Price:** ${item.price} coins`,
+            `💳 **New Balance:** ${newBalance} coins`,
+            '',
+            `📋 **Order Status:** Pending fulfillment by staff`,
+            `⏰ **Time:** ${new Date().toLocaleString()}`,
+          ].join('\n')
+        });
+      } catch (err) {
+        console.log('Could not send DM to user:', err);
+      }
+      
+      return;
+    }
+
+    // ── SHOP BACK BUTTON ──
+    if (interaction.customId === 'shop_back') {
+      const embed = buildShopEmbed();
+      const selectRow = buildCategorySelectMenu();
+      
+      await interaction.update({
+        embeds: [embed],
+        components: [selectRow],
+      });
+      return;
+    }
 
     // ── Book navigation ──
     if (interaction.customId.startsWith('book_prev:') || interaction.customId.startsWith('book_next:')) {
@@ -3679,6 +4192,7 @@ client.on('interactionCreate', async interaction => {
 const staffChoices = Object.entries(STAFF_MEMBERS).map(([key, info]) => ({ name: `${info.label} (${info.type})`, value: key }));
 
 const commands = [
+  // ── EXISTING COMMANDS ──
   new SlashCommandBuilder().setName('features').setDescription('See all features available to members'),
   new SlashCommandBuilder().setName('rules').setDescription('View the full server rules and warning system'),
   new SlashCommandBuilder().setName('rulebook_mc').setDescription('📖 Browse the Minecraft Server Rules (paginated book)'),
@@ -3688,41 +4202,21 @@ const commands = [
   new SlashCommandBuilder().setName('verifypanel').setDescription('Send verification panel'),
   new SlashCommandBuilder().setName('announce').setDescription('Send announcement').addStringOption(o => o.setName('title').setDescription('Optional title').setRequired(false)),
   
-  // ── NEW: TEST WELCOME MESSAGE COMMAND ──
   new SlashCommandBuilder()
     .setName('testwelcomemessage')
     .setDescription('Test the welcome message for a specific user (admin only)')
-    .addUserOption(o => 
-      o.setName('user')
-        .setDescription('User to test the welcome message for (default: yourself)')
-        .setRequired(false)
-    ),
+    .addUserOption(o => o.setName('user').setDescription('User to test the welcome message for (default: yourself)').setRequired(false)),
   
-  // ── NEW: EXPORT LEADERBOARD COMMAND ──
   new SlashCommandBuilder()
     .setName('exportleaderboard')
     .setDescription('Export XP and Coins leaderboard data to staff logs (admin only)'),
   
-  // ── NEW: SETBALANCE COMMAND ──
   new SlashCommandBuilder()
     .setName('setbalance')
     .setDescription('Set a user\'s coin balance (admin only)')
-    .addUserOption(o => 
-      o.setName('user')
-        .setDescription('User to set balance for')
-        .setRequired(true)
-    )
-    .addNumberOption(o => 
-      o.setName('amount')
-        .setDescription('New balance amount (0 or greater)')
-        .setRequired(true)
-        .setMinValue(0)
-    )
-    .addStringOption(o => 
-      o.setName('reason')
-        .setDescription('Reason for balance change')
-        .setRequired(false)
-    ),
+    .addUserOption(o => o.setName('user').setDescription('User to set balance for').setRequired(true))
+    .addNumberOption(o => o.setName('amount').setDescription('New balance amount (0 or greater)').setRequired(true).setMinValue(0))
+    .addStringOption(o => o.setName('reason').setDescription('Reason for balance change').setRequired(false)),
   
   new SlashCommandBuilder().setName('ban').setDescription('Ban a member permanently or temporarily')
     .addUserOption(o => o.setName('user').setDescription('Member to ban').setRequired(true))
@@ -3776,6 +4270,7 @@ const commands = [
   new SlashCommandBuilder().setName('rank').setDescription('Check your XP rank (or another member\'s)')
     .addUserOption(o => o.setName('user').setDescription('Member to check (default: yourself)').setRequired(false)),
   new SlashCommandBuilder().setName('leaderboard').setDescription('View the top 10 most active members by XP'),
+  
   // ── COINS COMMANDS ──
   new SlashCommandBuilder().setName('balance').setDescription('Check your Golden Coins balance (or another member\'s)')
     .addUserOption(o => o.setName('user').setDescription('Member to check (default: yourself)').setRequired(false)),
@@ -3784,6 +4279,16 @@ const commands = [
   new SlashCommandBuilder().setName('transfer').setDescription('Transfer Golden Coins to another member')
     .addUserOption(o => o.setName('user').setDescription('Member to transfer coins to').setRequired(true))
     .addNumberOption(o => o.setName('amount').setDescription('Amount of coins to transfer').setRequired(true).setMinValue(1)),
+
+  // ── SHOP COMMANDS ──
+  new SlashCommandBuilder().setName('shop').setDescription('🪙 Open the Golden Coins Shop'),
+  new SlashCommandBuilder().setName('shop_balance').setDescription('💰 Check your Golden Coins balance and purchase history')
+    .addUserOption(o => o.setName('user').setDescription('User to check (default: yourself)').setRequired(false)),
+  new SlashCommandBuilder().setName('shop_purchases').setDescription('📋 View your purchase history')
+    .addUserOption(o => o.setName('user').setDescription('User to check (default: yourself)').setRequired(false)),
+  new SlashCommandBuilder().setName('shoppanel').setDescription('🛒 Post the Golden Coins Shop panel (admin only)'),
+  
+  // ── EXISTING COMMANDS CONTINUED ──
   new SlashCommandBuilder().setName('giveaway').setDescription('Giveaway management')
     .addSubcommand(sub => sub.setName('start').setDescription('Start a new giveaway')
       .addStringOption(o => o.setName('prize').setDescription('What are you giving away?').setRequired(true))
@@ -3859,6 +4364,7 @@ client.login(TOKEN).catch(err => console.error('❌ FAILED TO LOG IN TO DISCORD:
     console.log('Global commands cleared');
     await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
     console.log('✅ Slash commands registered (guild)');
+    console.log('✅ Shop commands registered!');
   } catch (err) {
     console.error('❌ FAILED TO REGISTER SLASH COMMANDS:', err);
   }
