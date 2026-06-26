@@ -1759,21 +1759,6 @@ process.on('uncaughtException', err => console.error('❌ UNCAUGHT EXCEPTION:', 
 // ─────────────────────────────────────────
 // CLIENT
 // ─────────────────────────────────────────
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildModeration,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.DirectMessages,
-    GatewayIntentBits.GuildVoiceStates,
-    GatewayIntentBits.GuildMessageReactions,
-    GatewayIntentBits.DirectMessageReactions,
-    GatewayIntentBits.GuildPresences,
-  ],
-  partials: [Partials.Channel, Partials.Message, Partials.Reaction],
-});
 
 // ─────────────────────────────────────────
 // CLIENT READY EVENT
