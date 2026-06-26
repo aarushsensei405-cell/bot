@@ -197,7 +197,6 @@ const AFKSchema = new mongoose.Schema({
   reason: String,
   since: { type: Date, default: Date.now },
 });
-
 const InviteSchema = new mongoose.Schema({
   code: { type: String, required: true, unique: true },
   inviterId: String,
@@ -226,7 +225,28 @@ const RulebookSchema = new mongoose.Schema({
 });
 
 // ─────────────────────────────────────────
-// CLIENT READY EVENT
+// MONGODB MODELS
+// ─────────────────────────────────────────
+const User = mongoose.model('User', UserSchema);
+const Purchase = mongoose.model('Purchase', PurchaseSchema);
+const Coupon = mongoose.model('Coupon', CouponSchema);
+const Cart = mongoose.model('Cart', CartSchema);
+const Warn = mongoose.model('Warn', WarnSchema);
+const Feedback = mongoose.model('Feedback', FeedbackSchema);
+const Suggestion = mongoose.model('Suggestion', SuggestionSchema);
+const TempBan = mongoose.model('TempBan', TempBanSchema);
+const Birthday = mongoose.model('Birthday', BirthdaySchema);
+const Ticket = mongoose.model('Ticket', TicketSchema);
+const Starboard = mongoose.model('Starboard', StarboardSchema);
+const Giveaway = mongoose.model('Giveaway', GiveawaySchema);
+const Reminder = mongoose.model('Reminder', ReminderSchema);
+const AFK = mongoose.model('AFK', AFKSchema);
+const Invite = mongoose.model('Invite', InviteSchema);
+const Application = mongoose.model('Application', ApplicationSchema);
+const Rulebook = mongoose.model('Rulebook', RulebookSchema);
+
+// ─────────────────────────────────────────
+// CLIENT READY EVENT - MOVED AFTER MODELS
 // ─────────────────────────────────────────
 client.once('ready', async () => {
   console.log(`✅ ${client.user.tag} is online`);
@@ -243,7 +263,7 @@ client.once('ready', async () => {
     else { setTimeout(() => endGiveaway(client, g), remaining); }
   }
   
-  // ── SETUP TRACKING ── ✅ MOVED HERE
+  // ── SETUP TRACKING ──
   const { voiceTracker, inviteTracker } = setupTracking(client, GUILD_ID);
   
   // Store trackers globally for commands
@@ -257,7 +277,9 @@ client.once('ready', async () => {
   checkBirthdays(client);
 });
 
-  
+// ─────────────────────────────────────────
+// CONTINUE WITH REST OF CODE
+// ─────────────────────────────────────────
 // ─────────────────────────────────────────
 // MONGODB MODELS
 // ─────────────────────────────────────────
