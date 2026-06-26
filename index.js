@@ -7,32 +7,7 @@
 // ALL IMPORTS FIRST - MUST COME FIRST!
 // ─────────────────────────────────────────
 // Add with your other imports
-const {
-  DEFAULT_RULEBOOKS,
-  RULEBOOKS,
-  rulebooksLoaded,
-  saveRulebooks,
-  loadRulebooks,
-  initializeRulebooks,
-  sendLog,
-  endGiveaway,
-  checkBirthdays,
-  checkReminders,
-  checkTempBans,
-  xpForLevel,
-  getLevelFromXP,
-  getTimeoutDuration,
-  hasModPermission,
-  isGuildOwner,
-  isServerOwner,
-  autoDelete,
-  starsDisplay,
-  parseDuration,
-  humanDuration,
-  fetchJSON,
-  getMCServerStatus,
-  getOrdinal,
-} = require('./helpers');
+
 
 const express = require('express');
 const {
