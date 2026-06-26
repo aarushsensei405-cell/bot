@@ -338,23 +338,6 @@ client.once('ready', async () => {
 // ─────────────────────────────────────────
 // MONGODB MODELS
 // ─────────────────────────────────────────
-const User = mongoose.model('User', UserSchema);
-const Purchase = mongoose.model('Purchase', PurchaseSchema);
-const Coupon = mongoose.model('Coupon', CouponSchema);
-const Cart = mongoose.model('Cart', CartSchema);
-const Warn = mongoose.model('Warn', WarnSchema);
-const Feedback = mongoose.model('Feedback', FeedbackSchema);
-const Suggestion = mongoose.model('Suggestion', SuggestionSchema);
-const TempBan = mongoose.model('TempBan', TempBanSchema);
-const Birthday = mongoose.model('Birthday', BirthdaySchema);
-const Ticket = mongoose.model('Ticket', TicketSchema);
-const Starboard = mongoose.model('Starboard', StarboardSchema);
-const Giveaway = mongoose.model('Giveaway', GiveawaySchema);
-const Reminder = mongoose.model('Reminder', ReminderSchema);
-const AFK = mongoose.model('AFK', AFKSchema);
-const Invite = mongoose.model('Invite', InviteSchema);
-const Application = mongoose.model('Application', ApplicationSchema);
-const Rulebook = mongoose.model('Rulebook', RulebookSchema);
 
 // ─────────────────────────────────────────
 // CLIENT READY EVENT - MOVED AFTER MODELS (CORRECT POSITION!)
