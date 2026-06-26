@@ -2,8 +2,7 @@
 // GOLDENHEART SMP DISCORD BOT - COMPLETE
 // WITH MONGODB PERSISTENT STORAGE
 // ─────────────────────────────────────────
-
-require('dotenv').config();
+// Add after your other requires
 const express = require('express');
 const {
   Client,
@@ -33,6 +32,8 @@ const { AttachmentBuilder } = require('discord.js');
 const https = require('https');
 const http = require('http');
 const mongoose = require('mongoose');
+const { setupTracking, getTrackingCommands } = require('./trackingIndex');
+require('dotenv').config();
 
 // ─────────────────────────────────────────
 // EXPRESS (keep-alive for Render)
