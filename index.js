@@ -335,6 +335,7 @@ client.once('ready', async () => {
 // CONTINUE WITH REST OF CODE
 // ─────────────────────────────────────────
 // ─────────────────────────────────────────
+// ─────────────────────────────────────────
 // MONGODB MODELS
 // ─────────────────────────────────────────
 const User = mongoose.model('User', UserSchema);
@@ -354,6 +355,42 @@ const AFK = mongoose.model('AFK', AFKSchema);
 const Invite = mongoose.model('Invite', InviteSchema);
 const Application = mongoose.model('Application', ApplicationSchema);
 const Rulebook = mongoose.model('Rulebook', RulebookSchema);
+
+// ─────────────────────────────────────────
+// CLIENT READY EVENT - MOVED AFTER MODELS (CORRECT POSITION!)
+// ─────────────────────────────────────────
+client.once('ready', async () => {
+  console.log(`✅ ${client.user.tag} is online`);
+  client.user.setPresence({
+    activities: [{ name: 'players in GoldenHeart SMP | discord.gg/We5SpWv64T', type: ActivityType.Watching }],
+    status: 'online',
+  });
+  
+  // Initialize rulebooks
+  await initializeRulebooks();
+  
+  // Load giveaways
+  const giveaways = await Giveaway.find({ ended: false });
+  const now = Date.now();
+  for (const g of giveaways) {
+    const remaining = g.endsAt.getTime() - now;
+    if (remaining <= 0) { await endGiveaway(client, g); }
+    else { setTimeout(() => endGiveaway(client, g), remaining); }
+  }
+  
+  // ── SETUP TRACKING ──
+  const { voiceTracker, inviteTracker } = setupTracking(client, GUILD_ID);
+  
+  // Store trackers globally for commands
+  client.voiceTracker = voiceTracker;
+  client.inviteTracker = inviteTracker;
+  
+  // Start intervals
+  setInterval(() => checkBirthdays(client), 3600000);
+  setInterval(() => checkReminders(client), 30000);
+  setInterval(() => checkTempBans(client), 60000);
+  checkBirthdays(client);
+});
 
 // ─────────────────────────────────────────
 // DATABASE HELPER FUNCTIONS
@@ -699,6 +736,11 @@ async function updateSuggestionStatus(id, status) {
   }
   return null;
 }
+
+// ─────────────────────────────────────────
+// CONTINUE WITH REST OF YOUR CODE
+// (All other functions, events, commands, etc.)
+// ─────────────────────────────────────────
 
 // ── BIRTHDAY FUNCTIONS ──
 async function setBirthday(userId, username, day, month) {
