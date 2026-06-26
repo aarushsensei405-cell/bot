@@ -6,9 +6,6 @@
 // ─────────────────────────────────────────
 // ALL IMPORTS FIRST - MUST COME FIRST!
 // ─────────────────────────────────────────
-// Add with your other imports
-
-
 const express = require('express');
 const {
   Client,
@@ -88,6 +85,165 @@ mongoose.connect(MONGODB_URI, {
 });
 
 // ─────────────────────────────────────────
+// CONFIG VARIABLES
+// ─────────────────────────────────────────
+const TOKEN = process.env.TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID = process.env.GUILD_ID || '1432272831722553398';
+
+const STAFF_LOG_CHANNEL = process.env.STAFF_LOG_CHANNEL || '1432277470878498866';
+const SUGGESTIONS_CHANNEL_ID = process.env.SUGGESTIONS_CHANNEL || '1515769765514313819';
+const WELCOME_CHANNEL_ID = process.env.WELCOME_CHANNEL || '1516255117060341790';
+const STARBOARD_CHANNEL_ID = process.env.STARBOARD_CHANNEL || '1432277447440597028';
+const BIRTHDAY_CHANNEL_ID = process.env.BIRTHDAY_CHANNEL || '1432277447440597028';
+const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY || '1518439159189213225';
+const LEVEL_UP_CHANNEL_ID = process.env.LEVEL_UP_CHANNEL || '1432277463366504484';
+
+const SHOP_COMPLETED_USER_ID = process.env.SHOP_COMPLETED_USER || '1519764530425495643';
+const SERVER_OWNER_ID = process.env.SERVER_OWNER || '885470207332728832';
+
+const VERIFY_CHANNEL_ID = process.env.VERIFY_CHANNEL || '1513364198850171010';
+const VERIFY_ROLE_ID = process.env.VERIFY_ROLE || '1432277416109281371';
+const BIRTHDAY_ROLE_ID = process.env.BIRTHDAY_ROLE || '1432277416109281371';
+
+const SPAM_SETTINGS = {
+  duplicateMessageLimit: 4,
+  duplicateWindowMs: 10000,
+  rapidMessageLimit: 10,
+  rapidWindowMs: 5000,
+  linkSpamLimit: 3,
+  timeoutMinutes: 10,
+};
+const MOD_ROLE_IDS = (process.env.MOD_ROLES || '1432277404864483390,1432277404046331984').split(',');
+
+const STAFF_MEMBERS = {
+  gray: { id: '935050795299250197', label: 'Gray', type: 'Chat Moderator' },
+  mayehm: { id: '750704207434088489', label: 'Mayehm', type: 'Helper' },
+  iceflows: { id: '1394287232029954108', label: 'IceFlows', type: 'Helper' },
+  mncikdb: { id: '1092762008371339365', label: 'MNCIKDB', type: 'MC Chat Moderator' },
+  viking2001: { id: '1215370954709008385', label: 'Viking2001', type: 'MC Chat Moderator' },
+};
+
+const APP_ROLES = {
+  chatmod: process.env.CHATMOD_ROLE || '1433055763051446272',
+  helper: process.env.HELPER_ROLE || '1432277404864483390',
+  mcmod: process.env.MCMOD_ROLE || '1432278296347021352',
+};
+const APP_NAMES = {
+  chatmod: 'Chat Moderator',
+  helper: 'Helper',
+  mcmod: 'Minecraft Chat Moderator',
+};
+
+const STARBOARD_THRESHOLD = 3;
+
+// ─────────────────────────────────────────
+// SHOP CONFIGURATION
+// ─────────────────────────────────────────
+const SHOP_CATEGORIES = {
+  food: {
+    name: '🌿 Food & Resources',
+    emoji: '🌿',
+    items: [
+      { id: 'bread', name: '🍞 Bread', amount: 16, price: 75, description: '16 Bread' },
+      { id: 'apples', name: '🍎 Apples', amount: 16, price: 75, description: '16 Apples' },
+      { id: 'cooked_beef', name: '🥩 Cooked Beef', amount: 16, price: 125, description: '16 Cooked Beef' },
+      { id: 'wheat', name: '🌾 Wheat', amount: 32, price: 100, description: '32 Wheat' },
+      { id: 'logs', name: '🪵 Logs', amount: 32, price: 150, description: '32 Logs (Any Type)' },
+    ]
+  },
+  materials: {
+    name: '⛏️ Materials',
+    emoji: '⛏️',
+    items: [
+      { id: 'cobblestone', name: '🪨 Cobblestone', amount: 64, price: 50, description: '64 Cobblestone' },
+      { id: 'planks', name: '🪵 Wood Planks', amount: 64, price: 100, description: '64 Wood Planks' },
+      { id: 'coal', name: '⚫ Coal', amount: 32, price: 175, description: '32 Coal' },
+      { id: 'iron_ingots', name: '🔩 Iron Ingots', amount: 16, price: 350, description: '16 Iron Ingots' },
+      { id: 'gold_ingots', name: '✨ Gold Ingots', amount: 8, price: 300, description: '8 Gold Ingots' },
+      { id: 'diamonds', name: '💎 Diamonds', amount: 2, price: 500, description: '2 Diamonds' },
+    ]
+  },
+  tools: {
+    name: '🔧 Tools',
+    emoji: '🔧',
+    items: [
+      { id: 'iron_pickaxe', name: '⛏️ Iron Pickaxe', amount: 1, price: 350, description: 'Iron Pickaxe' },
+      { id: 'iron_axe', name: '🪓 Iron Axe', amount: 1, price: 300, description: 'Iron Axe' },
+      { id: 'iron_sword', name: '⚔️ Iron Sword', amount: 1, price: 350, description: 'Iron Sword' },
+      { id: 'bow', name: '🏹 Bow', amount: 1, price: 500, description: 'Bow' },
+      { id: 'arrows', name: '➡️ Arrows', amount: 32, price: 150, description: '32 Arrows' },
+    ]
+  },
+  armor: {
+    name: '🛡️ Armor',
+    emoji: '🛡️',
+    items: [
+      { id: 'iron_helmet', name: '🪖 Iron Helmet', amount: 1, price: 500, description: 'Iron Helmet' },
+      { id: 'iron_chestplate', name: '🛡️ Iron Chestplate', amount: 1, price: 900, description: 'Iron Chestplate' },
+      { id: 'iron_leggings', name: '👖 Iron Leggings', amount: 1, price: 750, description: 'Iron Leggings' },
+      { id: 'iron_boots', name: '👢 Iron Boots', amount: 1, price: 450, description: 'Iron Boots' },
+      { id: 'diamond_helmet', name: '💎 Diamond Helmet', amount: 1, price: 2500, description: 'Diamond Helmet' },
+      { id: 'diamond_chestplate', name: '💎 Diamond Chestplate', amount: 1, price: 4500, description: 'Diamond Chestplate' },
+      { id: 'diamond_leggings', name: '💎 Diamond Leggings', amount: 1, price: 4000, description: 'Diamond Leggings' },
+      { id: 'diamond_boots', name: '💎 Diamond Boots', amount: 1, price: 2000, description: 'Diamond Boots' },
+    ]
+  },
+  miscellaneous: {
+    name: '🎁 Miscellaneous',
+    emoji: '🎁',
+    items: [
+      { id: 'bed', name: '🛏️ Bed', amount: 1, price: 100, description: 'Bed' },
+      { id: 'shulker_box', name: '📦 Shulker Box', amount: 1, price: 2000, description: 'Shulker Box' },
+      { id: 'torches', name: '🕯️ Torches', amount: 16, price: 50, description: '16 Torches' },
+      { id: 'compass', name: '🧭 Compass', amount: 1, price: 300, description: 'Compass' },
+      { id: 'water_bucket', name: '🪣 Water Bucket', amount: 1, price: 150, description: 'Water Bucket' },
+    ]
+  }
+};
+
+// ─────────────────────────────────────────
+// COINS SYSTEM CONFIG
+// ─────────────────────────────────────────
+const COINS_PER_MESSAGE = 0.2;
+const COINS_PER_VC_MINUTE = 1;
+const COINS_PER_INVITE = 50;
+const COINS_COOLDOWN_MS = 10000;
+const XP_PER_MESSAGE = 15;
+const XP_COOLDOWN_MS = 60000;
+
+// ─────────────────────────────────────────
+// APPLICATION QUESTIONS
+// ─────────────────────────────────────────
+const QUESTIONS = {
+  chatmod: [
+    { key: 'discord', q: '**[1/6]** What is your Discord username?' },
+    { key: 'age', q: '**[2/6]** How old are you?' },
+    { key: 'timezone', q: '**[3/6]** What is your timezone? *(e.g. UTC+5:30, EST, GMT)*' },
+    { key: 'hours', q: '**[4/6]** How many hours per day can you be active?' },
+    { key: 'why', q: '**[5/6]** Why do you want to be a **Chat Moderator**? *(min 50 chars)*' },
+    { key: 'scenario', q: '**[6/6]** A player is spamming slurs in chat. What do you do?' },
+  ],
+  helper: [
+    { key: 'discord', q: '**[1/6]** What is your Discord username?' },
+    { key: 'age', q: '**[2/6]** How old are you?' },
+    { key: 'timezone', q: '**[3/6]** What is your timezone? *(e.g. UTC+5:30, EST, GMT)*' },
+    { key: 'hours', q: '**[4/6]** How many hours per day can you be active?' },
+    { key: 'why', q: '**[5/6]** Why do you want to be a **Helper**? *(min 50 chars)*' },
+    { key: 'experience', q: '**[6/6]** Do you have any previous experience helping on servers?' },
+  ],
+  mcmod: [
+    { key: 'discord', q: '**[1/7]** What is your Discord username?' },
+    { key: 'mcuser', q: '**[2/7]** What is your Minecraft username?' },
+    { key: 'age', q: '**[3/7]** How old are you?' },
+    { key: 'timezone', q: '**[4/7]** What is your timezone? *(e.g. UTC+5:30, EST, GMT)*' },
+    { key: 'hours', q: '**[5/7]** How many hours per day can you be active on the MC server?' },
+    { key: 'why', q: '**[6/7]** Why do you want to be a **Minecraft Chat Moderator**? *(min 50 chars)*' },
+    { key: 'scenario', q: '**[7/7]** A player is using a hack client and spamming chat. What do you do?' },
+  ],
+};
+
+// ─────────────────────────────────────────
 // MONGODB SCHEMAS
 // ─────────────────────────────────────────
 const UserSchema = new mongoose.Schema({
@@ -114,10 +270,6 @@ const PurchaseSchema = new mongoose.Schema({
   originalPrice: Number,
   purchasedAt: { type: Date, default: Date.now },
 });
-
-// ─────────────────────────────────────────
-// REST OF YOUR CODE CONTINUES HERE...
-// ─────────────────────────────────────────
 
 const CouponSchema = new mongoose.Schema({
   code: { type: String, required: true, unique: true },
@@ -226,6 +378,7 @@ const AFKSchema = new mongoose.Schema({
   reason: String,
   since: { type: Date, default: Date.now },
 });
+
 const InviteSchema = new mongoose.Schema({
   code: { type: String, required: true, unique: true },
   inviterId: String,
@@ -275,80 +428,696 @@ const Application = mongoose.model('Application', ApplicationSchema);
 const Rulebook = mongoose.model('Rulebook', RulebookSchema);
 
 // ─────────────────────────────────────────
-// CLIENT READY EVENT - MOVED AFTER MODELS
+// DEFAULT RULEBOOKS
 // ─────────────────────────────────────────
-client.once('ready', async () => {
-  console.log(`✅ ${client.user.tag} is online`);
-  
-  // Initialize rulebooks
-  await initializeRulebooks();
-  
-  // Load giveaways
-  const giveaways = await Giveaway.find({ ended: false });
-  const now = Date.now();
-  for (const g of giveaways) {
-    const remaining = g.endsAt.getTime() - now;
-    if (remaining <= 0) { await endGiveaway(client, g); }
-    else { setTimeout(() => endGiveaway(client, g), remaining); }
+const DEFAULT_RULEBOOKS = {
+  mc: {
+    title: '⚔️ GoldenHeart SMP — Minecraft Rules',
+    color: 0x57f287,
+    pages: [
+      {
+        title: '🌍 Page 1 — Spawn Rules',
+        content: '> By playing on GoldenHeart SMP, you agree to follow all rules. Attempting to bypass, exploit, or abuse loopholes is punishable.\n\n**1.1 No Spawn Killing**\nKilling, trapping, baiting, crystaling, lava trapping, TNT trapping, or otherwise harming players at or near spawn is prohibited. Staff-approved events are the only exception.\n\n**1.2 No Spawn Griefing**\nDo not destroy, alter, steal from, or place blocks at spawn. If spawn protection fails, it is still against the rules. Report issues to staff immediately.\n\n**1.3 No Spawn Camping**\nRepeatedly waiting at spawn to kill, follow, or target players is prohibited.\n\n**1.4 No Spawn Traps**\nAny trap designed to kill, damage, trap, or inconvenience players near spawn is prohibited.\n\n**1.5 No Claim Blocking**\nDo not intentionally build around spawn in a way that limits expansion, movement, or future server projects.',
+      },
+      {
+        title: '⚔️ Page 2 — PvP & Combat Rules',
+        content: '**2.1 No Combat Logging**\nLogging out during PvP is prohibited. Switching accounts, disconnecting, crashing your client, or using any method to avoid death counts as combat logging.\n🔴 **Punishment:** 1 Day Ban. Inventory may be removed or awarded to the opponent.\n\n**2.2 No /Back Abuse**\n/back may not be used to escape combat or instantly return to a fight after dying.\n\n**2.3 No Bed Trap Logging**\nLogging out while trapped or surrounded in combat is considered combat logging.\n\n**2.4 No Alt Combat Abuse**\nUsing alternate accounts to gain combat advantages is prohibited.\n\n**2.5 No Kill Farming**\nFarming kills, stats, bounties, or rewards using teammates, friends, or alts is prohibited.\n\n**2.6 No Exploit PvP**\nAny bug, glitch, or unintended mechanic used to gain a combat advantage is prohibited.\n\n**2.7 No Safezone Abuse**\nDo not repeatedly enter protected areas or spawn to avoid combat.',
+      },
+      {
+        title: '🏰 Page 3 — Raiding & Griefing',
+        content: '**3.1 Raiding Is Allowed** ✅\nBases may be raided unless otherwise stated by staff.\n\n**3.2 Griefing Is Allowed** ✅\nBase destruction is allowed as part of raiding.\n\n**3.3 No Server-Damaging Grief**\nExcessive lag-causing destruction, world corruption attempts, or actions intended to harm server performance are prohibited.\n\n**3.4 No Exploit Raiding**\nRaiding through glitches, bugs, duplication, chunk exploits, or unintended mechanics is prohibited.\n\n**3.5 No Offline Abuse Exploits**\nIntentionally abusing plugin bugs or protection failures against offline players is prohibited.',
+      },
+      {
+        title: '👥 Page 4 — Team Rules',
+        content: '**4.1 Maximum Team Size: 6 Players**\n\n**4.2 Hidden Teaming Allowed** ✅\nSecret alliances, temporary alliances, diplomacy, and betrayals are all allowed.\n\n**4.3 No Team Limit Bypass**\nSplitting into multiple teams while operating as one large group is prohibited.\n\n**4.4 No Mass Alliances**\nMultiple teams cannot permanently cooperate to bypass the team limit.\n\n**4.5 No Alt Teams**\nAlternate accounts count toward team size limits.\n\n**4.6 Staff May Investigate Teaming**\nShared bases, shared storage, coordinated attacks, voice communication, and resource sharing may all be used as evidence.',
+      },
+      {
+        title: '🚫 Page 5 — Cheating & Exploits',
+        content: '**5.1 No Cheats** — Including but not limited to:\n> X-Ray • ESP • Tracers • Kill Aura • Reach • Auto Crystal • Auto Totem • Fly Hacks • Speed Hacks • NoSlow • Anti-Knockback • Triggerbot • Aim Assist • Macros • Scripts • Autoclickers • Modified clients\n\n**5.2 No Exploits:**\n> Dupes • Chunk exploits • Plugin bugs • Server bugs • Client exploits • Glitches • Packet abuse • Any unintended mechanic\n\n**5.3 Report Bugs**\nBugs must be reported immediately. Abuse of bugs is punishable even if not listed.\n\n**5.4 No Lag Machines**\nAny machine designed to create lag, crashes, TPS drops, or server instability is prohibited.\n\n**5.5 No Crash Attempts**\nAttempts to crash players, staff, Discord bots, or the server are prohibited.\n\n**5.6 No Ban Evasion**\nJoining on alternate accounts after punishment is prohibited.',
+      },
+    ],
+  },
+  chat: {
+    title: '💬 GoldenHeart SMP — Chat Rules',
+    color: 0xf0b429,
+    pages: [
+      {
+        title: '💬 Page 1 — Spam, Swearing & Harassment',
+        content: '**6.1 No Spam**\n> No flooding chat • No excessive caps • No repeated messages • No meaningless spam\n\n**6.2 Swearing Policy**\nCasual swearing is allowed. Directed swearing is **NOT** allowed.\n\n✅ **Allowed:**\n> *"This boss fight is f***ing hard."*\n> *"That was bad luck."*\n\n❌ **Not Allowed:**\n> *"You\'re f***ing trash."*\n> *"Shut the f*** up."*\n\nDirected insults, harassment, and personal attacks are all prohibited.\n\n**6.3 No Harassment**\nRepeated targeting, bullying, stalking, or provoking players is prohibited.',
+      },
+      {
+        title: '🚨 Page 2 — Hate Speech, Threats & NSFW',
+        content: '**6.4 No Hate Speech** 🚨 SEVERE\n> Racism • Nationality insults • Religious insults • Cultural insults • Ethnic discrimination\n\n🔴 **Result:** Immediate 1-Day Timeout minimum. Severe cases may skip directly to bans.\n\n**6.5 No Threats**\nReal-life threats are prohibited. Doxxing threats are prohibited.\n\n**6.6 No NSFW Content**\n> Sexual content • Pornography • Explicit media • Inappropriate usernames or skins\n\n**6.7 No Advertising**\nAdvertising servers, communities, websites, or services without staff permission is prohibited.\n\n**6.8 No Impersonation**\nPretending to be staff, content creators, or other players is prohibited.',
+      },
+    ],
+  },
+  general: {
+    title: '📜 GoldenHeart SMP — General Rules',
+    color: 0xed4245,
+    pages: [
+      {
+        title: '⚠️ Page 1 — Warning System',
+        content: '> Warnings are applied progressively. Staff may skip levels depending on severity.\n\n```\nWarn 1 → Verbal Warning / Minor Punishment\nWarn 2 → 30 Minute Timeout\nWarn 3 → 6 Hour Timeout\nWarn 4 → 1 Day Timeout\nWarn 5 → 3 Day Timeout\nWarn 6 → 7 Day Timeout (Final Warning)\nWarn 7 → Permanent Ban\n```',
+      },
+      {
+        title: '👑 Page 2 — Staff Rules',
+        content: '**8.1 Respect Staff**\nYou may disagree respectfully. Harassment of staff is prohibited.\n\n**8.2 No False Reports**\nIntentionally false reports may result in punishment.\n\n**8.3 Staff Decisions Are Final**\nPublic arguments after a final decision may result in additional punishment.\n\n**8.4 Punishment Evasion**\nUsing alts, VPNs, or other methods to avoid punishments is prohibited.',
+      },
+      {
+        title: '⚖️ Page 3 — General Rules & Golden Rule',
+        content: '**9.1 Common Sense Rule**\nNot every possible offense can be listed. Staff may punish behavior that clearly harms the server or provides an unfair advantage.\n\n**9.2 No Loophole Abuse**\n"The rules didn\'t specifically say I couldn\'t" is not a valid defense. Attempting to bypass the intent of any rule is punishable.\n\n**9.3 No Real-Life Harm**\nDoxxing, leaking personal information, blackmail, or encouraging self-harm is strictly prohibited.\n\n**9.4 English Preferred**\nStaff must be able to moderate conversations when necessary.\n\n**9.5 Cooperation Required**\nRefusing staff investigations, evidence requests, or cheat checks may result in punishment.\n\n**9.6 The Golden Rule** ❤️\n> *Don\'t ruin the experience for other players.*\n\n*These rules are enforced based on both their wording and intended purpose. Play fair. Have fun. Win legitimately. — Golden Heart SMP Staff Team*',
+      },
+    ],
+  },
+};
+
+let RULEBOOKS = DEFAULT_RULEBOOKS;
+let rulebooksLoaded = false;
+
+// ─────────────────────────────────────────
+// RULEBOOK FUNCTIONS
+// ─────────────────────────────────────────
+async function saveRulebooks(rulebooks) {
+  for (const [key, book] of Object.entries(rulebooks)) {
+    await Rulebook.findOneAndUpdate(
+      { bookKey: key },
+      { title: book.title, color: book.color, pages: book.pages },
+      { upsert: true }
+    );
   }
-  
-  // ── SETUP TRACKING ──
-  const { voiceTracker, inviteTracker } = setupTracking(client, GUILD_ID);
-  
-  // Store trackers globally for commands
-  client.voiceTracker = voiceTracker;
-  client.inviteTracker = inviteTracker;
-  
-  // Start intervals
-  setInterval(() => checkBirthdays(client), 3600000);
-  setInterval(() => checkReminders(client), 30000);
-  setInterval(() => checkTempBans(client), 60000);
-  checkBirthdays(client);
-});
+}
+
+async function loadRulebooks() {
+  const stored = await Rulebook.find({}).lean();
+  const result = {};
+  for (const book of stored) {
+    result[book.bookKey] = {
+      title: book.title,
+      color: book.color,
+      pages: book.pages,
+    };
+  }
+  return result;
+}
+
+async function initializeRulebooks() {
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      console.log('⏳ Waiting for MongoDB connection...');
+      await new Promise(resolve => {
+        if (mongoose.connection.readyState === 1) resolve();
+        mongoose.connection.once('connected', resolve);
+      });
+    }
+    
+    const stored = await loadRulebooks();
+    if (Object.keys(stored).length > 0) {
+      RULEBOOKS = stored;
+      console.log('✅ Rulebooks loaded from database');
+    } else {
+      await saveRulebooks(DEFAULT_RULEBOOKS);
+      console.log('✅ Default rulebooks saved to database');
+    }
+    rulebooksLoaded = true;
+    return RULEBOOKS;
+  } catch (err) {
+    console.error('❌ Failed to initialize rulebooks:', err);
+    RULEBOOKS = DEFAULT_RULEBOOKS;
+    rulebooksLoaded = true;
+    return RULEBOOKS;
+  }
+}
 
 // ─────────────────────────────────────────
-// CONTINUE WITH REST OF CODE
+// SHOP UI BUILDERS
 // ─────────────────────────────────────────
-// ─────────────────────────────────────────
-// ─────────────────────────────────────────
-// MONGODB MODELS
-// ─────────────────────────────────────────
+function buildShopEmbed() {
+  const embed = new EmbedBuilder()
+    .setTitle('🪙 Golden Coins Shop')
+    .setColor(0xf0b429)
+    .setDescription([
+      'Welcome to the **Golden Coins Shop**! 🛒',
+      '',
+      'Use the dropdown below to browse different categories.',
+      '',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '',
+      '💡 **How to earn coins:**',
+      '• 💬 **5 messages** = 1 coin',
+      '• 🎤 **1 minute in VC** = 1 coin',
+      '• 📨 **1 invite** = 50 coins',
+      '• 🎁 **Daily claim** = 50 coins',
+      '',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '',
+      '🛒 **Cart System:** Add items to your cart and checkout together!',
+      '🎫 **Coupon Codes:** Use discount codes at checkout!',
+      '',
+      '⚠️ **Shop prices may change** based on the server economy.',
+      '💛 **Use your coins wisely** — every purchase matters!',
+    ].join('\n'))
+    .setFooter({ text: 'GoldenHeart SMP • Shop' })
+    .setTimestamp();
 
-// ─────────────────────────────────────────
-// CLIENT READY EVENT - MOVED AFTER MODELS (CORRECT POSITION!)
-// ─────────────────────────────────────────
-client.once('ready', async () => {
-  console.log(`✅ ${client.user.tag} is online`);
-  client.user.setPresence({
-    activities: [{ name: 'players in GoldenHeart SMP | discord.gg/We5SpWv64T', type: ActivityType.Watching }],
-    status: 'online',
+  return embed;
+}
+
+function buildCategoryEmbed(categoryKey) {
+  const category = SHOP_CATEGORIES[categoryKey];
+  if (!category) return null;
+
+  const itemsList = category.items.map((item, index) =>
+    `\`${String(index + 1).padStart(2, ' ')}\` ${item.name} — **${item.price}** coins`
+  ).join('\n');
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${category.emoji} ${category.name}`)
+    .setColor(0xf0b429)
+    .setDescription([
+      `Select an item from the dropdown below to purchase!`,
+      '',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '',
+      itemsList,
+      '',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '',
+      `💳 **Click the dropdown** to choose an item and add to cart.`,
+    ].join('\n'))
+    .setFooter({ text: 'GoldenHeart SMP • Shop' })
+    .setTimestamp();
+
+  return embed;
+}
+
+function buildCategorySelectMenu() {
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId('shop_category')
+    .setPlaceholder('📂 Select a category to browse...')
+    .addOptions(
+      new StringSelectMenuOptionBuilder()
+        .setLabel('🌿 Food & Resources')
+        .setDescription('Food and resource items')
+        .setEmoji('🌿')
+        .setValue('food'),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('⛏️ Materials')
+        .setDescription('Building materials and ores')
+        .setEmoji('⛏️')
+        .setValue('materials'),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('🔧 Tools')
+        .setDescription('Weapons and tools')
+        .setEmoji('🔧')
+        .setValue('tools'),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('🛡️ Armor')
+        .setDescription('Protective gear')
+        .setEmoji('🛡️')
+        .setValue('armor'),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('🎁 Miscellaneous')
+        .setDescription('Other useful items')
+        .setEmoji('🎁')
+        .setValue('miscellaneous'),
+    );
+
+  return new ActionRowBuilder().addComponents(menu);
+}
+
+function buildItemSelectMenu(categoryKey) {
+  const category = SHOP_CATEGORIES[categoryKey];
+  if (!category) return null;
+
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId(`shop_item_${categoryKey}`)
+    .setPlaceholder('🛒 Select an item to add to cart...');
+
+  category.items.forEach(item => {
+    menu.addOptions(
+      new StringSelectMenuOptionBuilder()
+        .setLabel(`${item.name} — ${item.price} coins`)
+        .setDescription(`${item.amount}x ${item.name.replace(/[^\w\s]/g, '').trim()}`)
+        .setValue(item.id)
+    );
   });
-  
-  // Initialize rulebooks
-  await initializeRulebooks();
-  
-  // Load giveaways
-  const giveaways = await Giveaway.find({ ended: false });
-  const now = Date.now();
-  for (const g of giveaways) {
-    const remaining = g.endsAt.getTime() - now;
-    if (remaining <= 0) { await endGiveaway(client, g); }
-    else { setTimeout(() => endGiveaway(client, g), remaining); }
+
+  return new ActionRowBuilder().addComponents(menu);
+}
+
+function buildBackButton() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('shop_back')
+      .setLabel('◀ Back to Categories')
+      .setStyle(ButtonStyle.Secondary)
+  );
+}
+
+function buildCartButtons() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('shop_cart_view')
+      .setLabel('🛒 View Cart')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId('shop_back')
+      .setLabel('◀ Back')
+      .setStyle(ButtonStyle.Secondary)
+  );
+}
+
+// ─────────────────────────────────────────
+// BOOK / PAGINATED EMBED SYSTEM
+// ─────────────────────────────────────────
+function buildBookEmbed(bookTitle, pages, pageIndex, color) {
+  const page = pages[pageIndex];
+  return new EmbedBuilder()
+    .setTitle(page.title)
+    .setDescription(page.content)
+    .setColor(color)
+    .setFooter({ text: `📖 ${bookTitle}  •  Page ${pageIndex + 1} of ${pages.length}` })
+    .setTimestamp();
+}
+
+function buildBookRow(pageIndex, totalPages, bookKey) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`book_prev:${bookKey}:${pageIndex}`)
+      .setLabel('◀ Prev')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(pageIndex === 0),
+    new ButtonBuilder()
+      .setCustomId(`book_page:${bookKey}:${pageIndex}`)
+      .setLabel(`${pageIndex + 1} / ${totalPages}`)
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(true),
+    new ButtonBuilder()
+      .setCustomId(`book_next:${bookKey}:${pageIndex}`)
+      .setLabel('Next ▶')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(pageIndex === totalPages - 1),
+  );
+}
+
+// ─────────────────────────────────────────
+// WELCOME CARD IMAGE GENERATOR
+// ─────────────────────────────────────────
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function circleClip(ctx, cx, cy, r) {
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.clip();
+}
+
+async function generateWelcomeCard(member) {
+  const width = 1000;
+  const height = 400;
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+
+  const bgGradient = ctx.createLinearGradient(0, 0, width, height);
+  bgGradient.addColorStop(0, '#1a0a1a');
+  bgGradient.addColorStop(0.3, '#2d0a2d');
+  bgGradient.addColorStop(0.6, '#3d1a2d');
+  bgGradient.addColorStop(0.8, '#1a1a0a');
+  bgGradient.addColorStop(1, '#0a1a0a');
+  ctx.fillStyle = bgGradient;
+  ctx.fillRect(0, 0, width, height);
+
+  const grassColors = ['#6b8c42', '#5a7d32', '#7a9c52', '#4a6d22'];
+  for (let x = 0; x < width; x += 20) {
+    for (let y = height - 30; y < height; y += 20) {
+      const shade = grassColors[Math.floor(Math.random() * grassColors.length)];
+      ctx.fillStyle = shade;
+      ctx.fillRect(x + Math.random() * 10 - 5, y + Math.random() * 10 - 5, 20, 20);
+    }
   }
+
+  for (let i = 0; i < 200; i++) {
+    const x = Math.random() * width;
+    const y = Math.random() * height;
+    const size = 2 + Math.random() * 4;
+    ctx.fillStyle = `rgba(60, 40, 30, ${0.05 + Math.random() * 0.1})`;
+    ctx.fillRect(x, y, size, size);
+  }
+
+  const heartX = 80, heartY = 80;
+  ctx.shadowColor = '#f0b429';
+  ctx.shadowBlur = 40;
+  ctx.fillStyle = '#f0b429';
+  ctx.font = '60px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('❤️', heartX, heartY);
+  ctx.shadowBlur = 0;
+
+  ctx.shadowColor = '#f0b429';
+  ctx.shadowBlur = 25;
+  ctx.fillStyle = '#ffd76e';
+  ctx.font = 'bold 52px "Minecraft", "Courier New", monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('GOLDENHEART SMP', 150, 70);
+
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 28px "Minecraft", "Courier New", monospace';
+  ctx.fillText('⚔️ SURVIVAL MULTIPLAYER', 150, 120);
+
+  ctx.fillStyle = '#8a8a8a';
+  ctx.font = '40px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('⚔️', width / 2, 170);
+
+  const textX = 60;
+  const textY = 180;
+
+  let displayName = member.user.username;
+  if (displayName.length > 16) displayName = displayName.slice(0, 14) + '…';
+
+  ctx.shadowColor = '#f0b429';
+  ctx.shadowBlur = 15;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 38px "Minecraft", "Courier New", monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(displayName, textX, textY);
+
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#f0b429';
+  ctx.font = '20px "Minecraft", "Courier New", monospace';
+  ctx.fillText(`✦ Member #${member.guild.memberCount}`, textX, textY + 45);
+
+  const infoY = 250;
+  const infoBoxes = [
+    { icon: '⛏️', label: 'Minecraft', value: '1.20.4+' },
+    { icon: '🌐', label: 'IP', value: 'goldenheartsmp.minecraftnoob.com' },
+    { icon: '👥', label: 'Online', value: `${member.guild.memberCount} Players` },
+  ];
+
+  infoBoxes.forEach((box, i) => {
+    const x = textX + i * 280;
+    roundRect(ctx, x, infoY, 250, 60, 8);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fill();
+    roundRect(ctx, x, infoY, 250, 60, 8);
+    ctx.strokeStyle = 'rgba(240, 180, 41, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = '#f0b429';
+    ctx.font = '16px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${box.icon} ${box.label}`, x + 10, infoY + 20);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '14px sans-serif';
+    ctx.fillText(box.value, x + 10, infoY + 45);
+  });
+
+  const avatarSize = 130;
+  const avatarX = width - 170;
+  const avatarY = height / 2 - 10;
+
+  try {
+    const avatarURL = member.user.displayAvatarURL({ extension: 'png', size: 256 });
+    const avatarImg = await loadImage(avatarURL);
+
+    ctx.save();
+    ctx.shadowColor = '#f0b429';
+    ctx.shadowBlur = 40;
+    ctx.beginPath();
+    ctx.arc(avatarX, avatarY, avatarSize / 2 + 8, 0, Math.PI * 2);
+    const ringGrad = ctx.createRadialGradient(
+      avatarX - 40, avatarY - 40, 10,
+      avatarX, avatarY, avatarSize / 2 + 12
+    );
+    ringGrad.addColorStop(0, '#ffd76e');
+    ringGrad.addColorStop(0.5, '#f0b429');
+    ringGrad.addColorStop(1, '#b8860b');
+    ctx.fillStyle = ringGrad;
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    circleClip(ctx, avatarX, avatarY, avatarSize / 2);
+    ctx.drawImage(avatarImg, avatarX - avatarSize / 2, avatarY - avatarSize / 2, avatarSize, avatarSize);
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.arc(avatarX, avatarY, avatarSize / 2 + 3, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#f0b429';
+    ctx.font = 'bold 16px "Minecraft", "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✦ WELCOME ✦', avatarX, avatarY + avatarSize / 2 + 30);
+  } catch {
+    ctx.beginPath();
+    ctx.arc(avatarX, avatarY, avatarSize / 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#333';
+    ctx.fill();
+  }
+
+  ctx.fillStyle = 'rgba(255, 215, 0, 0.4)';
+  ctx.font = '12px "Minecraft", "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('🏰 GoldenHeart SMP • discord.gg/We5SpWv64T • ⛏️ 1.20.4+', width / 2, height - 10);
+
+  const corners = [[20, 20], [width - 20, 20], [20, height - 20], [width - 20, height - 20]];
+  corners.forEach(([cx, cy]) => {
+    ctx.fillStyle = '#f0b429';
+    ctx.font = '16px sans-serif';
+    ctx.textAlign = cx < 50 ? 'left' : 'right';
+    ctx.textBaseline = cy < 50 ? 'top' : 'bottom';
+    ctx.fillText('◆', cx, cy);
+  });
+
+  return canvas.toBuffer('image/png');
+}
+
+// ─────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────
+function getTimeoutDuration(warnCount) {
+  if (warnCount < 3) return null;
+  if (warnCount >= 8) return 28 * 24 * 60;
+  return 30 + (warnCount - 3) * 15;
+}
+
+function hasModPermission(member) {
+  if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+  return MOD_ROLE_IDS.some(id => member.roles.cache.has(id));
+}
+
+function isGuildOwner(interaction) {
+  return interaction.guild?.ownerId === interaction.user.id;
+}
+
+function isServerOwner(userId) {
+  return userId === SERVER_OWNER_ID;
+}
+
+function autoDelete(sentMessage, ms = 5000) {
+  if (!sentMessage) return;
+  setTimeout(() => sentMessage.delete().catch(() => { }), ms);
+}
+
+function starsDisplay(n) {
+  return '⭐'.repeat(n) + '☆'.repeat(5 - n);
+}
+
+function parseDuration(str) {
+  if (!str) return null;
+  const match = str.match(/^(\d+)(s|m|h|d|w)$/i);
+  if (!match) return null;
+  const value = parseInt(match[1]);
+  const unit = match[2].toLowerCase();
+  const map = { s: 1000, m: 60000, h: 3600000, d: 86400000, w: 604800000 };
+  return value * (map[unit] || 0);
+}
+
+function humanDuration(ms) {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  return `${d}d`;
+}
+
+function fetchJSON(url) {
+  return new Promise((resolve, reject) => {
+    const lib = url.startsWith('https') ? https : http;
+    lib.get(url, { headers: { 'User-Agent': 'GoldenHeart-Bot/1.0' } }, res => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch { reject(new Error('Invalid JSON')); }
+      });
+    }).on('error', reject);
+  });
+}
+
+async function getMCServerStatus(host, port = 25565) {
+  try {
+    const data = await fetchJSON(`https://api.mcsrvstat.us/3/${host}:${port}`);
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function getOrdinal(n) {
+  const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
+  return s[(v - 20) % 10] || s[v] || s[0];
+}
+
+// ─────────────────────────────────────────
+// LOG HELPER
+// ─────────────────────────────────────────
+async function sendLog(client, embed) {
+  try {
+    const ch = await client.channels.fetch(STAFF_LOG_CHANNEL);
+    await ch.send({ embeds: [embed] });
+  } catch (err) {
+    console.error('Log send error:', err);
+  }
+}
+
+// ─────────────────────────────────────────
+// GIVEAWAY HELPER
+// ─────────────────────────────────────────
+async function endGiveaway(client, giveaway) {
+  try {
+    const channel = await client.channels.fetch(giveaway.channelId);
+    const message = await channel.messages.fetch(giveaway.messageId);
+    const reaction = message.reactions.cache.get('🎉');
+    if (!reaction) {
+      await channel.send(`🎉 Giveaway for **${giveaway.prize}** ended — no valid entries!`);
+      return;
+    }
+    const users = await reaction.users.fetch();
+    const eligible = users.filter(u => !u.bot).map(u => u);
+    if (eligible.length === 0) {
+      await channel.send(`🎉 Giveaway for **${giveaway.prize}** ended — no valid entries!`);
+      return;
+    }
+    const winnerCount = Math.min(giveaway.winners, eligible.length);
+    const shuffled = eligible.sort(() => Math.random() - 0.5).slice(0, winnerCount);
+    const winnerMentions = shuffled.map(u => `<@${u.id}>`).join(', ');
+    const endEmbed = EmbedBuilder.from(message.embeds[0])
+      .setColor(0x57f287)
+      .setTitle('🎉 GIVEAWAY ENDED')
+      .setDescription(`**Prize:** ${giveaway.prize}\n\n🏆 **Winner${winnerCount > 1 ? 's' : ''}:** ${winnerMentions}\n\nCongratulations!`)
+      .setFooter({ text: `Ended` })
+      .setTimestamp();
+    await message.edit({ embeds: [endEmbed], components: [] });
+    await channel.send(`🎉 Congratulations ${winnerMentions}! You won **${giveaway.prize}**!`);
+    await Giveaway.findOneAndUpdate(
+      { messageId: giveaway.messageId },
+      { ended: true, winnersList: shuffled.map(u => u.id) }
+    );
+  } catch (err) {
+    console.error('Giveaway end error:', err);
+  }
+}
+
+// ─────────────────────────────────────────
+// BIRTHDAY CHECK
+// ─────────────────────────────────────────
+async function checkBirthdays(client) {
+  const now = new Date();
+  const todayDay = now.getUTCDate();
+  const todayMonth = now.getUTCMonth() + 1;
+  const allBirthdays = await Birthday.find({}).lean();
+  const guild = client.guilds.cache.get(GUILD_ID);
+  if (!guild) return;
   
-  // ── SETUP TRACKING ──
-  const { voiceTracker, inviteTracker } = setupTracking(client, GUILD_ID);
+  for (const birthday of allBirthdays) {
+    if (birthday.day === todayDay && birthday.month === todayMonth) {
+      if (birthday.lastAnnounced === `${todayMonth}-${todayDay}-${now.getUTCFullYear()}`) continue;
+      try {
+        const member = await guild.members.fetch(birthday.userId).catch(() => null);
+        if (!member) continue;
+        if (BIRTHDAY_ROLE_ID) {
+          await member.roles.add(BIRTHDAY_ROLE_ID).catch(() => { });
+          setTimeout(async () => { await member.roles.remove(BIRTHDAY_ROLE_ID).catch(() => { }); }, 86400000);
+        }
+        const channel = await client.channels.fetch(BIRTHDAY_CHANNEL_ID).catch(() => null);
+        if (channel) {
+          await channel.send(`🎂 **Happy Birthday, <@${birthday.userId}>!** 🎉\n\nWishing you an amazing day from everyone at **GoldenHeart SMP**! 🥳🎈`);
+        }
+        await Birthday.findOneAndUpdate(
+          { userId: birthday.userId },
+          { lastAnnounced: `${todayMonth}-${todayDay}-${now.getUTCFullYear()}` }
+        );
+      } catch (err) {
+        console.error('Birthday announcement error:', err);
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────
+// REMINDER CHECK
+// ─────────────────────────────────────────
+async function checkReminders(client) {
+  const dueReminders = await Reminder.find({ fireAt: { $lt: new Date() } }).lean();
+  for (const reminder of dueReminders) {
+    try {
+      const user = await client.users.fetch(reminder.userId);
+      await user.send(`⏰ **Reminder!**\n\n${reminder.text}`);
+    } catch { }
+    await Reminder.deleteOne({ _id: reminder._id });
+  }
+}
+
+// ─────────────────────────────────────────
+// TEMP BAN CHECK
+// ─────────────────────────────────────────
+async function checkTempBans(client) {
+  const now = new Date();
+  await TempBan.deleteMany({ unbanAt: { $lt: now } });
+  const activeBans = await TempBan.find({ unbanAt: { $gt: now } }).lean();
   
-  // Store trackers globally for commands
-  client.voiceTracker = voiceTracker;
-  client.inviteTracker = inviteTracker;
-  
-  // Start intervals
-  setInterval(() => checkBirthdays(client), 3600000);
-  setInterval(() => checkReminders(client), 30000);
-  setInterval(() => checkTempBans(client), 60000);
-  checkBirthdays(client);
-});
+  for (const ban of activeBans) {
+    if (now >= ban.unbanAt) {
+      try {
+        const guild = client.guilds.cache.get(ban.guildId);
+        if (guild) {
+          await guild.members.unban(ban.userId, 'Temporary ban expired');
+          const logEmbed = new EmbedBuilder()
+            .setTitle('🔓 Temp Ban Expired — Auto Unbanned').setColor(0x57f287)
+            .addFields(
+              { name: 'User', value: `<@${ban.userId}> (${ban.userTag})`, inline: true },
+              { name: 'Original Duration', value: ban.duration, inline: true },
+            ).setTimestamp();
+          await sendLog(client, logEmbed);
+        }
+      } catch { }
+    }
+  }
+}
 
 // ─────────────────────────────────────────
 // DATABASE HELPER FUNCTIONS
@@ -405,6 +1174,16 @@ async function addXP(userId, username, amount) {
   }
   await user.save();
   return { xp: user.xp, level: user.level };
+}
+
+function xpForLevel(level) {
+  return Math.floor(100 * Math.pow(level, 1.5));
+}
+
+function getLevelFromXP(totalXP) {
+  let level = 0;
+  while (xpForLevel(level + 1) <= totalXP) level++;
+  return level;
 }
 
 async function recordPurchase(userId, username, itemId, amount, price, category, couponCode = null, originalPrice = null) {
@@ -695,11 +1474,6 @@ async function updateSuggestionStatus(id, status) {
   return null;
 }
 
-// ─────────────────────────────────────────
-// CONTINUE WITH REST OF YOUR CODE
-// (All other functions, events, commands, etc.)
-// ─────────────────────────────────────────
-
 // ── BIRTHDAY FUNCTIONS ──
 async function setBirthday(userId, username, day, month) {
   await Birthday.findOneAndUpdate(
@@ -858,30 +1632,6 @@ async function saveApplication(role, entry) {
   return app;
 }
 
-// ── RULEBOOK FUNCTIONS ──
-async function saveRulebooks(rulebooks) {
-  for (const [key, book] of Object.entries(rulebooks)) {
-    await Rulebook.findOneAndUpdate(
-      { bookKey: key },
-      { title: book.title, color: book.color, pages: book.pages },
-      { upsert: true }
-    );
-  }
-}
-
-async function loadRulebooks() {
-  const stored = await Rulebook.find({}).lean();
-  const result = {};
-  for (const book of stored) {
-    result[book.bookKey] = {
-      title: book.title,
-      color: book.color,
-      pages: book.pages,
-    };
-  }
-  return result;
-}
-
 // ── INVITE FUNCTIONS ──
 async function trackInvite(code, inviterId, maxUses) {
   await Invite.findOneAndUpdate(
@@ -899,820 +1649,69 @@ async function updateInviteUses(code, uses) {
 }
 
 // ─────────────────────────────────────────
-// XP/LEVELING CONFIG
+// CLIENT READY EVENT
 // ─────────────────────────────────────────
-function xpForLevel(level) {
-  return Math.floor(100 * Math.pow(level, 1.5));
-}
-function getLevelFromXP(totalXP) {
-  let level = 0;
-  while (xpForLevel(level + 1) <= totalXP) level++;
-  return level;
-}
-
-// ─────────────────────────────────────────
-// CONFIG
-// ─────────────────────────────────────────
-const TOKEN = process.env.TOKEN;
-const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID || '1432272831722553398';
-
-const STAFF_LOG_CHANNEL = process.env.STAFF_LOG_CHANNEL || '1432277470878498866';
-const SUGGESTIONS_CHANNEL_ID = process.env.SUGGESTIONS_CHANNEL || '1515769765514313819';
-const WELCOME_CHANNEL_ID = process.env.WELCOME_CHANNEL || '1516255117060341790';
-const STARBOARD_CHANNEL_ID = process.env.STARBOARD_CHANNEL || '1432277447440597028';
-const BIRTHDAY_CHANNEL_ID = process.env.BIRTHDAY_CHANNEL || '1432277447440597028';
-const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY || '1518439159189213225';
-const LEVEL_UP_CHANNEL_ID = process.env.LEVEL_UP_CHANNEL || '1432277463366504484';
-
-const SHOP_COMPLETED_USER_ID = process.env.SHOP_COMPLETED_USER || '1519764530425495643';
-const SERVER_OWNER_ID = process.env.SERVER_OWNER || '885470207332728832';
-
-const VERIFY_CHANNEL_ID = process.env.VERIFY_CHANNEL || '1513364198850171010';
-const VERIFY_ROLE_ID = process.env.VERIFY_ROLE || '1432277416109281371';
-const BIRTHDAY_ROLE_ID = process.env.BIRTHDAY_ROLE || '1432277416109281371';
-
-const SPAM_SETTINGS = {
-  duplicateMessageLimit: 4,
-  duplicateWindowMs: 10000,
-  rapidMessageLimit: 10,
-  rapidWindowMs: 5000,
-  linkSpamLimit: 3,
-  timeoutMinutes: 10,
-};
-const MOD_ROLE_IDS = (process.env.MOD_ROLES || '1432277404864483390,1432277404046331984').split(',');
-
-const STAFF_MEMBERS = {
-  gray: { id: '935050795299250197', label: 'Gray', type: 'Chat Moderator' },
-  mayehm: { id: '750704207434088489', label: 'Mayehm', type: 'Helper' },
-  iceflows: { id: '1394287232029954108', label: 'IceFlows', type: 'Helper' },
-  mncikdb: { id: '1092762008371339365', label: 'MNCIKDB', type: 'MC Chat Moderator' },
-  viking2001: { id: '1215370954709008385', label: 'Viking2001', type: 'MC Chat Moderator' },
-};
-
-const APP_ROLES = {
-  chatmod: process.env.CHATMOD_ROLE || '1433055763051446272',
-  helper: process.env.HELPER_ROLE || '1432277404864483390',
-  mcmod: process.env.MCMOD_ROLE || '1432278296347021352',
-};
-const APP_NAMES = {
-  chatmod: 'Chat Moderator',
-  helper: 'Helper',
-  mcmod: 'Minecraft Chat Moderator',
-};
-
-const STARBOARD_THRESHOLD = 3;
-
-// ─────────────────────────────────────────
-// SHOP CONFIGURATION
-// ─────────────────────────────────────────
-const SHOP_CATEGORIES = {
-  food: {
-    name: '🌿 Food & Resources',
-    emoji: '🌿',
-    items: [
-      { id: 'bread', name: '🍞 Bread', amount: 16, price: 75, description: '16 Bread' },
-      { id: 'apples', name: '🍎 Apples', amount: 16, price: 75, description: '16 Apples' },
-      { id: 'cooked_beef', name: '🥩 Cooked Beef', amount: 16, price: 125, description: '16 Cooked Beef' },
-      { id: 'wheat', name: '🌾 Wheat', amount: 32, price: 100, description: '32 Wheat' },
-      { id: 'logs', name: '🪵 Logs', amount: 32, price: 150, description: '32 Logs (Any Type)' },
-    ]
-  },
-  materials: {
-    name: '⛏️ Materials',
-    emoji: '⛏️',
-    items: [
-      { id: 'cobblestone', name: '🪨 Cobblestone', amount: 64, price: 50, description: '64 Cobblestone' },
-      { id: 'planks', name: '🪵 Wood Planks', amount: 64, price: 100, description: '64 Wood Planks' },
-      { id: 'coal', name: '⚫ Coal', amount: 32, price: 175, description: '32 Coal' },
-      { id: 'iron_ingots', name: '🔩 Iron Ingots', amount: 16, price: 350, description: '16 Iron Ingots' },
-      { id: 'gold_ingots', name: '✨ Gold Ingots', amount: 8, price: 300, description: '8 Gold Ingots' },
-      { id: 'diamonds', name: '💎 Diamonds', amount: 2, price: 500, description: '2 Diamonds' },
-    ]
-  },
-  tools: {
-    name: '🔧 Tools',
-    emoji: '🔧',
-    items: [
-      { id: 'iron_pickaxe', name: '⛏️ Iron Pickaxe', amount: 1, price: 350, description: 'Iron Pickaxe' },
-      { id: 'iron_axe', name: '🪓 Iron Axe', amount: 1, price: 300, description: 'Iron Axe' },
-      { id: 'iron_sword', name: '⚔️ Iron Sword', amount: 1, price: 350, description: 'Iron Sword' },
-      { id: 'bow', name: '🏹 Bow', amount: 1, price: 500, description: 'Bow' },
-      { id: 'arrows', name: '➡️ Arrows', amount: 32, price: 150, description: '32 Arrows' },
-    ]
-  },
-  armor: {
-    name: '🛡️ Armor',
-    emoji: '🛡️',
-    items: [
-      { id: 'iron_helmet', name: '🪖 Iron Helmet', amount: 1, price: 500, description: 'Iron Helmet' },
-      { id: 'iron_chestplate', name: '🛡️ Iron Chestplate', amount: 1, price: 900, description: 'Iron Chestplate' },
-      { id: 'iron_leggings', name: '👖 Iron Leggings', amount: 1, price: 750, description: 'Iron Leggings' },
-      { id: 'iron_boots', name: '👢 Iron Boots', amount: 1, price: 450, description: 'Iron Boots' },
-      { id: 'diamond_helmet', name: '💎 Diamond Helmet', amount: 1, price: 2500, description: 'Diamond Helmet' },
-      { id: 'diamond_chestplate', name: '💎 Diamond Chestplate', amount: 1, price: 4500, description: 'Diamond Chestplate' },
-      { id: 'diamond_leggings', name: '💎 Diamond Leggings', amount: 1, price: 4000, description: 'Diamond Leggings' },
-      { id: 'diamond_boots', name: '💎 Diamond Boots', amount: 1, price: 2000, description: 'Diamond Boots' },
-    ]
-  },
-  miscellaneous: {
-    name: '🎁 Miscellaneous',
-    emoji: '🎁',
-    items: [
-      { id: 'bed', name: '🛏️ Bed', amount: 1, price: 100, description: 'Bed' },
-      { id: 'shulker_box', name: '📦 Shulker Box', amount: 1, price: 2000, description: 'Shulker Box' },
-      { id: 'torches', name: '🕯️ Torches', amount: 16, price: 50, description: '16 Torches' },
-      { id: 'compass', name: '🧭 Compass', amount: 1, price: 300, description: 'Compass' },
-      { id: 'water_bucket', name: '🪣 Water Bucket', amount: 1, price: 150, description: 'Water Bucket' },
-    ]
-  }
-};
-
-// ─────────────────────────────────────────
-// COINS SYSTEM CONFIG
-// ─────────────────────────────────────────
-const COINS_PER_MESSAGE = 0.2;
-const COINS_PER_VC_MINUTE = 1;
-const COINS_PER_INVITE = 50;
-const COINS_COOLDOWN_MS = 10000;
-const XP_PER_MESSAGE = 15;
-const XP_COOLDOWN_MS = 60000;
-
-// ─────────────────────────────────────────
-// APPLICATION QUESTIONS
-// ─────────────────────────────────────────
-const QUESTIONS = {
-  chatmod: [
-    { key: 'discord', q: '**[1/6]** What is your Discord username?' },
-    { key: 'age', q: '**[2/6]** How old are you?' },
-    { key: 'timezone', q: '**[3/6]** What is your timezone? *(e.g. UTC+5:30, EST, GMT)*' },
-    { key: 'hours', q: '**[4/6]** How many hours per day can you be active?' },
-    { key: 'why', q: '**[5/6]** Why do you want to be a **Chat Moderator**? *(min 50 chars)*' },
-    { key: 'scenario', q: '**[6/6]** A player is spamming slurs in chat. What do you do?' },
-  ],
-  helper: [
-    { key: 'discord', q: '**[1/6]** What is your Discord username?' },
-    { key: 'age', q: '**[2/6]** How old are you?' },
-    { key: 'timezone', q: '**[3/6]** What is your timezone? *(e.g. UTC+5:30, EST, GMT)*' },
-    { key: 'hours', q: '**[4/6]** How many hours per day can you be active?' },
-    { key: 'why', q: '**[5/6]** Why do you want to be a **Helper**? *(min 50 chars)*' },
-    { key: 'experience', q: '**[6/6]** Do you have any previous experience helping on servers?' },
-  ],
-  mcmod: [
-    { key: 'discord', q: '**[1/7]** What is your Discord username?' },
-    { key: 'mcuser', q: '**[2/7]** What is your Minecraft username?' },
-    { key: 'age', q: '**[3/7]** How old are you?' },
-    { key: 'timezone', q: '**[4/7]** What is your timezone? *(e.g. UTC+5:30, EST, GMT)*' },
-    { key: 'hours', q: '**[5/7]** How many hours per day can you be active on the MC server?' },
-    { key: 'why', q: '**[6/7]** Why do you want to be a **Minecraft Chat Moderator**? *(min 50 chars)*' },
-    { key: 'scenario', q: '**[7/7]** A player is using a hack client and spamming chat. What do you do?' },
-  ],
-};
-
-// ─────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────
-function getTimeoutDuration(warnCount) {
-  if (warnCount < 3) return null;
-  if (warnCount >= 8) return 28 * 24 * 60;
-  return 30 + (warnCount - 3) * 15;
-}
-function hasModPermission(member) {
-  if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
-  return MOD_ROLE_IDS.some(id => member.roles.cache.has(id));
-}
-function isGuildOwner(interaction) {
-  return interaction.guild?.ownerId === interaction.user.id;
-}
-function isServerOwner(userId) {
-  return userId === SERVER_OWNER_ID;
-}
-function autoDelete(sentMessage, ms = 5000) {
-  if (!sentMessage) return;
-  setTimeout(() => sentMessage.delete().catch(() => { }), ms);
-}
-function starsDisplay(n) {
-  return '⭐'.repeat(n) + '☆'.repeat(5 - n);
-}
-function parseDuration(str) {
-  if (!str) return null;
-  const match = str.match(/^(\d+)(s|m|h|d|w)$/i);
-  if (!match) return null;
-  const value = parseInt(match[1]);
-  const unit = match[2].toLowerCase();
-  const map = { s: 1000, m: 60000, h: 3600000, d: 86400000, w: 604800000 };
-  return value * (map[unit] || 0);
-}
-function humanDuration(ms) {
-  const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  const d = Math.floor(h / 24);
-  return `${d}d`;
-}
-function fetchJSON(url) {
-  return new Promise((resolve, reject) => {
-    const lib = url.startsWith('https') ? https : http;
-    lib.get(url, { headers: { 'User-Agent': 'GoldenHeart-Bot/1.0' } }, res => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try { resolve(JSON.parse(data)); }
-        catch { reject(new Error('Invalid JSON')); }
-      });
-    }).on('error', reject);
+client.once('ready', async () => {
+  console.log(`✅ ${client.user.tag} is online`);
+  client.user.setPresence({
+    activities: [{ name: 'players in GoldenHeart SMP | discord.gg/We5SpWv64T', type: ActivityType.Watching }],
+    status: 'online',
   });
-}
-async function getMCServerStatus(host, port = 25565) {
-  try {
-    const data = await fetchJSON(`https://api.mcsrvstat.us/3/${host}:${port}`);
-    return data;
-  } catch {
-    return null;
-  }
-}
-
-// ─────────────────────────────────────────
-// RULEBOOK INITIALIZATION
-// ─────────────────────────────────────────
-const DEFAULT_RULEBOOKS = {
-  mc: {
-    title: '⚔️ GoldenHeart SMP — Minecraft Rules',
-    color: 0x57f287,
-    pages: [
-      {
-        title: '🌍 Page 1 — Spawn Rules',
-        content: '> By playing on GoldenHeart SMP, you agree to follow all rules. Attempting to bypass, exploit, or abuse loopholes is punishable.\n\n**1.1 No Spawn Killing**\nKilling, trapping, baiting, crystaling, lava trapping, TNT trapping, or otherwise harming players at or near spawn is prohibited. Staff-approved events are the only exception.\n\n**1.2 No Spawn Griefing**\nDo not destroy, alter, steal from, or place blocks at spawn. If spawn protection fails, it is still against the rules. Report issues to staff immediately.\n\n**1.3 No Spawn Camping**\nRepeatedly waiting at spawn to kill, follow, or target players is prohibited.\n\n**1.4 No Spawn Traps**\nAny trap designed to kill, damage, trap, or inconvenience players near spawn is prohibited.\n\n**1.5 No Claim Blocking**\nDo not intentionally build around spawn in a way that limits expansion, movement, or future server projects.',
-      },
-      {
-        title: '⚔️ Page 2 — PvP & Combat Rules',
-        content: '**2.1 No Combat Logging**\nLogging out during PvP is prohibited. Switching accounts, disconnecting, crashing your client, or using any method to avoid death counts as combat logging.\n🔴 **Punishment:** 1 Day Ban. Inventory may be removed or awarded to the opponent.\n\n**2.2 No /Back Abuse**\n/back may not be used to escape combat or instantly return to a fight after dying.\n\n**2.3 No Bed Trap Logging**\nLogging out while trapped or surrounded in combat is considered combat logging.\n\n**2.4 No Alt Combat Abuse**\nUsing alternate accounts to gain combat advantages is prohibited.\n\n**2.5 No Kill Farming**\nFarming kills, stats, bounties, or rewards using teammates, friends, or alts is prohibited.\n\n**2.6 No Exploit PvP**\nAny bug, glitch, or unintended mechanic used to gain a combat advantage is prohibited.\n\n**2.7 No Safezone Abuse**\nDo not repeatedly enter protected areas or spawn to avoid combat.',
-      },
-      {
-        title: '🏰 Page 3 — Raiding & Griefing',
-        content: '**3.1 Raiding Is Allowed** ✅\nBases may be raided unless otherwise stated by staff.\n\n**3.2 Griefing Is Allowed** ✅\nBase destruction is allowed as part of raiding.\n\n**3.3 No Server-Damaging Grief**\nExcessive lag-causing destruction, world corruption attempts, or actions intended to harm server performance are prohibited.\n\n**3.4 No Exploit Raiding**\nRaiding through glitches, bugs, duplication, chunk exploits, or unintended mechanics is prohibited.\n\n**3.5 No Offline Abuse Exploits**\nIntentionally abusing plugin bugs or protection failures against offline players is prohibited.',
-      },
-      {
-        title: '👥 Page 4 — Team Rules',
-        content: '**4.1 Maximum Team Size: 6 Players**\n\n**4.2 Hidden Teaming Allowed** ✅\nSecret alliances, temporary alliances, diplomacy, and betrayals are all allowed.\n\n**4.3 No Team Limit Bypass**\nSplitting into multiple teams while operating as one large group is prohibited.\n\n**4.4 No Mass Alliances**\nMultiple teams cannot permanently cooperate to bypass the team limit.\n\n**4.5 No Alt Teams**\nAlternate accounts count toward team size limits.\n\n**4.6 Staff May Investigate Teaming**\nShared bases, shared storage, coordinated attacks, voice communication, and resource sharing may all be used as evidence.',
-      },
-      {
-        title: '🚫 Page 5 — Cheating & Exploits',
-        content: '**5.1 No Cheats** — Including but not limited to:\n> X-Ray • ESP • Tracers • Kill Aura • Reach • Auto Crystal • Auto Totem • Fly Hacks • Speed Hacks • NoSlow • Anti-Knockback • Triggerbot • Aim Assist • Macros • Scripts • Autoclickers • Modified clients\n\n**5.2 No Exploits:**\n> Dupes • Chunk exploits • Plugin bugs • Server bugs • Client exploits • Glitches • Packet abuse • Any unintended mechanic\n\n**5.3 Report Bugs**\nBugs must be reported immediately. Abuse of bugs is punishable even if not listed.\n\n**5.4 No Lag Machines**\nAny machine designed to create lag, crashes, TPS drops, or server instability is prohibited.\n\n**5.5 No Crash Attempts**\nAttempts to crash players, staff, Discord bots, or the server are prohibited.\n\n**5.6 No Ban Evasion**\nJoining on alternate accounts after punishment is prohibited.',
-      },
-    ],
-  },
-  chat: {
-    title: '💬 GoldenHeart SMP — Chat Rules',
-    color: 0xf0b429,
-    pages: [
-      {
-        title: '💬 Page 1 — Spam, Swearing & Harassment',
-        content: '**6.1 No Spam**\n> No flooding chat • No excessive caps • No repeated messages • No meaningless spam\n\n**6.2 Swearing Policy**\nCasual swearing is allowed. Directed swearing is **NOT** allowed.\n\n✅ **Allowed:**\n> *"This boss fight is f***ing hard."*\n> *"That was bad luck."*\n\n❌ **Not Allowed:**\n> *"You\'re f***ing trash."*\n> *"Shut the f*** up."*\n\nDirected insults, harassment, and personal attacks are all prohibited.\n\n**6.3 No Harassment**\nRepeated targeting, bullying, stalking, or provoking players is prohibited.',
-      },
-      {
-        title: '🚨 Page 2 — Hate Speech, Threats & NSFW',
-        content: '**6.4 No Hate Speech** 🚨 SEVERE\n> Racism • Nationality insults • Religious insults • Cultural insults • Ethnic discrimination\n\n🔴 **Result:** Immediate 1-Day Timeout minimum. Severe cases may skip directly to bans.\n\n**6.5 No Threats**\nReal-life threats are prohibited. Doxxing threats are prohibited.\n\n**6.6 No NSFW Content**\n> Sexual content • Pornography • Explicit media • Inappropriate usernames or skins\n\n**6.7 No Advertising**\nAdvertising servers, communities, websites, or services without staff permission is prohibited.\n\n**6.8 No Impersonation**\nPretending to be staff, content creators, or other players is prohibited.',
-      },
-    ],
-  },
-  general: {
-    title: '📜 GoldenHeart SMP — General Rules',
-    color: 0xed4245,
-    pages: [
-      {
-        title: '⚠️ Page 1 — Warning System',
-        content: '> Warnings are applied progressively. Staff may skip levels depending on severity.\n\n```\nWarn 1 → Verbal Warning / Minor Punishment\nWarn 2 → 30 Minute Timeout\nWarn 3 → 6 Hour Timeout\nWarn 4 → 1 Day Timeout\nWarn 5 → 3 Day Timeout\nWarn 6 → 7 Day Timeout (Final Warning)\nWarn 7 → Permanent Ban\n```',
-      },
-      {
-        title: '👑 Page 2 — Staff Rules',
-        content: '**8.1 Respect Staff**\nYou may disagree respectfully. Harassment of staff is prohibited.\n\n**8.2 No False Reports**\nIntentionally false reports may result in punishment.\n\n**8.3 Staff Decisions Are Final**\nPublic arguments after a final decision may result in additional punishment.\n\n**8.4 Punishment Evasion**\nUsing alts, VPNs, or other methods to avoid punishments is prohibited.',
-      },
-      {
-        title: '⚖️ Page 3 — General Rules & Golden Rule',
-        content: '**9.1 Common Sense Rule**\nNot every possible offense can be listed. Staff may punish behavior that clearly harms the server or provides an unfair advantage.\n\n**9.2 No Loophole Abuse**\n"The rules didn\'t specifically say I couldn\'t" is not a valid defense. Attempting to bypass the intent of any rule is punishable.\n\n**9.3 No Real-Life Harm**\nDoxxing, leaking personal information, blackmail, or encouraging self-harm is strictly prohibited.\n\n**9.4 English Preferred**\nStaff must be able to moderate conversations when necessary.\n\n**9.5 Cooperation Required**\nRefusing staff investigations, evidence requests, or cheat checks may result in punishment.\n\n**9.6 The Golden Rule** ❤️\n> *Don\'t ruin the experience for other players.*\n\n*These rules are enforced based on both their wording and intended purpose. Play fair. Have fun. Win legitimately. — Golden Heart SMP Staff Team*',
-      },
-    ],
-  },
-};
-
-let RULEBOOKS = DEFAULT_RULEBOOKS;
-let rulebooksLoaded = false;
-
-async function initializeRulebooks() {
-  const stored = await loadRulebooks();
-  if (Object.keys(stored).length > 0) {
-    RULEBOOKS = stored;
-  } else {
-    await saveRulebooks(DEFAULT_RULEBOOKS);
-  }
-  rulebooksLoaded = true;
-}
-
-// ─────────────────────────────────────────
-// SHOP UI BUILDERS
-// ─────────────────────────────────────────
-function buildShopEmbed() {
-  const embed = new EmbedBuilder()
-    .setTitle('🪙 Golden Coins Shop')
-    .setColor(0xf0b429)
-    .setDescription([
-      'Welcome to the **Golden Coins Shop**! 🛒',
-      '',
-      'Use the dropdown below to browse different categories.',
-      '',
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-      '',
-      '💡 **How to earn coins:**',
-      '• 💬 **5 messages** = 1 coin',
-      '• 🎤 **1 minute in VC** = 1 coin',
-      '• 📨 **1 invite** = 50 coins',
-      '• 🎁 **Daily claim** = 50 coins',
-      '',
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-      '',
-      '🛒 **Cart System:** Add items to your cart and checkout together!',
-      '🎫 **Coupon Codes:** Use discount codes at checkout!',
-      '',
-      '⚠️ **Shop prices may change** based on the server economy.',
-      '💛 **Use your coins wisely** — every purchase matters!',
-    ].join('\n'))
-    .setFooter({ text: 'GoldenHeart SMP • Shop' })
-    .setTimestamp();
-
-  return embed;
-}
-
-function buildCategoryEmbed(categoryKey) {
-  const category = SHOP_CATEGORIES[categoryKey];
-  if (!category) return null;
-
-  const itemsList = category.items.map((item, index) =>
-    `\`${String(index + 1).padStart(2, ' ')}\` ${item.name} — **${item.price}** coins`
-  ).join('\n');
-
-  const embed = new EmbedBuilder()
-    .setTitle(`${category.emoji} ${category.name}`)
-    .setColor(0xf0b429)
-    .setDescription([
-      `Select an item from the dropdown below to purchase!`,
-      '',
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-      '',
-      itemsList,
-      '',
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-      '',
-      `💳 **Click the dropdown** to choose an item and add to cart.`,
-    ].join('\n'))
-    .setFooter({ text: 'GoldenHeart SMP • Shop' })
-    .setTimestamp();
-
-  return embed;
-}
-
-function buildCategorySelectMenu() {
-  const menu = new StringSelectMenuBuilder()
-    .setCustomId('shop_category')
-    .setPlaceholder('📂 Select a category to browse...')
-    .addOptions(
-      new StringSelectMenuOptionBuilder()
-        .setLabel('🌿 Food & Resources')
-        .setDescription('Food and resource items')
-        .setEmoji('🌿')
-        .setValue('food'),
-      new StringSelectMenuOptionBuilder()
-        .setLabel('⛏️ Materials')
-        .setDescription('Building materials and ores')
-        .setEmoji('⛏️')
-        .setValue('materials'),
-      new StringSelectMenuOptionBuilder()
-        .setLabel('🔧 Tools')
-        .setDescription('Weapons and tools')
-        .setEmoji('🔧')
-        .setValue('tools'),
-      new StringSelectMenuOptionBuilder()
-        .setLabel('🛡️ Armor')
-        .setDescription('Protective gear')
-        .setEmoji('🛡️')
-        .setValue('armor'),
-      new StringSelectMenuOptionBuilder()
-        .setLabel('🎁 Miscellaneous')
-        .setDescription('Other useful items')
-        .setEmoji('🎁')
-        .setValue('miscellaneous'),
-    );
-
-  return new ActionRowBuilder().addComponents(menu);
-}
-
-function buildItemSelectMenu(categoryKey) {
-  const category = SHOP_CATEGORIES[categoryKey];
-  if (!category) return null;
-
-  const menu = new StringSelectMenuBuilder()
-    .setCustomId(`shop_item_${categoryKey}`)
-    .setPlaceholder('🛒 Select an item to add to cart...');
-
-  category.items.forEach(item => {
-    menu.addOptions(
-      new StringSelectMenuOptionBuilder()
-        .setLabel(`${item.name} — ${item.price} coins`)
-        .setDescription(`${item.amount}x ${item.name.replace(/[^\w\s]/g, '').trim()}`)
-        .setValue(item.id)
-    );
-  });
-
-  return new ActionRowBuilder().addComponents(menu);
-}
-
-function buildBackButton() {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('shop_back')
-      .setLabel('◀ Back to Categories')
-      .setStyle(ButtonStyle.Secondary)
-  );
-}
-
-function buildCartButtons() {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('shop_cart_view')
-      .setLabel('🛒 View Cart')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId('shop_back')
-      .setLabel('◀ Back')
-      .setStyle(ButtonStyle.Secondary)
-  );
-}
-
-// ─────────────────────────────────────────
-// BOOK / PAGINATED EMBED SYSTEM
-// ─────────────────────────────────────────
-function buildBookEmbed(bookTitle, pages, pageIndex, color) {
-  const page = pages[pageIndex];
-  return new EmbedBuilder()
-    .setTitle(page.title)
-    .setDescription(page.content)
-    .setColor(color)
-    .setFooter({ text: `📖 ${bookTitle}  •  Page ${pageIndex + 1} of ${pages.length}` })
-    .setTimestamp();
-}
-
-function buildBookRow(pageIndex, totalPages, bookKey) {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`book_prev:${bookKey}:${pageIndex}`)
-      .setLabel('◀ Prev')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(pageIndex === 0),
-    new ButtonBuilder()
-      .setCustomId(`book_page:${bookKey}:${pageIndex}`)
-      .setLabel(`${pageIndex + 1} / ${totalPages}`)
-      .setStyle(ButtonStyle.Primary)
-      .setDisabled(true),
-    new ButtonBuilder()
-      .setCustomId(`book_next:${bookKey}:${pageIndex}`)
-      .setLabel('Next ▶')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(pageIndex === totalPages - 1),
-  );
-}
-
-// ─────────────────────────────────────────
-// WELCOME CARD IMAGE GENERATOR
-// ─────────────────────────────────────────
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-function circleClip(ctx, cx, cy, r) {
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.closePath();
-  ctx.clip();
-}
-
-async function generateWelcomeCard(member) {
-  const width = 1000;
-  const height = 400;
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext('2d');
-
-  const bgGradient = ctx.createLinearGradient(0, 0, width, height);
-  bgGradient.addColorStop(0, '#1a0a1a');
-  bgGradient.addColorStop(0.3, '#2d0a2d');
-  bgGradient.addColorStop(0.6, '#3d1a2d');
-  bgGradient.addColorStop(0.8, '#1a1a0a');
-  bgGradient.addColorStop(1, '#0a1a0a');
-  ctx.fillStyle = bgGradient;
-  ctx.fillRect(0, 0, width, height);
-
-  const grassColors = ['#6b8c42', '#5a7d32', '#7a9c52', '#4a6d22'];
-  for (let x = 0; x < width; x += 20) {
-    for (let y = height - 30; y < height; y += 20) {
-      const shade = grassColors[Math.floor(Math.random() * grassColors.length)];
-      ctx.fillStyle = shade;
-      ctx.fillRect(x + Math.random() * 10 - 5, y + Math.random() * 10 - 5, 20, 20);
-    }
-  }
-
-  for (let i = 0; i < 200; i++) {
-    const x = Math.random() * width;
-    const y = Math.random() * height;
-    const size = 2 + Math.random() * 4;
-    ctx.fillStyle = `rgba(60, 40, 30, ${0.05 + Math.random() * 0.1})`;
-    ctx.fillRect(x, y, size, size);
-  }
-
-  const heartX = 80, heartY = 80, heartSize = 60;
-  ctx.shadowColor = '#f0b429';
-  ctx.shadowBlur = 40;
-  ctx.fillStyle = '#f0b429';
-  ctx.font = '60px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('❤️', heartX, heartY);
-  ctx.shadowBlur = 0;
-
-  ctx.shadowColor = '#f0b429';
-  ctx.shadowBlur = 25;
-  ctx.fillStyle = '#ffd76e';
-  ctx.font = 'bold 52px "Minecraft", "Courier New", monospace';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('GOLDENHEART SMP', 150, 70);
-
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 28px "Minecraft", "Courier New", monospace';
-  ctx.fillText('⚔️ SURVIVAL MULTIPLAYER', 150, 120);
-
-  ctx.fillStyle = '#8a8a8a';
-  ctx.font = '40px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('⚔️', width / 2, 170);
-
-  const textX = 60;
-  const textY = 180;
-
-  let displayName = member.user.username;
-  if (displayName.length > 16) displayName = displayName.slice(0, 14) + '…';
-
-  ctx.shadowColor = '#f0b429';
-  ctx.shadowBlur = 15;
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 38px "Minecraft", "Courier New", monospace';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(displayName, textX, textY);
-
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = '#f0b429';
-  ctx.font = '20px "Minecraft", "Courier New", monospace';
-  ctx.fillText(`✦ Member #${member.guild.memberCount}`, textX, textY + 45);
-
-  const infoY = 250;
-  const infoBoxes = [
-    { icon: '⛏️', label: 'Minecraft', value: '1.20.4+' },
-    { icon: '🌐', label: 'IP', value: 'goldenheartsmp.minecraftnoob.com' },
-    { icon: '👥', label: 'Online', value: `${member.guild.memberCount} Players` },
-  ];
-
-  infoBoxes.forEach((box, i) => {
-    const x = textX + i * 280;
-    roundRect(ctx, x, infoY, 250, 60, 8);
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fill();
-    roundRect(ctx, x, infoY, 250, 60, 8);
-    ctx.strokeStyle = 'rgba(240, 180, 41, 0.3)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.fillStyle = '#f0b429';
-    ctx.font = '16px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`${box.icon} ${box.label}`, x + 10, infoY + 20);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '14px sans-serif';
-    ctx.fillText(box.value, x + 10, infoY + 45);
-  });
-
-  const avatarSize = 130;
-  const avatarX = width - 170;
-  const avatarY = height / 2 - 10;
-
-  try {
-    const avatarURL = member.user.displayAvatarURL({ extension: 'png', size: 256 });
-    const avatarImg = await loadImage(avatarURL);
-
-    ctx.save();
-    ctx.shadowColor = '#f0b429';
-    ctx.shadowBlur = 40;
-    ctx.beginPath();
-    ctx.arc(avatarX, avatarY, avatarSize / 2 + 8, 0, Math.PI * 2);
-    const ringGrad = ctx.createRadialGradient(
-      avatarX - 40, avatarY - 40, 10,
-      avatarX, avatarY, avatarSize / 2 + 12
-    );
-    ringGrad.addColorStop(0, '#ffd76e');
-    ringGrad.addColorStop(0.5, '#f0b429');
-    ringGrad.addColorStop(1, '#b8860b');
-    ctx.fillStyle = ringGrad;
-    ctx.fill();
-    ctx.restore();
-
-    ctx.save();
-    circleClip(ctx, avatarX, avatarY, avatarSize / 2);
-    ctx.drawImage(avatarImg, avatarX - avatarSize / 2, avatarY - avatarSize / 2, avatarSize, avatarSize);
-    ctx.restore();
-
-    ctx.beginPath();
-    ctx.arc(avatarX, avatarY, avatarSize / 2 + 3, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    ctx.fillStyle = '#f0b429';
-    ctx.font = 'bold 16px "Minecraft", "Courier New", monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('✦ WELCOME ✦', avatarX, avatarY + avatarSize / 2 + 30);
-  } catch {
-    ctx.beginPath();
-    ctx.arc(avatarX, avatarY, avatarSize / 2, 0, Math.PI * 2);
-    ctx.fillStyle = '#333';
-    ctx.fill();
-  }
-
-  ctx.fillStyle = 'rgba(255, 215, 0, 0.4)';
-  ctx.font = '12px "Minecraft", "Courier New", monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'bottom';
-  ctx.fillText('🏰 GoldenHeart SMP • discord.gg/We5SpWv64T • ⛏️ 1.20.4+', width / 2, height - 10);
-
-  const corners = [[20, 20], [width - 20, 20], [20, height - 20], [width - 20, height - 20]];
-  corners.forEach(([cx, cy]) => {
-    ctx.fillStyle = '#f0b429';
-    ctx.font = '16px sans-serif';
-    ctx.textAlign = cx < 50 ? 'left' : 'right';
-    ctx.textBaseline = cy < 50 ? 'top' : 'bottom';
-    ctx.fillText('◆', cx, cy);
-  });
-
-  return canvas.toBuffer('image/png');
-}
-
-// ─────────────────────────────────────────
-// LOG HELPER
-// ─────────────────────────────────────────
-async function sendLog(client, embed) {
-  try {
-    const ch = await client.channels.fetch(STAFF_LOG_CHANNEL);
-    await ch.send({ embeds: [embed] });
-  } catch (err) {
-    console.error('Log send error:', err);
-  }
-}
-
-// ─────────────────────────────────────────
-// GIVEAWAY HELPERS
-// ─────────────────────────────────────────
-async function endGiveaway(client, giveaway) {
-  try {
-    const channel = await client.channels.fetch(giveaway.channelId);
-    const message = await channel.messages.fetch(giveaway.messageId);
-    const reaction = message.reactions.cache.get('🎉');
-    if (!reaction) {
-      await channel.send(`🎉 Giveaway for **${giveaway.prize}** ended — no valid entries!`);
-      return;
-    }
-    const users = await reaction.users.fetch();
-    const eligible = users.filter(u => !u.bot).map(u => u);
-    if (eligible.length === 0) {
-      await channel.send(`🎉 Giveaway for **${giveaway.prize}** ended — no valid entries!`);
-      return;
-    }
-    const winnerCount = Math.min(giveaway.winners, eligible.length);
-    const shuffled = eligible.sort(() => Math.random() - 0.5).slice(0, winnerCount);
-    const winnerMentions = shuffled.map(u => `<@${u.id}>`).join(', ');
-    const endEmbed = EmbedBuilder.from(message.embeds[0])
-      .setColor(0x57f287)
-      .setTitle('🎉 GIVEAWAY ENDED')
-      .setDescription(`**Prize:** ${giveaway.prize}\n\n🏆 **Winner${winnerCount > 1 ? 's' : ''}:** ${winnerMentions}\n\nCongratulations!`)
-      .setFooter({ text: `Ended` })
-      .setTimestamp();
-    await message.edit({ embeds: [endEmbed], components: [] });
-    await channel.send(`🎉 Congratulations ${winnerMentions}! You won **${giveaway.prize}**!`);
-    await endGiveawayDb(giveaway.messageId, shuffled.map(u => u.id));
-  } catch (err) {
-    console.error('Giveaway end error:', err);
-  }
-}
-
-// ─────────────────────────────────────────
-// ANTI-RAID TRACKING
-// ─────────────────────────────────────────
-const recentJoins = [];
-const RAID_THRESHOLD = 5;
-const RAID_WINDOW_MS = 10000;
-let raidLockActive = false;
-
-// ─────────────────────────────────────────
-// BIRTHDAY CHECK
-// ─────────────────────────────────────────
-async function checkBirthdays(client) {
-  const now = new Date();
-  const todayDay = now.getUTCDate();
-  const todayMonth = now.getUTCMonth() + 1;
-  const allBirthdays = await Birthday.find({}).lean();
-  const guild = client.guilds.cache.get(GUILD_ID);
-  if (!guild) return;
   
-  for (const birthday of allBirthdays) {
-    if (birthday.day === todayDay && birthday.month === todayMonth) {
-      if (birthday.lastAnnounced === `${todayMonth}-${todayDay}-${now.getUTCFullYear()}`) continue;
-      try {
-        const member = await guild.members.fetch(birthday.userId).catch(() => null);
-        if (!member) continue;
-        if (BIRTHDAY_ROLE_ID) {
-          await member.roles.add(BIRTHDAY_ROLE_ID).catch(() => { });
-          setTimeout(async () => { await member.roles.remove(BIRTHDAY_ROLE_ID).catch(() => { }); }, 86400000);
-        }
-        const channel = await client.channels.fetch(BIRTHDAY_CHANNEL_ID).catch(() => null);
-        if (channel) {
-          await channel.send(`🎂 **Happy Birthday, <@${birthday.userId}>!** 🎉\n\nWishing you an amazing day from everyone at **GoldenHeart SMP**! 🥳🎈`);
-        }
-        await Birthday.findOneAndUpdate(
-          { userId: birthday.userId },
-          { lastAnnounced: `${todayMonth}-${todayDay}-${now.getUTCFullYear()}` }
-        );
-      } catch (err) {
-        console.error('Birthday announcement error:', err);
-      }
-    }
-  }
-}
-
-// ─────────────────────────────────────────
-// REMINDER CHECK
-// ─────────────────────────────────────────
-async function checkReminders(client) {
-  const dueReminders = await getDueReminders();
-  for (const reminder of dueReminders) {
-    try {
-      const user = await client.users.fetch(reminder.userId);
-      await user.send(`⏰ **Reminder!**\n\n${reminder.text}`);
-    } catch { }
-    await deleteReminder(reminder._id);
-  }
-}
-
-// ─────────────────────────────────────────
-// TEMP BAN CHECK
-// ─────────────────────────────────────────
-async function checkTempBans(client) {
-  await removeExpiredTempBans();
-  const activeBans = await getActiveTempBans();
-  const now = new Date();
+  // Initialize rulebooks
+  await initializeRulebooks();
   
-  for (const ban of activeBans) {
-    if (now >= ban.unbanAt) {
-      try {
-        const guild = client.guilds.cache.get(ban.guildId);
-        if (guild) {
-          await guild.members.unban(ban.userId, 'Temporary ban expired');
-          const logEmbed = new EmbedBuilder()
-            .setTitle('🔓 Temp Ban Expired — Auto Unbanned').setColor(0x57f287)
-            .addFields(
-              { name: 'User', value: `<@${ban.userId}> (${ban.userTag})`, inline: true },
-              { name: 'Original Duration', value: ban.duration, inline: true },
-            ).setTimestamp();
-          await sendLog(client, logEmbed);
-        }
-      } catch { }
-    }
+  // Load giveaways
+  const giveaways = await Giveaway.find({ ended: false });
+  const now = Date.now();
+  for (const g of giveaways) {
+    const remaining = g.endsAt.getTime() - now;
+    if (remaining <= 0) { await endGiveaway(client, g); }
+    else { setTimeout(() => endGiveaway(client, g), remaining); }
   }
-}
+  
+  // ── SETUP TRACKING ──
+  const { voiceTracker, inviteTracker } = setupTracking(client, GUILD_ID);
+  
+  // Store trackers globally for commands
+  client.voiceTracker = voiceTracker;
+  client.inviteTracker = inviteTracker;
+  
+  // Start intervals
+  setInterval(() => checkBirthdays(client), 3600000);
+  setInterval(() => checkReminders(client), 30000);
+  setInterval(() => checkTempBans(client), 60000);
+  checkBirthdays(client);
+});
 
 // ─────────────────────────────────────────
-// SPAM / FLOOD DETECTION
+// CLIENT ERROR EVENTS
+// ─────────────────────────────────────────
+client.on('error', err => console.error('❌ CLIENT ERROR:', err));
+client.on('shardError', err => console.error('❌ SHARD ERROR:', err));
+client.on('shardDisconnect', () => console.warn('⚠️ Shard disconnected'));
+
+// ─────────────────────────────────────────
+// SPAM CLEANUP INTERVAL
 // ─────────────────────────────────────────
 const messageHistory = new Map();
 const spamCooldown = new Map();
 
+setInterval(() => {
+  const now = Date.now();
+  for (const [userId, history] of messageHistory.entries()) {
+    const trimmed = history.filter(m => now - m.timestamp <= 15000);
+    if (trimmed.length === 0) messageHistory.delete(userId);
+    else messageHistory.set(userId, trimmed);
+  }
+  for (const [userId, ts] of spamCooldown.entries()) {
+    if (now - ts > 15000) spamCooldown.delete(userId);
+  }
+}, 30000);
+
+// ─────────────────────────────────────────
+// SPAM DETECTION
+// ─────────────────────────────────────────
 function checkSpam(message) {
   const userId = message.author.id;
   const now = Date.now();
@@ -1749,64 +1748,14 @@ const coinsCooldown = new Map();
 const voiceTracking = new Map();
 
 const STAR_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
+const recentJoins = [];
+const RAID_THRESHOLD = 5;
+const RAID_WINDOW_MS = 10000;
+let raidLockActive = false;
 
 // ─────────────────────────────────────────
-// GLOBAL ERROR HANDLERS
+// ANTI-RAID & MEMBER JOIN
 // ─────────────────────────────────────────
-process.on('unhandledRejection', err => console.error('❌ UNHANDLED REJECTION:', err));
-process.on('uncaughtException', err => console.error('❌ UNCAUGHT EXCEPTION:', err));
-
-// ─────────────────────────────────────────
-// CLIENT
-// ─────────────────────────────────────────
-
-// ─────────────────────────────────────────
-// CLIENT READY EVENT
-// ─────────────────────────────────────────
-client.once('ready', async () => {
-  console.log(`✅ ${client.user.tag} is online`);
-  client.user.setPresence({
-    activities: [{ name: 'players in GoldenHeart SMP | discord.gg/We5SpWv64T', type: ActivityType.Watching }],
-    status: 'online',
-  });
-  
-  await initializeRulebooks();
-  
-  const giveaways = await Giveaway.find({ ended: false });
-  const now = Date.now();
-  for (const g of giveaways) {
-    const remaining = g.endsAt.getTime() - now;
-    if (remaining <= 0) { await endGiveaway(client, g); }
-    else { setTimeout(() => endGiveaway(client, g), remaining); }
-  }
-  
-  setInterval(() => checkBirthdays(client), 3600000);
-  setInterval(() => checkReminders(client), 30000);
-  setInterval(() => checkTempBans(client), 60000);
-  checkBirthdays(client);
-});
-
-client.on('error', err => console.error('❌ CLIENT ERROR:', err));
-client.on('shardError', err => console.error('❌ SHARD ERROR:', err));
-client.on('shardDisconnect', () => console.warn('⚠️ Shard disconnected'));
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [userId, history] of messageHistory.entries()) {
-    const trimmed = history.filter(m => now - m.timestamp <= 15000);
-    if (trimmed.length === 0) messageHistory.delete(userId);
-    else messageHistory.set(userId, trimmed);
-  }
-  for (const [userId, ts] of spamCooldown.entries()) {
-    if (now - ts > 15000) spamCooldown.delete(userId);
-  }
-}, 30000);
-
-// ═══════════════════════════════════════════════════════════════
-// SERVER EVENT LOGGING - FULL
-// ═══════════════════════════════════════════════════════════════
-
-// ── MEMBER JOIN ──
 client.on('guildMemberAdd', async member => {
   if (member.guild.id !== GUILD_ID) return;
   
@@ -1931,12 +1880,9 @@ client.on('guildMemberAdd', async member => {
   } catch (err) { console.error('Could not send welcome card:', err); }
 });
 
-function getOrdinal(n) {
-  const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
-  return s[(v - 20) % 10] || s[v] || s[0];
-}
-
-// ── MEMBER LEAVE ──
+// ─────────────────────────────────────────
+// MEMBER LEAVE
+// ─────────────────────────────────────────
 client.on('guildMemberRemove', async member => {
   if (member.guild.id !== GUILD_ID) return;
   const embed = new EmbedBuilder()
@@ -1950,7 +1896,9 @@ client.on('guildMemberRemove', async member => {
   await sendLog(client, embed);
 });
 
-// ── MESSAGE DELETE ──
+// ─────────────────────────────────────────
+// MESSAGE DELETE
+// ─────────────────────────────────────────
 client.on('messageDelete', async message => {
   if (!message.guild || message.guild.id !== GUILD_ID) return;
   if (message.author?.bot) return;
@@ -1965,7 +1913,9 @@ client.on('messageDelete', async message => {
   await sendLog(client, embed);
 });
 
-// ── MESSAGE UPDATE ──
+// ─────────────────────────────────────────
+// MESSAGE UPDATE
+// ─────────────────────────────────────────
 client.on('messageUpdate', async (oldMsg, newMsg) => {
   if (!oldMsg.guild || oldMsg.guild.id !== GUILD_ID) return;
   if (oldMsg.author?.bot) return;
@@ -1982,7 +1932,9 @@ client.on('messageUpdate', async (oldMsg, newMsg) => {
   await sendLog(client, embed);
 });
 
-// ── AUDIT LOG ──
+// ─────────────────────────────────────────
+// AUDIT LOG
+// ─────────────────────────────────────────
 client.on('guildAuditLogEntryCreate', async (entry, guild) => {
   if (guild.id !== GUILD_ID) return;
   if (entry.action === AuditLogEvent.MemberBanAdd) {
@@ -2066,7 +2018,7 @@ client.on('guildAuditLogEntryCreate', async (entry, guild) => {
 });
 
 // ─────────────────────────────────────────
-// VOICE STATE TRACKING FOR COINS
+// VOICE STATE TRACKING
 // ─────────────────────────────────────────
 client.on('voiceStateUpdate', async (oldState, newState) => {
   if (oldState.guild.id !== GUILD_ID) return;
@@ -2133,9 +2085,106 @@ client.on('inviteCreate', async (invite) => {
   await trackInvite(invite.code, invite.inviter.id, invite.maxUses);
 });
 
-// ═══════════════════════════════════════════════════════════════
-// STARBOARD & REACTION HANDLING
-// ═══════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────
+// TICKET TYPES
+// ─────────────────────────────────────────
+const TICKET_TYPES = {
+  support: {
+    label: 'General Support',
+    emoji: '🎟️',
+    color: 0xf0b429,
+    prefix: 'support',
+    intro: 'Describe your issue in detail and a staff member will assist you shortly.',
+  },
+  shop: {
+    label: 'Shop & Purchases',
+    emoji: '🛍️',
+    color: 0x57f287,
+    prefix: 'shop',
+    intro: 'Need help with shop purchases, rewards, or item claims? Share your details here.',
+  },
+};
+
+async function openTicket(interaction, ticketTypeKey = 'support') {
+  const type = TICKET_TYPES[ticketTypeKey] || TICKET_TYPES.support;
+  const userId = interaction.user.id;
+  
+  const existingTicket = await Ticket.findOne({ userId, closed: false });
+  if (existingTicket) {
+    return interaction.reply({ content: `❌ You already have an open ticket: <#${existingTicket.channelId}>`, ephemeral: true });
+  }
+  
+  try {
+    const ticketCount = await Ticket.countDocuments();
+    const ticketNumber = ticketCount + 1;
+    const ticketName = `${type.prefix}-${ticketNumber.toString().padStart(4, '0')}`;
+    
+    const channel = await interaction.guild.channels.create({
+      name: ticketName,
+      type: ChannelType.GuildText,
+      parent: TICKET_CATEGORY_ID,
+      permissionOverwrites: [
+        { id: interaction.guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
+        { id: userId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+        ...MOD_ROLE_IDS.map(id => ({ id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] })),
+      ],
+    });
+    
+    await createTicket(channel.id, userId, ticketNumber, ticketTypeKey);
+
+    const closeRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`ticket_close:${channel.id}`)
+        .setLabel('🔒 Close Ticket')
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`ticket_claim:${channel.id}`)
+        .setLabel('🙋 Claim Ticket')
+        .setStyle(ButtonStyle.Primary),
+    );
+
+    const ticketEmbed = new EmbedBuilder()
+      .setTitle(`${type.emoji}  ${type.label} — Ticket #${ticketNumber.toString().padStart(4, '0')}`)
+      .setColor(type.color)
+      .setDescription([
+        `> Welcome <@${userId}>! 👋`,
+        `> `,
+        `> ${type.intro}`,
+        `> `,
+        `> Staff will be with you **as soon as possible**.`,
+        `> Please be patient and **don't ping staff** repeatedly.`,
+      ].join('\n'))
+      .setThumbnail(interaction.guild.iconURL({ dynamic: true, size: 256 }) || interaction.user.displayAvatarURL({ dynamic: true }))
+      .addFields(
+        { name: '🎫 Ticket ID', value: `\`#${ticketNumber.toString().padStart(4, '0')}\``, inline: true },
+        { name: '📂 Category', value: `${type.emoji} ${type.label}`, inline: true },
+        { name: '👤 Opened By', value: `<@${userId}>`, inline: true },
+        { name: '📅 Opened At', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false },
+        { name: '📋 Instructions', value: [
+          '**1.** Describe your issue clearly',
+          '**2.** Attach any screenshots or evidence',
+          '**3.** Wait for a staff member to respond',
+          '**4.** Use the Close button when resolved',
+        ].join('\n'), inline: false },
+      )
+      .setFooter({ text: 'GoldenHeart SMP • Support Desk  •  Only you and staff can see this' })
+      .setTimestamp();
+
+    await channel.send({
+      content: `<@${userId}> <@&${MOD_ROLE_IDS[0]}>`,
+      embeds: [ticketEmbed],
+      components: [closeRow],
+    });
+    return interaction.reply({ content: `✅ Your ticket has been opened: <#${channel.id}>`, ephemeral: true });
+  } catch (err) {
+    console.error('Ticket open error:', err);
+    return interaction.reply({ content: '❌ Failed to create ticket channel.', ephemeral: true });
+  }
+}
+
+// ─────────────────────────────────────────
+// MESSAGE REACTION ADD (Starboard, Polls, Feedback)
+// ─────────────────────────────────────────
 client.on('messageReactionAdd', async (reaction, user) => {
   if (user.bot) return;
   if (reaction.partial) { try { await reaction.fetch(); } catch { return; } }
@@ -2235,9 +2284,9 @@ client.on('messageReactionAdd', async (reaction, user) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════════════
-// MESSAGE HANDLER
-// ═══════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────
+// MESSAGE CREATE HANDLER
+// ─────────────────────────────────────────
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
@@ -2495,110 +2544,10 @@ client.on('messageCreate', async message => {
 });
 
 // ─────────────────────────────────────────
-// TICKET SYSTEM
+// INTERACTION CREATE HANDLER
 // ─────────────────────────────────────────
-const TICKET_TYPES = {
-  support: {
-    label: 'General Support',
-    emoji: '🎟️',
-    color: 0xf0b429,
-    prefix: 'support',
-    intro: 'Describe your issue in detail and a staff member will assist you shortly.',
-  },
-  shop: {
-    label: 'Shop & Purchases',
-    emoji: '🛍️',
-    color: 0x57f287,
-    prefix: 'shop',
-    intro: 'Need help with shop purchases, rewards, or item claims? Share your details here.',
-  },
-};
-
-async function openTicket(interaction, ticketTypeKey = 'support') {
-  const type = TICKET_TYPES[ticketTypeKey] || TICKET_TYPES.support;
-  const userId = interaction.user.id;
-  
-  const existingTicket = await Ticket.findOne({ userId, closed: false });
-  if (existingTicket) {
-    return interaction.reply({ content: `❌ You already have an open ticket: <#${existingTicket.channelId}>`, ephemeral: true });
-  }
-  
-  try {
-    const ticketCount = await Ticket.countDocuments();
-    const ticketNumber = ticketCount + 1;
-    const ticketName = `${type.prefix}-${ticketNumber.toString().padStart(4, '0')}`;
-    
-    const channel = await interaction.guild.channels.create({
-      name: ticketName,
-      type: ChannelType.GuildText,
-      parent: TICKET_CATEGORY_ID,
-      permissionOverwrites: [
-        { id: interaction.guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
-        { id: userId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
-        ...MOD_ROLE_IDS.map(id => ({ id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] })),
-      ],
-    });
-    
-    await createTicket(channel.id, userId, ticketNumber, ticketTypeKey);
-
-    const closeRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`ticket_close:${channel.id}`)
-        .setLabel('🔒 Close Ticket')
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId(`ticket_claim:${channel.id}`)
-        .setLabel('🙋 Claim Ticket')
-        .setStyle(ButtonStyle.Primary),
-    );
-
-    const ticketEmbed = new EmbedBuilder()
-      .setTitle(`${type.emoji}  ${type.label} — Ticket #${ticketNumber.toString().padStart(4, '0')}`)
-      .setColor(type.color)
-      .setDescription([
-        `> Welcome <@${userId}>! 👋`,
-        `> `,
-        `> ${type.intro}`,
-        `> `,
-        `> Staff will be with you **as soon as possible**.`,
-        `> Please be patient and **don't ping staff** repeatedly.`,
-      ].join('\n'))
-      .setThumbnail(interaction.guild.iconURL({ dynamic: true, size: 256 }) || interaction.user.displayAvatarURL({ dynamic: true }))
-      .addFields(
-        { name: '🎫 Ticket ID', value: `\`#${ticketNumber.toString().padStart(4, '0')}\``, inline: true },
-        { name: '📂 Category', value: `${type.emoji} ${type.label}`, inline: true },
-        { name: '👤 Opened By', value: `<@${userId}>`, inline: true },
-        { name: '📅 Opened At', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false },
-        { name: '📋 Instructions', value: [
-          '**1.** Describe your issue clearly',
-          '**2.** Attach any screenshots or evidence',
-          '**3.** Wait for a staff member to respond',
-          '**4.** Use the Close button when resolved',
-        ].join('\n'), inline: false },
-      )
-      .setFooter({ text: 'GoldenHeart SMP • Support Desk  •  Only you and staff can see this' })
-      .setTimestamp();
-
-    await channel.send({
-      content: `<@${userId}> <@&${MOD_ROLE_IDS[0]}>`,
-      embeds: [ticketEmbed],
-      components: [closeRow],
-    });
-    return interaction.reply({ content: `✅ Your ticket has been opened: <#${channel.id}>`, ephemeral: true });
-  } catch (err) {
-    console.error('Ticket open error:', err);
-    return interaction.reply({ content: '❌ Failed to create ticket channel.', ephemeral: true });
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// INTERACTION HANDLER
-// ═══════════════════════════════════════════════════════════════
 client.on('interactionCreate', async interaction => {
-
-  // ════════════════════════════════════════
-  // MODALS
-  // ════════════════════════════════════════
+  // ── MODALS ──
   if (interaction.isModalSubmit()) {
     // Edit price modal
     if (interaction.customId.startsWith('edit_price_modal:')) {
@@ -2801,9 +2750,7 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
-  // ════════════════════════════════════════
-  // SLASH COMMANDS
-  // ════════════════════════════════════════
+  // ── SLASH COMMANDS ──
   if (interaction.isChatInputCommand()) {
     const commandName = interaction.commandName;
 
@@ -3252,35 +3199,7 @@ client.on('interactionCreate', async interaction => {
         .setFooter({ text: 'Keep chatting to earn more XP and coins!' }).setTimestamp();
       return interaction.reply({ embeds: [embed] });
     }
-// In your interactionCreate handler, add these command checks:
 
-if (interaction.isChatInputCommand()) {
-  const commandName = interaction.commandName;
-  
-  // ── VOICE STATS ──
-  if (commandName === 'voicestats') {
-    const stats = await client.voiceTracker.getUserStats(interaction.user.id);
-    // ... handle stats display
-  }
-  
-  // ── INVITE STATS ──
-  if (commandName === 'invitestats') {
-    const stats = await client.inviteTracker.getInviterStats(interaction.user.id);
-    // ... handle stats display
-  }
-  
-  // ── VOICE LEADERBOARD ──
-  if (commandName === 'voiceleaderboard') {
-    const leaderboard = await client.voiceTracker.getLeaderboard(10);
-    // ... handle leaderboard display
-  }
-  
-  // ── INVITE LEADERBOARD ──
-  if (commandName === 'inviteleaderboard') {
-    const leaderboard = await client.inviteTracker.getLeaderboard(10);
-    // ... handle leaderboard display
-  }
-}
     // ── LEADERBOARD COMMAND ──
     if (commandName === 'leaderboard') {
       const topUsers = await User.find({ xp: { $gt: 0 } })
@@ -4554,9 +4473,7 @@ if (interaction.isChatInputCommand()) {
     }
   }
 
-  // ════════════════════════════════════════
-  // SELECT MENU
-  // ════════════════════════════════════════
+  // ── SELECT MENU ──
   if (interaction.isStringSelectMenu()) {
     if (interaction.customId === 'ticket_select') {
       return openTicket(interaction, interaction.values[0]);
@@ -4630,9 +4547,7 @@ if (interaction.isChatInputCommand()) {
     }
   }
 
-  // ════════════════════════════════════════
-  // BUTTONS
-  // ════════════════════════════════════════
+  // ── BUTTONS ──
   if (interaction.isButton()) {
     // ── SHOP CART VIEW ──
     if (interaction.customId === 'shop_cart_view') {
@@ -5190,9 +5105,9 @@ if (interaction.isChatInputCommand()) {
   }
 });
 
-// ═══════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────
 // SLASH COMMAND REGISTRATION
-// ═══════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────
 const staffChoices = Object.entries(STAFF_MEMBERS).map(([key, info]) => ({ name: `${info.label} (${info.type})`, value: key }));
 const categoryChoices = Object.keys(SHOP_CATEGORIES).map(key => {
   const category = SHOP_CATEGORIES[key];
@@ -5209,24 +5124,13 @@ const commandsList = [
   new SlashCommandBuilder().setName('applypanel').setDescription('Send the staff application dropdown panel'),
   new SlashCommandBuilder().setName('verifypanel').setDescription('Send verification panel'),
   new SlashCommandBuilder().setName('announce').setDescription('Send announcement').addStringOption(o => o.setName('title').setDescription('Optional title').setRequired(false)),
-   // ... your existing commands ...
   
   // Tracking commands
-  new SlashCommandBuilder()
-    .setName('voicestats')
-    .setDescription('View your voice chat stats'),
+  new SlashCommandBuilder().setName('voicestats').setDescription('View your voice chat stats'),
+  new SlashCommandBuilder().setName('invitestats').setDescription('View your invite stats'),
+  new SlashCommandBuilder().setName('voiceleaderboard').setDescription('View the voice chat leaderboard'),
+  new SlashCommandBuilder().setName('inviteleaderboard').setDescription('View the invite leaderboard'),
   
-  new SlashCommandBuilder()
-    .setName('invitestats')
-    .setDescription('View your invite stats'),
-  
-  new SlashCommandBuilder()
-    .setName('voiceleaderboard')
-    .setDescription('View the voice chat leaderboard'),
-  
-  new SlashCommandBuilder()
-    .setName('inviteleaderboard')
-    .setDescription('View the invite leaderboard'),
   // Shop commands
   new SlashCommandBuilder().setName('shop').setDescription('🪙 Open the Golden Coins Shop'),
   new SlashCommandBuilder().setName('cart').setDescription('View your shopping cart'),
@@ -5405,9 +5309,6 @@ const commandsList = [
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
-// Login
-client.login(TOKEN).catch(err => console.error('❌ FAILED TO LOG IN TO DISCORD:', err));
-
 // Register commands
 (async () => {
   try {
@@ -5421,3 +5322,8 @@ client.login(TOKEN).catch(err => console.error('❌ FAILED TO LOG IN TO DISCORD:
     console.error('❌ FAILED TO REGISTER SLASH COMMANDS:', err);
   }
 })();
+
+// ─────────────────────────────────────────
+// LOGIN - MUST BE LAST!
+// ─────────────────────────────────────────
+client.login(TOKEN).catch(err => console.error('❌ FAILED TO LOG IN TO DISCORD:', err));
