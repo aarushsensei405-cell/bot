@@ -3157,7 +3157,35 @@ client.on('interactionCreate', async interaction => {
         .setFooter({ text: 'Keep chatting to earn more XP and coins!' }).setTimestamp();
       return interaction.reply({ embeds: [embed] });
     }
+// In your interactionCreate handler, add these command checks:
 
+if (interaction.isChatInputCommand()) {
+  const commandName = interaction.commandName;
+  
+  // ── VOICE STATS ──
+  if (commandName === 'voicestats') {
+    const stats = await client.voiceTracker.getUserStats(interaction.user.id);
+    // ... handle stats display
+  }
+  
+  // ── INVITE STATS ──
+  if (commandName === 'invitestats') {
+    const stats = await client.inviteTracker.getInviterStats(interaction.user.id);
+    // ... handle stats display
+  }
+  
+  // ── VOICE LEADERBOARD ──
+  if (commandName === 'voiceleaderboard') {
+    const leaderboard = await client.voiceTracker.getLeaderboard(10);
+    // ... handle leaderboard display
+  }
+  
+  // ── INVITE LEADERBOARD ──
+  if (commandName === 'inviteleaderboard') {
+    const leaderboard = await client.inviteTracker.getLeaderboard(10);
+    // ... handle leaderboard display
+  }
+}
     // ── LEADERBOARD COMMAND ──
     if (commandName === 'leaderboard') {
       const topUsers = await User.find({ xp: { $gt: 0 } })
