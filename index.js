@@ -5086,7 +5086,24 @@ const commandsList = [
   new SlashCommandBuilder().setName('applypanel').setDescription('Send the staff application dropdown panel'),
   new SlashCommandBuilder().setName('verifypanel').setDescription('Send verification panel'),
   new SlashCommandBuilder().setName('announce').setDescription('Send announcement').addStringOption(o => o.setName('title').setDescription('Optional title').setRequired(false)),
+   // ... your existing commands ...
   
+  // Tracking commands
+  new SlashCommandBuilder()
+    .setName('voicestats')
+    .setDescription('View your voice chat stats'),
+  
+  new SlashCommandBuilder()
+    .setName('invitestats')
+    .setDescription('View your invite stats'),
+  
+  new SlashCommandBuilder()
+    .setName('voiceleaderboard')
+    .setDescription('View the voice chat leaderboard'),
+  
+  new SlashCommandBuilder()
+    .setName('inviteleaderboard')
+    .setDescription('View the invite leaderboard'),
   // Shop commands
   new SlashCommandBuilder().setName('shop').setDescription('🪙 Open the Golden Coins Shop'),
   new SlashCommandBuilder().setName('cart').setDescription('View your shopping cart'),
