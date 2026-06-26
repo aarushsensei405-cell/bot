@@ -224,6 +224,20 @@ const RulebookSchema = new mongoose.Schema({
   }],
 });
 
+client.once('ready', async () => {
+  console.log(`✅ ${client.user.tag} is online`);
+  
+  // ... your existing code ...
+  
+  // ── SETUP TRACKING ──
+  const { voiceTracker, inviteTracker } = setupTracking(client, 1432272831722553398);
+  
+  // Store trackers globally for commands
+  client.voiceTracker = voiceTracker;
+  client.inviteTracker = inviteTracker;
+  
+  // ... rest of your ready code ...
+});
 // ─────────────────────────────────────────
 // MONGODB MODELS
 // ─────────────────────────────────────────
