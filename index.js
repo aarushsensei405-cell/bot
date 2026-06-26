@@ -225,20 +225,39 @@ const RulebookSchema = new mongoose.Schema({
   }],
 });
 
+// ─────────────────────────────────────────
+// CLIENT READY EVENT
+// ─────────────────────────────────────────
 client.once('ready', async () => {
   console.log(`✅ ${client.user.tag} is online`);
   
-  // ... your existing code ...
+  // Initialize rulebooks
+  await initializeRulebooks();
   
-  // ── SETUP TRACKING ──
-  const { voiceTracker, inviteTracker } = setupTracking(client, 1432272831722553398);
+  // Load giveaways
+  const giveaways = await Giveaway.find({ ended: false });
+  const now = Date.now();
+  for (const g of giveaways) {
+    const remaining = g.endsAt.getTime() - now;
+    if (remaining <= 0) { await endGiveaway(client, g); }
+    else { setTimeout(() => endGiveaway(client, g), remaining); }
+  }
+  
+  // ── SETUP TRACKING ── ✅ MOVED HERE
+  const { voiceTracker, inviteTracker } = setupTracking(client, GUILD_ID);
   
   // Store trackers globally for commands
   client.voiceTracker = voiceTracker;
   client.inviteTracker = inviteTracker;
   
-  // ... rest of your ready code ...
+  // Start intervals
+  setInterval(() => checkBirthdays(client), 3600000);
+  setInterval(() => checkReminders(client), 30000);
+  setInterval(() => checkTempBans(client), 60000);
+  checkBirthdays(client);
 });
+
+  
 // ─────────────────────────────────────────
 // MONGODB MODELS
 // ─────────────────────────────────────────
