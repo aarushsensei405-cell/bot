@@ -1,0 +1,48 @@
+services:
+  - type: web
+    name: goldenheart-bot
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: TOKEN
+        sync: false
+      - key: CLIENT_ID
+        sync: false
+      - key: GUILD_ID
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: STAFF_LOG_CHANNEL
+        sync: false
+      - key: SUGGESTIONS_CHANNEL
+        sync: false
+      - key: WELCOME_CHANNEL
+        sync: false
+      - key: STARBOARD_CHANNEL
+        sync: false
+      - key: BIRTHDAY_CHANNEL
+        sync: false
+      - key: TICKET_CATEGORY
+        sync: false
+      - key: LEVEL_UP_CHANNEL
+        sync: false
+      - key: VERIFY_CHANNEL
+        sync: false
+      - key: VERIFY_ROLE
+        sync: false
+      - key: BIRTHDAY_ROLE
+        sync: false
+      - key: MOD_ROLES
+        sync: false
+      - key: CHATMOD_ROLE
+        sync: false
+      - key: HELPER_ROLE
+        sync: false
+      - key: MCMOD_ROLE
+        sync: false
+      - key: SHOP_COMPLETED_USER
+        sync: false
+      - key: SERVER_OWNER
+        sync: false
