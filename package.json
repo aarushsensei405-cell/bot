@@ -1,13 +1,15 @@
 {
-  "name": "discord-bot",
-  "version": "1.0.0",
+  "name": "goldenheart-bot",
+  "version": "2.0.0",
+  "description": "GoldenHeart SMP Discord Bot with MongoDB",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "discord.js": "14.21.0",
-    "express": "^5.1.0",
+    "discord.js": "^14.13.0",
+    "express": "^4.18.2",
+    "mongoose": "^7.0.0",
     "canvas": "^2.11.2"
   }
 }
