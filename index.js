@@ -2,7 +2,10 @@
 // GOLDENHEART SMP DISCORD BOT - COMPLETE
 // WITH MONGODB PERSISTENT STORAGE
 // ─────────────────────────────────────────
-// Add after your other requires
+
+// ─────────────────────────────────────────
+// ALL IMPORTS FIRST - MUST COME FIRST!
+// ─────────────────────────────────────────
 const express = require('express');
 const {
   Client,
@@ -34,6 +37,25 @@ const http = require('http');
 const mongoose = require('mongoose');
 const { setupTracking, getTrackingCommands } = require('./trackingIndex');
 require('dotenv').config();
+
+// ─────────────────────────────────────────
+// CREATE CLIENT - AFTER ALL IMPORTS!
+// ─────────────────────────────────────────
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildModeration,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.DirectMessageReactions,
+    GatewayIntentBits.GuildPresences,
+  ],
+  partials: [Partials.Channel, Partials.Message, Partials.Reaction],
+});
 
 // ─────────────────────────────────────────
 // EXPRESS (keep-alive for Render)
@@ -89,6 +111,10 @@ const PurchaseSchema = new mongoose.Schema({
   originalPrice: Number,
   purchasedAt: { type: Date, default: Date.now },
 });
+
+// ─────────────────────────────────────────
+// REST OF YOUR CODE CONTINUES HERE...
+// ─────────────────────────────────────────
 
 const CouponSchema = new mongoose.Schema({
   code: { type: String, required: true, unique: true },
