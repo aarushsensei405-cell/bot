@@ -1,7 +1,7 @@
 const {
-  Mongoose,
   Schema,
-  model
+  model,
+  models
 } = require('mongoose');
 const {
   SlashCommandBuilder,
@@ -15,15 +15,16 @@ const {
 } = require('discord.js');
 const { createCanvas, loadImage } = require('canvas');
 
-// 1. Database Schema
+// 1. Database Schema with Cache Protection
 const WelcomeConfigSchema = new Schema({
   guildId: { type: String, required: true, unique: true },
   channelId: { type: String, default: '' },
   title: { type: String, default: '🏰 Welcome to GoldenHeart SMP' },
   description: { type: String, default: 'Hey {member}, we\'re glad you\'re here! 💛\n\nGoldenHeart SMP is a community-driven Minecraft survival server built on friendship, strategy, and epic adventures.' },
   color: { type: String, default: '#f0b429' },
+  gifUrl: { type: String, default: 'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3N2N2pqOHFwYm9pZ3p4ZHpjdHpxZms0Ym9pN2pxZms0Ym9pN2pxZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/L3X9Gv1jdK4Ew/giphy.gif' } // Default placeholder animated banner
 });
-const WelcomeConfig = model('WelcomeConfig', WelcomeConfigSchema);
+const WelcomeConfig = models.WelcomeConfig || model('WelcomeConfig', WelcomeConfigSchema);
 
 // 2. Helpers
 function getOrdinal(n) {
@@ -41,47 +42,53 @@ function parseWelcomePlaceholders(text, member) {
     .replace(/{ordinal_count}/g, `${member.guild.memberCount}${getOrdinal(member.guild.memberCount)}`);
 }
 
+// Generates Welcome Card with Player Profile on the RIGHT side
 async function generateWelcomeCard(member) {
   const canvas = createCanvas(700, 250);
   const ctx = canvas.getContext('2d');
+  
+  // Background canvas structure
   ctx.fillStyle = '#1e1e24';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // Left-aligned Text Content (Moved away from the right side)
   ctx.fillStyle = '#f0b429';
   ctx.font = 'bold 28px sans-serif';
-  ctx.fillText('WELCOME TO GOLDENHEART', 220, 90);
+  ctx.fillText('WELCOME TO GOLDENHEART', 40, 90);
 
   ctx.fillStyle = '#ffffff';
   ctx.font = '22px sans-serif';
-  ctx.fillText(member.user.username.toUpperCase(), 220, 130);
+  ctx.fillText(member.user.username.toUpperCase(), 40, 130);
 
   ctx.fillStyle = '#aaaaaa';
   ctx.font = '16px sans-serif';
-  ctx.fillText(`Member #${member.guild.memberCount}`, 220, 170);
+  ctx.fillText(`Member #${member.guild.memberCount}`, 40, 170);
 
+  // Profile Picture Grid — shifted smoothly to the RIGHT (X: 580)
+  ctx.save();
   ctx.beginPath();
-  ctx.arc(110, 125, 60, 0, Math.PI * 2, true);
+  ctx.arc(580, 125, 60, 0, Math.PI * 2, true);
   ctx.closePath();
   ctx.clip();
 
   try {
     const avatar = await loadImage(member.user.displayAvatarURL({ extension: 'png', size: 256 }));
-    ctx.drawImage(avatar, 50, 65, 120, 120);
+    ctx.drawImage(avatar, 520, 65, 120, 120);
   } catch {
     ctx.fillStyle = '#555555';
-    ctx.fillRect(50, 65, 120, 120);
+    ctx.fillRect(520, 65, 120, 120);
   }
+  ctx.restore();
+  
   return canvas.toBuffer();
 }
 
-// 3. Export initialization routine to main file
+// 3. Initialization Routine
 function initWelcomeManager(client, configDefaults) {
   const { GUILD_ID, WELCOME_CHANNEL_ID } = configDefaults;
-
-  // Cache for handling interaction updates locally before DB publish
   client.welcomeCache = new Map();
 
-  // Listen for real-time arrivals
+  // Arrival tracking handler
   client.on('guildMemberAdd', async (member) => {
     if (member.guild.id !== GUILD_ID) return;
 
@@ -106,8 +113,8 @@ function initWelcomeManager(client, configDefaults) {
         })
         .setTitle(parseWelcomePlaceholders(config.title, member))
         .setDescription(parseWelcomePlaceholders(config.description, member))
-        .setImage('attachment://welcome-card.png')
-        .setThumbnail(member.guild.iconURL({ dynamic: true, size: 256 }) || member.user.displayAvatarURL({ dynamic: true }))
+        .setThumbnail('attachment://welcome-card.png') // Fits the custom canvas card on the right profile block cleanly
+        .setImage(config.gifUrl) // Injects the live animated footer GIF to handle fluid motion graphics!
         .setFooter({ text: `⚔️ GoldenHeart SMP • ${member.guild.memberCount} members` })
         .setTimestamp();
 
@@ -121,7 +128,7 @@ function initWelcomeManager(client, configDefaults) {
     }
   });
 
-  // Listen for interaction configurations
+  // Interaction configuration engine
   client.on('interactionCreate', async (interaction) => {
     if (interaction.isChatInputCommand()) {
       const { commandName } = interaction;
@@ -144,7 +151,8 @@ function initWelcomeManager(client, configDefaults) {
               { label: 'Embed Title Block', description: 'Modify the primary embed description header line', value: 'title' },
               { label: 'Main Description Body', description: 'Modify variables, descriptive content, or hyperlinks', value: 'description' },
               { label: 'Theme Frame Hex Color', description: 'Supply custom accent canvas hex structures', value: 'color' },
-              { label: 'Output Channel Location', description: 'Change active arrival tracking destinations', value: 'channel' }
+              { label: 'Output Channel Location', description: 'Change active arrival tracking destinations', value: 'channel' },
+              { label: 'Animated Footer GIF Url', description: 'Add or change the bottom animated GIF banner', value: 'gifUrl' }
             ])
         );
 
@@ -183,8 +191,8 @@ function initWelcomeManager(client, configDefaults) {
               .setAuthor({ name: `⛏️ ${member.user.username} joined!`, iconURL: member.user.displayAvatarURL({ dynamic: true }) })
               .setTitle(parseWelcomePlaceholders(config?.title || '🏰 Welcome to GoldenHeart SMP', member))
               .setDescription(parseWelcomePlaceholders(config?.description || 'Hey {member}, welcome!', member))
-              .setImage('attachment://welcome-card.png')
-              .setThumbnail(interaction.guild.iconURL({ dynamic: true }) || member.user.displayAvatarURL({ dynamic: true }))
+              .setThumbnail('attachment://welcome-card.png')
+              .setImage(config?.gifUrl || 'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3N2N2pqOHFwYm9pZ3p4ZHpjdHpxZms0Ym9pN2pxZms0Ym9pN2pxZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/L3X9Gv1jdK4Ew/giphy.gif')
               .setTimestamp();
 
             await targetChannel.send({
@@ -234,6 +242,7 @@ function initWelcomeManager(client, configDefaults) {
           .setColor(workingConfig.color.startsWith('#') ? workingConfig.color : 0xf0b429)
           .setTitle(parseWelcomePlaceholders(workingConfig.title, interaction.member))
           .setDescription(parseWelcomePlaceholders(workingConfig.description, interaction.member))
+          .setImage(workingConfig.gifUrl)
           .addFields({ name: '📢 Output Location Configuration Target', value: `<#${workingConfig.channelId || WELCOME_CHANNEL_ID}>` })
           .setFooter({ text: 'Preview Simulation Grid — Confirm options using the control triggers below.' });
 
