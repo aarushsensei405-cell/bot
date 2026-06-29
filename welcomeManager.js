@@ -19,10 +19,10 @@ const { createCanvas, loadImage } = require('canvas');
 const WelcomeConfigSchema = new Schema({
   guildId: { type: String, required: true, unique: true },
   channelId: { type: String, default: '' },
-  title: { type: String, default: '🏰 Welcome to GoldenHeart SMP' },
-  description: { type: String, default: 'Hey {member}, we\'re glad you\'re here! 💛\n\nGoldenHeart SMP is a community-driven Minecraft survival server built on friendship, strategy, and epic adventures.' },
-  color: { type: String, default: '#f0b429' },
-  gifUrl: { type: String, default: 'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3N2N2pqOHFwYm9pZ3p4ZHpjdHpxZms0Ym9pN2pxZms0Ym9pN2pxZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/L3X9Gv1jdK4Ew/giphy.gif' }
+  title: { type: String, default: '🎉 A New Adventurer Has Arrived!' },
+  description: { type: String, default: '## 💛 Welcome, {member}!\n\nWe\'re excited to have you join **Golden Heart SMP**.\n\n📖 **Read Rules** • <#123456789012345678>\n✅ **Verify** • <#123456789012345678>\n💬 **General** • <#123456789012345678>\n\n✨ You are our **{ordinal_count}** member!' },
+  color: { type: String, default: '#FFD700' },
+  gifUrl: { type: String, default: '' } // Left open if you decide to layer banners later
 });
 const WelcomeConfig = models.WelcomeConfig || model('WelcomeConfig', WelcomeConfigSchema);
 
@@ -32,7 +32,7 @@ function getOrdinal(n) {
   return s[(v - 20) % 10] || s[v] || s[0];
 }
 
-function parseWelcomePlaceholders(text, member) {
+function parseWelcomePlaceholders(text, member, rulesId, verifyId, generalId) {
   if (!text) return '';
   return text
     .replace(/{member}/g, `<@${member.id}>`)
@@ -42,21 +42,19 @@ function parseWelcomePlaceholders(text, member) {
     .replace(/{ordinal_count}/g, `${member.guild.memberCount}${getOrdinal(member.guild.memberCount)}`);
 }
 
-// Generates a clean square portrait container on the right side
+// Generates a clean square portrait canvas buffer
 async function generateWelcomeCard(member) {
   const canvas = createCanvas(700, 250);
   const ctx = canvas.getContext('2d');
   
-  // Background canvas structure
   ctx.fillStyle = '#1e1e24';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Modern Right-Aligned Square Profile Image Frame
   try {
     const avatar = await loadImage(member.user.displayAvatarURL({ extension: 'png', size: 256 }));
     ctx.drawImage(avatar, 450, 25, 200, 200);
   } catch {
-    ctx.fillStyle = '#f0b429';
+    ctx.fillStyle = '#FFD700';
     ctx.fillRect(450, 25, 200, 200);
   }
   
@@ -65,7 +63,8 @@ async function generateWelcomeCard(member) {
 
 // 3. Initialization Routine
 function initWelcomeManager(client, configDefaults) {
-  const { GUILD_ID, WELCOME_CHANNEL_ID } = configDefaults;
+  // Pulling channel/guild config IDs passed into initialization
+  const { GUILD_ID, WELCOME_CHANNEL_ID, RULES_CHANNEL_ID, VERIFY_CHANNEL_ID, GENERAL_CHANNEL_ID } = configDefaults;
   client.welcomeCache = new Map();
 
   // Arrival tracking handler
@@ -85,17 +84,23 @@ function initWelcomeManager(client, configDefaults) {
       const cardBuffer = await generateWelcomeCard(member);
       const attachment = new AttachmentBuilder(cardBuffer, { name: 'welcome-card.png' });
 
-      // Embed config with removed author avatar icon and added dynamic layout spacing
+      // Cleaned Embed Structure matches your layout adjustments
       const welcomeEmbed = new EmbedBuilder()
-        .setColor(config.color.startsWith('#') ? config.color : 0xf0b429)
-        .setAuthor({
-          name: `${member.user.username} has joined GoldenHeart SMP!` // Removed iconURL property
-        })
-        .setTitle(parseWelcomePlaceholders(config.title, member))
-        // Added "\n\n" below to create clean vertical breathing space before description text block
-        .setDescription(`\n\n${parseWelcomePlaceholders(config.description, member)}`)
-        .setThumbnail('attachment://welcome-card.png') 
-        .setImage(config.gifUrl) 
+        .setColor(0xFFD700)
+        .setThumbnail(member.user.displayAvatarURL({ size: 512 }))
+        .setTitle("🎉 A New Adventurer Has Arrived!")
+        .setDescription(
+`## 💛 Welcome, <@${member.id}>!
+
+We're excited to have you join **Golden Heart SMP**.
+
+📖 **Read Rules** • <#${RULES_CHANNEL_ID || '123456789012345678'}>
+✅ **Verify** • <#${VERIFY_CHANNEL_ID || '123456789012345678'}>
+💬 **General** • <#${GENERAL_CHANNEL_ID || '123456789012345678'}>
+
+✨ You are our **${member.guild.memberCount}${getOrdinal(member.guild.memberCount)}** member!`
+        )
+        .setImage("attachment://welcome-card.png")
         .setFooter({ text: `Timing | GoldenHeart SMP • Member #${member.guild.memberCount}` })
         .setTimestamp();
 
@@ -131,8 +136,7 @@ function initWelcomeManager(client, configDefaults) {
               { label: 'Embed Title Block', description: 'Modify the primary embed description header line', value: 'title' },
               { label: 'Main Description Body', description: 'Modify variables, descriptive content, or hyperlinks', value: 'description' },
               { label: 'Theme Frame Hex Color', description: 'Supply custom accent canvas hex structures', value: 'color' },
-              { label: 'Output Channel Location', description: 'Change active arrival tracking destinations', value: 'channel' },
-              { label: 'Animated Footer GIF Url', description: 'Add or change the bottom animated GIF banner', value: 'gifUrl' }
+              { label: 'Output Channel Location', description: 'Change active arrival tracking destinations', value: 'channel' }
             ])
         );
 
@@ -170,12 +174,21 @@ function initWelcomeManager(client, configDefaults) {
             const attachFile = new AttachmentBuilder(buffer, { name: 'welcome-card.png' });
 
             const retroEmbed = new EmbedBuilder()
-              .setColor(config?.color || 0xf0b429)
-              .setAuthor({ name: `${member.user.username} has joined GoldenHeart SMP!` })
-              .setTitle(parseWelcomePlaceholders(config?.title || '🏰 Welcome to GoldenHeart SMP', member))
-              .setDescription(`\n\n${parseWelcomePlaceholders(config?.description || 'Hey {member}, welcome!', member)}`)
-              .setThumbnail('attachment://welcome-card.png')
-              .setImage(config?.gifUrl || 'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3N2N2pqOHFwYm9pZ3p4ZHpjdHpxZms0Ym9pN2pxZms0Ym9pN2pxZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/L3X9Gv1jdK4Ew/giphy.gif')
+              .setColor(0xFFD700)
+              .setThumbnail(member.user.displayAvatarURL({ size: 512 }))
+              .setTitle("🎉 A New Adventurer Has Arrived!")
+              .setDescription(
+`## 💛 Welcome, <@${member.id}>!
+
+We're excited to have you join **Golden Heart SMP**.
+
+📖 **Read Rules** • <#${RULES_CHANNEL_ID || '123456789012345678'}>
+✅ **Verify** • <#${VERIFY_CHANNEL_ID || '123456789012345678'}>
+💬 **General** • <#${GENERAL_CHANNEL_ID || '123456789012345678'}>
+
+✨ You are our **${currentCountNumber}${getOrdinal(currentCountNumber)}** member!`
+              )
+              .setImage("attachment://welcome-card.png")
               .setFooter({ text: `Timing | GoldenHeart SMP • Member #${currentCountNumber}` })
               .setTimestamp();
 
@@ -222,11 +235,20 @@ function initWelcomeManager(client, configDefaults) {
         client.welcomeCache.set(interaction.user.id, workingConfig);
 
         const livePreview = new EmbedBuilder()
-          .setColor(workingConfig.color.startsWith('#') ? workingConfig.color : 0xf0b429)
-          .setTitle(parseWelcomePlaceholders(workingConfig.title, interaction.member))
-          .setDescription(`\n\n${parseWelcomePlaceholders(workingConfig.description, interaction.member)}`)
-          .setImage(workingConfig.gifUrl)
-          .addFields({ name: '📢 Output Location Configuration Target', value: `<#${workingConfig.channelId || WELCOME_CHANNEL_ID}>` })
+          .setColor(0xFFD700)
+          .setThumbnail(interaction.member.user.displayAvatarURL({ size: 512 }))
+          .setTitle("🎉 A New Adventurer Has Arrived!")
+          .setDescription(
+`## 💛 Welcome, <@${interaction.member.id}>!
+
+We're excited to have you join **Golden Heart SMP**.
+
+📖 **Read Rules** • <#${RULES_CHANNEL_ID || '123456789012345678'}>
+✅ **Verify** • <#${VERIFY_CHANNEL_ID || '123456789012345678'}>
+💬 **General** • <#${GENERAL_CHANNEL_ID || '123456789012345678'}>
+
+✨ You are our **${interaction.guild.memberCount}${getOrdinal(interaction.guild.memberCount)}** member!`
+          )
           .setFooter({ text: 'Timing | GoldenHeart SMP' });
 
         const commitActionRow = new ActionRowBuilder().addComponents(
