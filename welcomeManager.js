@@ -75,7 +75,7 @@ async function buildWelcomeEmbed(member, config, channelIds, memberNumber) {
     .setThumbnail(member.user.displayAvatarURL({ size: 512 }))
     .setTitle(config?.title || '🎉 A New Adventurer Has Arrived!')
     .setDescription(
-`## 💛 Welcome, <@${member.id}>!
+`**<@${member.id}>!**
 
 We're excited to have you join **Golden Heart SMP**.
 
