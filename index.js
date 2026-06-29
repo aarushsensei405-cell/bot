@@ -428,24 +428,23 @@ const RulebookSchema = new mongoose.Schema({
 // ─────────────────────────────────────────
 // MONGODB MODELS
 // ─────────────────────────────────────────
-const User = mongoose.model('User', UserSchema);
-const Purchase = mongoose.model('Purchase', PurchaseSchema);
-const Coupon = mongoose.model('Coupon', CouponSchema);
-const Cart = mongoose.model('Cart', CartSchema);
-const Warn = mongoose.model('Warn', WarnSchema);
-const Feedback = mongoose.model('Feedback', FeedbackSchema);
-const Suggestion = mongoose.model('Suggestion', SuggestionSchema);
-const TempBan = mongoose.model('TempBan', TempBanSchema);
-const Birthday = mongoose.model('Birthday', BirthdaySchema);
-const Ticket = mongoose.model('Ticket', TicketSchema);
-const Starboard = mongoose.model('Starboard', StarboardSchema);
-const Giveaway = mongoose.model('Giveaway', GiveawaySchema);
-const Reminder = mongoose.model('Reminder', ReminderSchema);
-const AFK = mongoose.model('AFK', AFKSchema);
-const Invite = mongoose.model('Invite', InviteSchema);
-const Application = mongoose.model('Application', ApplicationSchema);
-const Rulebook = mongoose.model('Rulebook', RulebookSchema);
-
+const User = mongoose.models.User || mongoose.model('User', UserSchema);
+const Purchase = mongoose.models.Purchase || mongoose.model('Purchase', PurchaseSchema);
+const Coupon = mongoose.models.Coupon || mongoose.model('Coupon', CouponSchema);
+const Cart = mongoose.models.Cart || mongoose.model('Cart', CartSchema);
+const Warn = mongoose.models.Warn || mongoose.models.Warn, WarnSchema);
+const Feedback = mongoose.models.Feedback || mongoose.model('Feedback', FeedbackSchema);
+const Suggestion = mongoose.models.Suggestion || mongoose.model('Suggestion', SuggestionSchema);
+const TempBan = mongoose.models.TempBan || mongoose.model('TempBan', TempBanSchema);
+const Birthday = mongoose.models.Birthday || mongoose.model('Birthday', BirthdaySchema);
+const Ticket = mongoose.models.Ticket || mongoose.model('Ticket', TicketSchema);
+const Starboard = mongoose.models.Starboard || mongoose.models.Starboard, StarboardSchema);
+const Giveaway = mongoose.models.Giveaway || mongoose.model('Giveaway', GiveawaySchema);
+const Reminder = mongoose.models.Reminder || mongoose.model('Reminder', ReminderSchema);
+const AFK = mongoose.models.AFK || mongoose.model('AFK', AFKSchema);
+const Invite = mongoose.models.Invite || mongoose.model('Invite', InviteSchema);
+const Application = mongoose.models.Application || mongoose.model('Application', ApplicationSchema);
+const Rulebook = mongoose.models.Rulebook || mongoose.model('Rulebook', RulebookSchema);
 // ─────────────────────────────────────────
 // DEFAULT RULEBOOKS
 // ─────────────────────────────────────────
