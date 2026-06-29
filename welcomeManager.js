@@ -325,7 +325,7 @@ async function showPreviewWithCommitButtons(interaction, workingConfig, channelI
     .setThumbnail(interaction.member.user.displayAvatarURL({ size: 512 }))
     .setTitle(workingConfig.title || '🎉 A New Adventurer Has Arrived!')
     .setDescription(
-`## 💛 Welcome, <@${interaction.member.id}>!
+`**${interaction.member.id}>!**
 
 We're excited to have you join **Golden Heart SMP**.
 
