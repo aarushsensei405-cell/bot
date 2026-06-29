@@ -15,35 +15,25 @@ const {
 } = require('discord.js');
 const { createCanvas, loadImage } = require('canvas');
 
-// 1. Database Schema with Cache Protection
+// ─── Schema ───────────────────────────────────────────────────────────────────
 const WelcomeConfigSchema = new Schema({
-  guildId: { type: String, required: true, unique: true },
+  guildId:   { type: String, required: true, unique: true },
   channelId: { type: String, default: '' },
-  title: { type: String, default: '🎉 A New Adventurer Has Arrived!' },
-  description: { type: String, default: '## 💛 Welcome, {member}!\n\nWe\'re excited to have you join **Golden Heart SMP**.\n\n📖 **Read Rules** • <#123456789012345678>\n✅ **Verify** • <#123456789012345678>\n💬 **General** • <#123456789012345678>\n\n✨ You are our **{ordinal_count}** member!' },
-  color: { type: String, default: '#FFD700' },
-  gifUrl: { type: String, default: '' },
+  title:     { type: String, default: '🎉 A New Adventurer Has Arrived!' },
+  description: { type: String, default: '' },
+  color:     { type: String, default: '#FFD700' },
+  gifUrl:    { type: String, default: '' },
   bannerUrl: { type: String, default: '' }
 });
 const WelcomeConfig = models.WelcomeConfig || model('WelcomeConfig', WelcomeConfigSchema);
 
-// 2. Helpers
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function getOrdinal(n) {
   const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
   return s[(v - 20) % 10] || s[v] || s[0];
 }
 
-function parseWelcomePlaceholders(text, member) {
-  if (!text) return '';
-  return text
-    .replace(/{member}/g, `<@${member.id}>`)
-    .replace(/{username}/g, member.user.username)
-    .replace(/{server}/g, member.guild.name)
-    .replace(/{count}/g, member.guild.memberCount)
-    .replace(/{ordinal_count}/g, `${member.guild.memberCount}${getOrdinal(member.guild.memberCount)}`);
-}
-
-// Generates a clean square portrait canvas buffer
+// ─── Canvas Card ──────────────────────────────────────────────────────────────
 async function generateWelcomeCard(member) {
   const canvas = createCanvas(700, 250);
   const ctx = canvas.getContext('2d');
@@ -62,50 +52,86 @@ async function generateWelcomeCard(member) {
   return canvas.toBuffer();
 }
 
-// Shared embed builder — used by both live joins and the final output preview
+// ─── Embed Builder ────────────────────────────────────────────────────────────
+// Single source of truth for all welcome embeds (live joins, retro blast, preview)
 async function buildWelcomeEmbed(member, config, channelIds, memberNumber) {
   const { RULES_CHANNEL_ID, VERIFY_CHANNEL_ID, GENERAL_CHANNEL_ID } = channelIds;
   const count = memberNumber ?? member.guild.memberCount;
 
-  const cardBuffer = await generateWelcomeCard(member);
-  const attachment = new AttachmentBuilder(cardBuffer, { name: 'welcome-card.png' });
-
-  const embed = new EmbedBuilder()
-    .setColor(config?.color ? parseInt(config.color.replace('#', ''), 16) : 0xFFD700)
-    .setThumbnail(member.user.displayAvatarURL({ size: 512 }))
-    .setTitle(config?.title || '🎉 A New Adventurer Has Arrived!')
-    .setDescription(
-`**<@${member.id}>!**
+  // FIX: correct member mention format — was missing "<@" prefix in description
+  const description =
+`## <@${member.id}>!
 
 We're excited to have you join **Golden Heart SMP**.
 
-📖 **Read Rules** • <#${RULES_CHANNEL_ID || '123456789012345678'}>
-✅ **Verify** • <#${VERIFY_CHANNEL_ID || '123456789012345678'}>
-💬 **General** • <#${GENERAL_CHANNEL_ID || '123456789012345678'}>
+📖 **Read Rules** • <#${RULES_CHANNEL_ID}>
+✅ **Verify** • <#${VERIFY_CHANNEL_ID}>
+💬 **General** • <#${GENERAL_CHANNEL_ID}>
 
-✨ You are our **${count}${getOrdinal(count)}** member!`
-    )
-    .setImage('attachment://welcome-card.png')
-    .setFooter({ text: `Timing | GoldenHeart SMP • Member #${count}` })
+✨ You are our **${count}${getOrdinal(count)}** member!`;
+
+  const embed = new EmbedBuilder()
+    .setColor(config?.color ? parseInt(config.color.replace('#', ''), 16) : 0xFFD700)
+    .setTitle(config?.title || '🎉 A New Adventurer Has Arrived!')
+    .setDescription(description)
+    .setThumbnail(member.user.displayAvatarURL({ size: 512 }))
+    .setFooter({ text: `GoldenHeart SMP • Member #${count}` })
     .setTimestamp();
 
+  // FIX: if banner is set, use it as the image — no card needed, skip generating it
   if (config?.bannerUrl) {
     embed.setImage(config.bannerUrl);
-    embed.setThumbnail(member.user.displayAvatarURL({ size: 512 }));
     return { embed, files: [] };
   }
 
+  // No banner — generate and attach the canvas card
+  const cardBuffer = await generateWelcomeCard(member);
+  const attachment = new AttachmentBuilder(cardBuffer, { name: 'welcome-card.png' });
+  embed.setImage('attachment://welcome-card.png');
   return { embed, files: [attachment] };
 }
 
-// 3. Initialization Routine
+// ─── Preview Helper ───────────────────────────────────────────────────────────
+async function showPreviewWithCommitButtons(interaction, workingConfig, channelIds) {
+  const { embed, files } = await buildWelcomeEmbed(
+    interaction.member,
+    workingConfig,
+    channelIds
+  );
+
+  const commitActionRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('save_welcome_approved').setLabel('✅ Commit Changes').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('save_welcome_rejected').setLabel('❌ Discard Changes').setStyle(ButtonStyle.Danger)
+  );
+
+  const bannerNote = workingConfig.bannerUrl
+    ? `\n🖼️ **Banner active:** ${workingConfig.bannerUrl}`
+    : '\n_(No banner set — canvas card will be used)_';
+
+  await interaction.followUp({
+    content: `📝 **Live Preview** — confirm before saving.${bannerNote}`,
+    embeds: [embed],
+    files,
+    components: [commitActionRow],
+    ephemeral: true
+  });
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
 function initWelcomeManager(client, configDefaults) {
-  const { GUILD_ID, WELCOME_CHANNEL_ID, RULES_CHANNEL_ID, VERIFY_CHANNEL_ID, GENERAL_CHANNEL_ID } = configDefaults;
+  const {
+    GUILD_ID,
+    WELCOME_CHANNEL_ID,
+    RULES_CHANNEL_ID,
+    VERIFY_CHANNEL_ID,
+    GENERAL_CHANNEL_ID
+  } = configDefaults;
+
   const channelIds = { RULES_CHANNEL_ID, VERIFY_CHANNEL_ID, GENERAL_CHANNEL_ID };
 
   client.welcomeCache = new Map();
 
-  // Arrival tracking handler
+  // ── Live join handler ──────────────────────────────────────────────────────
   client.on('guildMemberAdd', async (member) => {
     if (member.guild.id !== GUILD_ID) return;
 
@@ -114,26 +140,28 @@ function initWelcomeManager(client, configDefaults) {
       config = await WelcomeConfig.create({ guildId: member.guild.id, channelId: WELCOME_CHANNEL_ID });
     }
 
-    const outputChannelId = config.channelId || WELCOME_CHANNEL_ID;
-    const channel = member.guild.channels.cache.get(outputChannelId);
+    const channel = member.guild.channels.cache.get(config.channelId || WELCOME_CHANNEL_ID);
     if (!channel) return;
 
     try {
       const { embed, files } = await buildWelcomeEmbed(member, config, channelIds);
       await channel.send({ embeds: [embed], files });
     } catch (err) {
-      console.error('Error outputting custom dynamic join greeting:', err);
+      console.error('[WelcomeManager] guildMemberAdd error:', err);
     }
   });
 
-  // Interaction configuration engine
+  // ── Interaction handler ────────────────────────────────────────────────────
   client.on('interactionCreate', async (interaction) => {
+
+    // ── Slash commands ───────────────────────────────────────────────────────
     if (interaction.isChatInputCommand()) {
       const { commandName } = interaction;
 
+      // /welcomemsg — open the config menu
       if (commandName === 'welcomemsg') {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return interaction.reply({ content: '❌ You must be an Administrator to run this.', ephemeral: true });
+          return interaction.reply({ content: '❌ Administrator permission required.', ephemeral: true });
         }
 
         let config = await WelcomeConfig.findOne({ guildId: interaction.guild.id });
@@ -144,100 +172,105 @@ function initWelcomeManager(client, configDefaults) {
         const editMenu = new ActionRowBuilder().addComponents(
           new StringSelectMenuBuilder()
             .setCustomId('welcome_edit_property')
-            .setPlaceholder('Pick a variable configuration target...')
+            .setPlaceholder('Pick a setting to configure...')
             .addOptions([
-              { label: 'Embed Title Block', description: 'Modify the primary embed description header line', value: 'title' },
-              { label: 'Main Description Body', description: 'Modify variables, descriptive content, or hyperlinks', value: 'description' },
-              { label: 'Theme Frame Hex Color', description: 'Supply custom accent canvas hex structures', value: 'color' },
-              { label: 'Output Channel Location', description: 'Change active arrival tracking destinations', value: 'channel' },
-              { label: '🖼️ Custom Banner Image', description: 'Set a banner image URL shown at the top of the welcome embed', value: 'bannerUrl' },
-              { label: '📤 Send Final Output Preview', description: 'Fire a live test welcome card to your configured welcome channel', value: 'preview' }
+              { label: 'Embed Title',          description: 'Change the bold title at the top of the embed',        value: 'title'     },
+              { label: 'Description Body',      description: 'Edit the main text (supports {member}, {count} etc.)', value: 'description' },
+              { label: 'Accent Color',          description: 'Set the left-bar hex color e.g. #FFD700',              value: 'color'     },
+              { label: 'Output Channel',        description: 'Tag the channel where welcomes are sent',              value: 'channel'   },
+              { label: '🖼️ Custom Banner',      description: 'Paste an image URL to use as the embed banner',        value: 'bannerUrl' },
+              { label: '📤 Send Live Preview',  description: 'Fire a real test card to the welcome channel now',     value: 'preview'   }
             ])
         );
 
         return interaction.reply({
-          content: '⚙️ **Welcome Canvas Embed Customizer Editor Engine**\nChoose structural options below to run adjustments. You can inject dynamic tags: `{member}`, `{username}`, `{server}`, `{count}`, `{ordinal_count}` inside lines.',
+          content: '⚙️ **Welcome Config**\nPick a setting below.\nSupported placeholders: `{member}` `{username}` `{server}` `{count}` `{ordinal_count}`',
           components: [editMenu],
           ephemeral: true
         });
       }
 
+      // /startwelcomemsg — retroactive blast for all existing members
       if (commandName === 'startwelcomemsg') {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-          return interaction.reply({ content: '❌ Administrator permissions required.', ephemeral: true });
+          return interaction.reply({ content: '❌ Administrator permission required.', ephemeral: true });
         }
 
-        await interaction.reply({ content: '⏳ Fetching guild registers and rendering retroactive graphics cards... Please check your output welcome channel.', ephemeral: true });
+        await interaction.reply({ content: '⏳ Sending welcome cards for all members... Check your welcome channel.', ephemeral: true });
 
-        let config = await WelcomeConfig.findOne({ guildId: interaction.guild.id });
-        const currentChannelTarget = config?.channelId || WELCOME_CHANNEL_ID;
-        const targetChannel = interaction.guild.channels.cache.get(currentChannelTarget);
+        const config = await WelcomeConfig.findOne({ guildId: interaction.guild.id });
+        const targetChannel = interaction.guild.channels.cache.get(config?.channelId || WELCOME_CHANNEL_ID);
 
         if (!targetChannel) {
-          return interaction.followUp({ content: '❌ Outbound greeting channel location unresolvable.', ephemeral: true });
+          return interaction.followUp({ content: '❌ Welcome channel not found.', ephemeral: true });
         }
 
         try {
-          const structuralGuildMembers = await interaction.guild.members.fetch();
-          const physicalMembersList = Array.from(structuralGuildMembers.filter(m => !m.user.bot).values());
+          const allMembers = await interaction.guild.members.fetch();
+          const humanMembers = Array.from(allMembers.filter(m => !m.user.bot).values());
 
-          for (let index = 0; index < physicalMembersList.length; index++) {
-            const member = physicalMembersList[index];
-            const currentCountNumber = index + 1;
-
-            const { embed, files } = await buildWelcomeEmbed(member, config, channelIds, currentCountNumber);
+          for (let i = 0; i < humanMembers.length; i++) {
+            const { embed, files } = await buildWelcomeEmbed(humanMembers[i], config, channelIds, i + 1);
             await targetChannel.send({ embeds: [embed], files });
-
             await new Promise(res => setTimeout(res, 1200));
           }
         } catch (err) {
-          console.error('Error on retrospective launch loop logic:', err);
+          console.error('[WelcomeManager] startwelcomemsg error:', err);
         }
         return;
       }
     }
 
+    // ── Select menu ──────────────────────────────────────────────────────────
     if (interaction.isStringSelectMenu() && interaction.customId === 'welcome_edit_property') {
-      const chosenVariable = interaction.values[0];
+      const chosen = interaction.values[0];
+
       let workingConfig = await WelcomeConfig.findOne({ guildId: interaction.guild.id });
       if (!workingConfig) workingConfig = new WelcomeConfig({ guildId: interaction.guild.id });
 
-      // Final Output Preview — sends a live test card directly to the welcome channel
-      if (chosenVariable === 'preview') {
+      // Option: send live preview now (no input needed)
+      if (chosen === 'preview') {
         await interaction.reply({
-          content: '⏳ Generating and sending your final welcome card preview to the configured welcome channel...',
+          content: '⏳ Sending preview to your welcome channel...',
           ephemeral: true
         });
 
-        const previewChannelId = workingConfig?.channelId || WELCOME_CHANNEL_ID;
-        const previewChannel = interaction.guild.channels.cache.get(previewChannelId);
+        const previewChannel = interaction.guild.channels.cache.get(
+          workingConfig?.channelId || WELCOME_CHANNEL_ID
+        );
 
         if (!previewChannel) {
-          return interaction.followUp({ content: '❌ Welcome channel not found. Set one first using "Output Channel Location".', ephemeral: true });
+          return interaction.followUp({
+            content: '❌ No welcome channel set. Use "Output Channel" first.',
+            ephemeral: true
+          });
         }
 
         try {
           const { embed, files } = await buildWelcomeEmbed(interaction.member, workingConfig, channelIds);
           await previewChannel.send({ embeds: [embed], files });
           return interaction.followUp({
-            content: `✅ **Preview sent!** Check <#${previewChannelId}> to see exactly how your welcome card will look.`,
+            content: `✅ Preview sent to <#${previewChannel.id}>!`,
             ephemeral: true
           });
         } catch (err) {
-          console.error('Preview send error:', err);
-          return interaction.followUp({ content: '❌ Failed to send preview. Check bot permissions in the welcome channel.', ephemeral: true });
+          console.error('[WelcomeManager] preview error:', err);
+          return interaction.followUp({ content: '❌ Failed to send preview. Check bot permissions.', ephemeral: true });
         }
       }
 
-      // Banner URL — validates it looks like a URL before saving
-      if (chosenVariable === 'bannerUrl') {
+      // Option: banner URL input
+      if (chosen === 'bannerUrl') {
         await interaction.reply({
-          content: `🖼️ **Custom Banner Setup**\nPaste the **direct image URL** for your banner (must end in \`.png\`, \`.jpg\`, \`.gif\`, or be a CDN link). Type \`remove\` to clear the current banner.\n\n_(Auto expires in 60s)_`,
+          content: '🖼️ **Custom Banner**\nPaste a direct image URL (`.png` `.jpg` `.gif`). Type `remove` to clear.\n_(60s timeout)_',
           ephemeral: true
         });
 
-        const collectorFilter = m => m.author.id === interaction.user.id;
-        const collector = interaction.channel.createMessageCollector({ filter: collectorFilter, max: 1, time: 60000 });
+        const collector = interaction.channel.createMessageCollector({
+          filter: m => m.author.id === interaction.user.id,
+          max: 1,
+          time: 60_000
+        });
 
         collector.on('collect', async (msg) => {
           const input = msg.content.trim();
@@ -246,7 +279,7 @@ function initWelcomeManager(client, configDefaults) {
           if (input.toLowerCase() === 'remove') {
             workingConfig.bannerUrl = '';
           } else if (!input.startsWith('http')) {
-            return interaction.followUp({ content: '❌ Invalid URL. Must start with `http`. Session ended.', ephemeral: true });
+            return interaction.followUp({ content: '❌ Invalid URL — must start with `http`.', ephemeral: true });
           } else {
             workingConfig.bannerUrl = input;
           }
@@ -255,113 +288,108 @@ function initWelcomeManager(client, configDefaults) {
           await showPreviewWithCommitButtons(interaction, workingConfig, channelIds);
         });
 
-        collector.on('end', (collected) => {
+        collector.on('end', collected => {
           if (collected.size === 0) {
-            interaction.followUp({ content: '⏱️ Banner input timed out. No changes made.', ephemeral: true }).catch(() => {});
+            interaction.followUp({ content: '⏱️ Timed out. No changes made.', ephemeral: true }).catch(() => {});
           }
         });
         return;
       }
 
-      // Default text/channel input collector
+      // All other options: text/channel input
       await interaction.reply({
-        content: `💬 **Input Watcher Engaged**\nPlease type your new value text content for the welcome **${chosenVariable.toUpperCase()}** parameters directly in this channel context. (Auto expires in 60s).`,
+        content: `💬 Type your new value for **${chosen.toUpperCase()}** in this channel. (60s timeout)`,
         ephemeral: true
       });
 
-      const collectorFilter = m => m.author.id === interaction.user.id;
-      const userMessageCollector = interaction.channel.createMessageCollector({ filter: collectorFilter, max: 1, time: 60000 });
+      const collector = interaction.channel.createMessageCollector({
+        filter: m => m.author.id === interaction.user.id,
+        max: 1,
+        time: 60_000
+      });
 
-      userMessageCollector.on('collect', async (collectedMsg) => {
-        let refinedContent = collectedMsg.content.trim();
-        try { await collectedMsg.delete(); } catch {}
+      collector.on('collect', async (msg) => {
+        let value = msg.content.trim();
+        try { await msg.delete(); } catch {}
 
-        if (chosenVariable === 'channel') {
-          const mentionCheck = collectedMsg.mentions.channels.first();
-          if (!mentionCheck) {
-            return interaction.followUp({ content: '❌ Extraction failed. You must cleanly tag a text target channel (`#channel`). Session broken.', ephemeral: true });
+        // FIX: channel option — extract ID from mention
+        if (chosen === 'channel') {
+          const mentioned = msg.mentions.channels.first();
+          if (!mentioned) {
+            return interaction.followUp({
+              content: '❌ You must tag a channel with `#channel-name`.',
+              ephemeral: true
+            });
           }
-          refinedContent = mentionCheck.id;
+          value = mentioned.id;
         }
 
-        workingConfig[chosenVariable] = refinedContent;
+        workingConfig[chosen] = value;
         client.welcomeCache.set(interaction.user.id, workingConfig);
         await showPreviewWithCommitButtons(interaction, workingConfig, channelIds);
       });
 
-      userMessageCollector.on('end', (collected) => {
+      collector.on('end', collected => {
         if (collected.size === 0) {
-          interaction.followUp({ content: '⏱️ Input timed out. No changes made.', ephemeral: true }).catch(() => {});
+          interaction.followUp({ content: '⏱️ Timed out. No changes made.', ephemeral: true }).catch(() => {});
         }
       });
       return;
     }
 
+    // ── Buttons ──────────────────────────────────────────────────────────────
     if (interaction.isButton()) {
+
       if (interaction.customId === 'save_welcome_approved') {
-        const activeState = client.welcomeCache.get(interaction.user.id);
-        if (!activeState) return interaction.reply({ content: '❌ Modification transaction context was lost. Re-run selection setup.', ephemeral: true });
+        const cached = client.welcomeCache.get(interaction.user.id);
+        if (!cached) {
+          return interaction.reply({ content: '❌ Session expired. Re-run `/welcomemsg`.', ephemeral: true });
+        }
 
-        await WelcomeConfig.findOneAndUpdate({ guildId: interaction.guild.id }, activeState.toObject(), { upsert: true });
+        // FIX: use $set so Mongoose actually writes every changed field to MongoDB
+        const updatePayload = {
+          title:     cached.title,
+          description: cached.description,
+          color:     cached.color,
+          channelId: cached.channelId,
+          bannerUrl: cached.bannerUrl,
+          gifUrl:    cached.gifUrl
+        };
+
+        await WelcomeConfig.findOneAndUpdate(
+          { guildId: interaction.guild.id },
+          { $set: updatePayload },
+          { upsert: true, new: true }
+        );
+
         client.welcomeCache.delete(interaction.user.id);
-
-        return interaction.update({ content: '✅ **Configuration successfully updated and committed to Cluster!**', embeds: [], components: [] });
+        return interaction.update({
+          content: '✅ **Changes saved!** New settings are live.',
+          embeds: [],
+          components: []
+        });
       }
 
       if (interaction.customId === 'save_welcome_rejected') {
         client.welcomeCache.delete(interaction.user.id);
-        return interaction.update({ content: '❌ **Modifications cleared out.** Cache context dropped.', embeds: [], components: [] });
+        return interaction.update({
+          content: '❌ **Discarded.** No changes were saved.',
+          embeds: [],
+          components: []
+        });
       }
     }
   });
 }
 
-// Shared helper — shows the live preview embed + Commit/Discard buttons
-async function showPreviewWithCommitButtons(interaction, workingConfig, channelIds) {
-  const { RULES_CHANNEL_ID, VERIFY_CHANNEL_ID, GENERAL_CHANNEL_ID } = channelIds;
-
-  const previewEmbed = new EmbedBuilder()
-    .setColor(workingConfig.color ? parseInt(workingConfig.color.replace('#', ''), 16) : 0xFFD700)
-    .setThumbnail(interaction.member.user.displayAvatarURL({ size: 512 }))
-    .setTitle(workingConfig.title || '🎉 A New Adventurer Has Arrived!')
-    .setDescription(
-`**${interaction.member.id}>!**
-
-We're excited to have you join **Golden Heart SMP**.
-
-📖 **Read Rules** - <#1432277447440597028> 
-✅ **Verify** - <#1513364198850171010> 
-💬** General** - <#1502596253589180457>
-
-✨ You are our **${interaction.guild.memberCount}${getOrdinal(interaction.guild.memberCount)}** member!`
-    )
-    .setFooter({ text: 'Timing | GoldenHeart SMP' });
-
-  if (workingConfig.bannerUrl) {
-    previewEmbed.setImage(workingConfig.bannerUrl);
-  }
-
-  const commitActionRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('save_welcome_approved').setLabel('Commit Changes').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId('save_welcome_rejected').setLabel('Discard Changes').setStyle(ButtonStyle.Danger)
-  );
-
-  const bannerNote = workingConfig.bannerUrl
-    ? `\n🖼️ **Banner set:** ${workingConfig.bannerUrl}`
-    : '\n_(No custom banner set — generated card will be used)_';
-
-  await interaction.followUp({
-    content: `📝 **Live System Preview Rendering Canvas:** Ensure look structure formats align correctly before global deployment.${bannerNote}`,
-    embeds: [previewEmbed],
-    components: [commitActionRow],
-    ephemeral: true
-  });
-}
-
-// 4. Command Registries exports
+// ─── Exports ──────────────────────────────────────────────────────────────────
 const welcomeCommandsData = [
-  new SlashCommandBuilder().setName('welcomemsg').setDescription('Manage or alter configurations for the server greeting layout'),
-  new SlashCommandBuilder().setName('startwelcomemsg').setDescription('Retroactively post greeting cards for all current server members')
+  new SlashCommandBuilder()
+    .setName('welcomemsg')
+    .setDescription('Configure the server welcome message'),
+  new SlashCommandBuilder()
+    .setName('startwelcomemsg')
+    .setDescription('Send welcome cards for all existing members')
 ];
 
 module.exports = { initWelcomeManager, welcomeCommandsData };
