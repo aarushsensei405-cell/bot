@@ -23,7 +23,7 @@ const WelcomeConfigSchema = new Schema({
   description: { type: String, default: '## 💛 Welcome, {member}!\n\nWe\'re excited to have you join **Golden Heart SMP**.\n\n📖 **Read Rules** • <#123456789012345678>\n✅ **Verify** • <#123456789012345678>\n💬 **General** • <#123456789012345678>\n\n✨ You are our **{ordinal_count}** member!' },
   color: { type: String, default: '#FFD700' },
   gifUrl: { type: String, default: '' },
-  bannerUrl: { type: String, default: '' }  // NEW: custom banner image URL
+  bannerUrl: { type: String, default: '' }
 });
 const WelcomeConfig = models.WelcomeConfig || model('WelcomeConfig', WelcomeConfigSchema);
 
@@ -62,7 +62,7 @@ async function generateWelcomeCard(member) {
   return canvas.toBuffer();
 }
 
-// NEW: Shared embed builder — used by both live joins and the final output preview
+// Shared embed builder — used by both live joins and the final output preview
 async function buildWelcomeEmbed(member, config, channelIds, memberNumber) {
   const { RULES_CHANNEL_ID, VERIFY_CHANNEL_ID, GENERAL_CHANNEL_ID } = channelIds;
   const count = memberNumber ?? member.guild.memberCount;
@@ -89,13 +89,9 @@ We're excited to have you join **Golden Heart SMP**.
     .setFooter({ text: `Timing | GoldenHeart SMP • Member #${count}` })
     .setTimestamp();
 
-  // NEW: Attach custom banner as a second image field if configured
-  // Discord embeds only support one image; we use the banner as the main image
-  // and the generated card as thumbnail when a banner is set.
   if (config?.bannerUrl) {
     embed.setImage(config.bannerUrl);
     embed.setThumbnail(member.user.displayAvatarURL({ size: 512 }));
-    // Card is still generated but used as thumbnail fallback — skip attaching it
     return { embed, files: [] };
   }
 
@@ -154,7 +150,6 @@ function initWelcomeManager(client, configDefaults) {
               { label: 'Main Description Body', description: 'Modify variables, descriptive content, or hyperlinks', value: 'description' },
               { label: 'Theme Frame Hex Color', description: 'Supply custom accent canvas hex structures', value: 'color' },
               { label: 'Output Channel Location', description: 'Change active arrival tracking destinations', value: 'channel' },
-              // NEW OPTIONS ↓
               { label: '🖼️ Custom Banner Image', description: 'Set a banner image URL shown at the top of the welcome embed', value: 'bannerUrl' },
               { label: '📤 Send Final Output Preview', description: 'Fire a live test welcome card to your configured welcome channel', value: 'preview' }
             ])
@@ -207,7 +202,7 @@ function initWelcomeManager(client, configDefaults) {
       let workingConfig = await WelcomeConfig.findOne({ guildId: interaction.guild.id });
       if (!workingConfig) workingConfig = new WelcomeConfig({ guildId: interaction.guild.id });
 
-      // NEW: Final Output Preview — sends a live test card directly to the welcome channel
+      // Final Output Preview — sends a live test card directly to the welcome channel
       if (chosenVariable === 'preview') {
         await interaction.reply({
           content: '⏳ Generating and sending your final welcome card preview to the configured welcome channel...',
@@ -234,7 +229,7 @@ function initWelcomeManager(client, configDefaults) {
         }
       }
 
-      // NEW: Banner URL — validates it looks like a URL before saving
+      // Banner URL — validates it looks like a URL before saving
       if (chosenVariable === 'bannerUrl') {
         await interaction.reply({
           content: `🖼️ **Custom Banner Setup**\nPaste the **direct image URL** for your banner (must end in \`.png\`, \`.jpg\`, \`.gif\`, or be a CDN link). Type \`remove\` to clear the current banner.\n\n_(Auto expires in 60s)_`,
@@ -257,7 +252,7 @@ function initWelcomeManager(client, configDefaults) {
           }
 
           client.welcomeCache.set(interaction.user.id, workingConfig);
-          await showPreviewWithCommitButtons(interaction, workingConfig, channelIds, WELCOME_CHANNEL_ID);
+          await showPreviewWithCommitButtons(interaction, workingConfig, channelIds);
         });
 
         collector.on('end', (collected) => {
@@ -268,7 +263,7 @@ function initWelcomeManager(client, configDefaults) {
         return;
       }
 
-      // Default text/channel input collector (existing fields)
+      // Default text/channel input collector
       await interaction.reply({
         content: `💬 **Input Watcher Engaged**\nPlease type your new value text content for the welcome **${chosenVariable.toUpperCase()}** parameters directly in this channel context. (Auto expires in 60s).`,
         ephemeral: true
@@ -291,7 +286,7 @@ function initWelcomeManager(client, configDefaults) {
 
         workingConfig[chosenVariable] = refinedContent;
         client.welcomeCache.set(interaction.user.id, workingConfig);
-        await showPreviewWithCommitButtons(interaction, workingConfig, channelIds, WELCOME_CHANNEL_ID);
+        await showPreviewWithCommitButtons(interaction, workingConfig, channelIds);
       });
 
       userMessageCollector.on('end', (collected) => {
@@ -321,8 +316,8 @@ function initWelcomeManager(client, configDefaults) {
   });
 }
 
-// NEW: Shared helper — shows the live preview embed + Commit/Discard buttons
-async function showPreviewWithCommitButtons(interaction, workingConfig, channelIds, fallbackChannelId) {
+// Shared helper — shows the live preview embed + Commit/Discard buttons
+async function showPreviewWithCommitButtons(interaction, workingConfig, channelIds) {
   const { RULES_CHANNEL_ID, VERIFY_CHANNEL_ID, GENERAL_CHANNEL_ID } = channelIds;
 
   const previewEmbed = new EmbedBuilder()
@@ -334,15 +329,14 @@ async function showPreviewWithCommitButtons(interaction, workingConfig, channelI
 
 We're excited to have you join **Golden Heart SMP**.
 
-✅ **Verify** • <#${1513364198850171010 || '123456789012345678'}>
-📖 **Read Rules** • <#${1432277447440597028 || '123456789012345678'}>
-💬 **General** • <#${1502596253589180457 || '123456789012345678'}>
+✅ **Verify** • <#${VERIFY_CHANNEL_ID || '1513364198850171010'}>
+📖 **Read Rules** • <#${RULES_CHANNEL_ID || '1432277447440597028'}>
+💬 **General** • <#${GENERAL_CHANNEL_ID || '1502596253589180457'}>
 
 ✨ You are our **${interaction.guild.memberCount}${getOrdinal(interaction.guild.memberCount)}** member!`
     )
     .setFooter({ text: 'Timing | GoldenHeart SMP' });
 
-  // Show banner in preview if set
   if (workingConfig.bannerUrl) {
     previewEmbed.setImage(workingConfig.bannerUrl);
   }
