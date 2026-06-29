@@ -1853,50 +1853,6 @@ client.on('guildMemberAdd', async member => {
   await sendLog(client, embed);
 
   // ── WELCOME CARD ──
-  try {
-    const cardBuffer = await generateWelcomeCard(member);
-    const cardAttachment = new AttachmentBuilder(cardBuffer, { name: 'welcome-card.png' });
-    const files = [cardAttachment];
-    const welcomeChannel = await client.channels.fetch(WELCOME_CHANNEL_ID);
-
-    const welcomeEmbed = new EmbedBuilder()
-      .setColor(0xf0b429)
-      .setAuthor({
-        name: `⛏️ ${member.user.username} joined GoldenHeart SMP!`,
-        iconURL: member.user.displayAvatarURL({ dynamic: true, size: 256 }),
-      })
-      .setTitle('🏰 Welcome to GoldenHeart SMP')
-      .setDescription([
-        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-        ``,
-        `**Hey <@${member.id}>, we're glad you're here!** 💛`,
-        ``,
-        `GoldenHeart SMP is a community-driven Minecraft survival server`,
-        `built on friendship, strategy, and epic adventures.`,
-        ``,
-        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-        ``,
-        `> 🔐 **Verify here:** <#${VERIFY_CHANNEL_ID}> to unlock all channels`,
-        `> 📜 **Read the rules:** \`/rules\``,
-        `> ⛏️ **Join the MC server:** \`goldenheartsmp.minecraftnoob.com\``,
-        ``,
-        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-      ].join('\n'))
-      .setImage('attachment://welcome-card.png')
-      .setThumbnail(member.guild.iconURL({ dynamic: true, size: 256 }) || member.user.displayAvatarURL({ dynamic: true }))
-      .setFooter({
-        text: `⚔️ GoldenHeart SMP • ${member.guild.memberCount} members • 1.20.4+`,
-        iconURL: member.guild.iconURL({ dynamic: true }) || undefined,
-      })
-      .setTimestamp();
-
-    await welcomeChannel.send({
-      content: `🎉 **Welcome <@${member.id}>!** You are our **${member.guild.memberCount}${getOrdinal(member.guild.memberCount)}** member!`,
-      embeds: [welcomeEmbed],
-      files,
-    });
-  } catch (err) { console.error('Could not send welcome card:', err); }
-});
 
 // ─────────────────────────────────────────
 // MEMBER LEAVE
