@@ -64,9 +64,9 @@ async function buildWelcomeEmbed(member, config, channelIds, memberNumber) {
 
 We're excited to have you join **Golden Heart SMP**.
 
-📖 **Read Rules** • <#${RULES_CHANNEL_ID}>
-✅ **Verify** • <#${VERIFY_CHANNEL_ID}>
-💬 **General** • <#${GENERAL_CHANNEL_ID}>
+📖 **Read Rules** • <#1432277447440597028>
+✅ **Verify** • <#1513364198850171010>
+💬 **General** • <#1502596253589180457>
 
 ✨ You are our **${count}${getOrdinal(count)}** member!`;
 
