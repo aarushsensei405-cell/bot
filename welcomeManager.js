@@ -334,9 +334,9 @@ async function showPreviewWithCommitButtons(interaction, workingConfig, channelI
 
 We're excited to have you join **Golden Heart SMP**.
 
-📖 **Read Rules** • <#${RULES_CHANNEL_ID || '123456789012345678'}>
-✅ **Verify** • <#${VERIFY_CHANNEL_ID || '123456789012345678'}>
-💬 **General** • <#${GENERAL_CHANNEL_ID || '123456789012345678'}>
+✅ **Verify** • <#${1513364198850171010 || '123456789012345678'}>
+📖 **Read Rules** • <#${1432277447440597028 || '123456789012345678'}>
+💬 **General** • <#${1502596253589180457 || '123456789012345678'}>
 
 ✨ You are our **${interaction.guild.memberCount}${getOrdinal(interaction.guild.memberCount)}** member!`
     )
