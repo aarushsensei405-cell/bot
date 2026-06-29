@@ -22,7 +22,8 @@ const WelcomeConfigSchema = new Schema({
   title: { type: String, default: '🎉 A New Adventurer Has Arrived!' },
   description: { type: String, default: '## 💛 Welcome, {member}!\n\nWe\'re excited to have you join **Golden Heart SMP**.\n\n📖 **Read Rules** • <#123456789012345678>\n✅ **Verify** • <#123456789012345678>\n💬 **General** • <#123456789012345678>\n\n✨ You are our **{ordinal_count}** member!' },
   color: { type: String, default: '#FFD700' },
-  gifUrl: { type: String, default: '' } // Left open if you decide to layer banners later
+  gifUrl: { type: String, default: '' },
+  bannerUrl: { type: String, default: '' }  // NEW: custom banner image URL
 });
 const WelcomeConfig = models.WelcomeConfig || model('WelcomeConfig', WelcomeConfigSchema);
 
@@ -32,7 +33,7 @@ function getOrdinal(n) {
   return s[(v - 20) % 10] || s[v] || s[0];
 }
 
-function parseWelcomePlaceholders(text, member, rulesId, verifyId, generalId) {
+function parseWelcomePlaceholders(text, member) {
   if (!text) return '';
   return text
     .replace(/{member}/g, `<@${member.id}>`)
@@ -46,7 +47,7 @@ function parseWelcomePlaceholders(text, member, rulesId, verifyId, generalId) {
 async function generateWelcomeCard(member) {
   const canvas = createCanvas(700, 250);
   const ctx = canvas.getContext('2d');
-  
+
   ctx.fillStyle = '#1e1e24';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -57,14 +58,55 @@ async function generateWelcomeCard(member) {
     ctx.fillStyle = '#FFD700';
     ctx.fillRect(450, 25, 200, 200);
   }
-  
+
   return canvas.toBuffer();
+}
+
+// NEW: Shared embed builder — used by both live joins and the final output preview
+async function buildWelcomeEmbed(member, config, channelIds, memberNumber) {
+  const { RULES_CHANNEL_ID, VERIFY_CHANNEL_ID, GENERAL_CHANNEL_ID } = channelIds;
+  const count = memberNumber ?? member.guild.memberCount;
+
+  const cardBuffer = await generateWelcomeCard(member);
+  const attachment = new AttachmentBuilder(cardBuffer, { name: 'welcome-card.png' });
+
+  const embed = new EmbedBuilder()
+    .setColor(config?.color ? parseInt(config.color.replace('#', ''), 16) : 0xFFD700)
+    .setThumbnail(member.user.displayAvatarURL({ size: 512 }))
+    .setTitle(config?.title || '🎉 A New Adventurer Has Arrived!')
+    .setDescription(
+`## 💛 Welcome, <@${member.id}>!
+
+We're excited to have you join **Golden Heart SMP**.
+
+📖 **Read Rules** • <#${RULES_CHANNEL_ID || '123456789012345678'}>
+✅ **Verify** • <#${VERIFY_CHANNEL_ID || '123456789012345678'}>
+💬 **General** • <#${GENERAL_CHANNEL_ID || '123456789012345678'}>
+
+✨ You are our **${count}${getOrdinal(count)}** member!`
+    )
+    .setImage('attachment://welcome-card.png')
+    .setFooter({ text: `Timing | GoldenHeart SMP • Member #${count}` })
+    .setTimestamp();
+
+  // NEW: Attach custom banner as a second image field if configured
+  // Discord embeds only support one image; we use the banner as the main image
+  // and the generated card as thumbnail when a banner is set.
+  if (config?.bannerUrl) {
+    embed.setImage(config.bannerUrl);
+    embed.setThumbnail(member.user.displayAvatarURL({ size: 512 }));
+    // Card is still generated but used as thumbnail fallback — skip attaching it
+    return { embed, files: [] };
+  }
+
+  return { embed, files: [attachment] };
 }
 
 // 3. Initialization Routine
 function initWelcomeManager(client, configDefaults) {
-  // Pulling channel/guild config IDs passed into initialization
   const { GUILD_ID, WELCOME_CHANNEL_ID, RULES_CHANNEL_ID, VERIFY_CHANNEL_ID, GENERAL_CHANNEL_ID } = configDefaults;
+  const channelIds = { RULES_CHANNEL_ID, VERIFY_CHANNEL_ID, GENERAL_CHANNEL_ID };
+
   client.welcomeCache = new Map();
 
   // Arrival tracking handler
@@ -81,33 +123,8 @@ function initWelcomeManager(client, configDefaults) {
     if (!channel) return;
 
     try {
-      const cardBuffer = await generateWelcomeCard(member);
-      const attachment = new AttachmentBuilder(cardBuffer, { name: 'welcome-card.png' });
-
-      // Cleaned Embed Structure matches your layout adjustments
-      const welcomeEmbed = new EmbedBuilder()
-        .setColor(0xFFD700)
-        .setThumbnail(member.user.displayAvatarURL({ size: 512 }))
-        .setTitle("🎉 A New Adventurer Has Arrived!")
-        .setDescription(
-`## 💛 Welcome, <@${member.id}>!
-
-We're excited to have you join **Golden Heart SMP**.
-
-📖 **Read Rules** • <#${RULES_CHANNEL_ID || '123456789012345678'}>
-✅ **Verify** • <#${VERIFY_CHANNEL_ID || '123456789012345678'}>
-💬 **General** • <#${GENERAL_CHANNEL_ID || '123456789012345678'}>
-
-✨ You are our **${member.guild.memberCount}${getOrdinal(member.guild.memberCount)}** member!`
-        )
-        .setImage("attachment://welcome-card.png")
-        .setFooter({ text: `Timing | GoldenHeart SMP • Member #${member.guild.memberCount}` })
-        .setTimestamp();
-
-      await channel.send({
-        embeds: [welcomeEmbed],
-        files: [attachment]
-      });
+      const { embed, files } = await buildWelcomeEmbed(member, config, channelIds);
+      await channel.send({ embeds: [embed], files });
     } catch (err) {
       console.error('Error outputting custom dynamic join greeting:', err);
     }
@@ -136,7 +153,10 @@ We're excited to have you join **Golden Heart SMP**.
               { label: 'Embed Title Block', description: 'Modify the primary embed description header line', value: 'title' },
               { label: 'Main Description Body', description: 'Modify variables, descriptive content, or hyperlinks', value: 'description' },
               { label: 'Theme Frame Hex Color', description: 'Supply custom accent canvas hex structures', value: 'color' },
-              { label: 'Output Channel Location', description: 'Change active arrival tracking destinations', value: 'channel' }
+              { label: 'Output Channel Location', description: 'Change active arrival tracking destinations', value: 'channel' },
+              // NEW OPTIONS ↓
+              { label: '🖼️ Custom Banner Image', description: 'Set a banner image URL shown at the top of the welcome embed', value: 'bannerUrl' },
+              { label: '📤 Send Final Output Preview', description: 'Fire a live test welcome card to your configured welcome channel', value: 'preview' }
             ])
         );
 
@@ -168,34 +188,10 @@ We're excited to have you join **Golden Heart SMP**.
 
           for (let index = 0; index < physicalMembersList.length; index++) {
             const member = physicalMembersList[index];
-            const currentCountNumber = index + 1; 
+            const currentCountNumber = index + 1;
 
-            const buffer = await generateWelcomeCard(member);
-            const attachFile = new AttachmentBuilder(buffer, { name: 'welcome-card.png' });
-
-            const retroEmbed = new EmbedBuilder()
-              .setColor(0xFFD700)
-              .setThumbnail(member.user.displayAvatarURL({ size: 512 }))
-              .setTitle("🎉 A New Adventurer Has Arrived!")
-              .setDescription(
-`## 💛 Welcome, <@${member.id}>!
-
-We're excited to have you join **Golden Heart SMP**.
-
-📖 **Read Rules** • <#${RULES_CHANNEL_ID || '123456789012345678'}>
-✅ **Verify** • <#${VERIFY_CHANNEL_ID || '123456789012345678'}>
-💬 **General** • <#${GENERAL_CHANNEL_ID || '123456789012345678'}>
-
-✨ You are our **${currentCountNumber}${getOrdinal(currentCountNumber)}** member!`
-              )
-              .setImage("attachment://welcome-card.png")
-              .setFooter({ text: `Timing | GoldenHeart SMP • Member #${currentCountNumber}` })
-              .setTimestamp();
-
-            await targetChannel.send({
-              embeds: [retroEmbed],
-              files: [attachFile]
-            });
+            const { embed, files } = await buildWelcomeEmbed(member, config, channelIds, currentCountNumber);
+            await targetChannel.send({ embeds: [embed], files });
 
             await new Promise(res => setTimeout(res, 1200));
           }
@@ -211,6 +207,68 @@ We're excited to have you join **Golden Heart SMP**.
       let workingConfig = await WelcomeConfig.findOne({ guildId: interaction.guild.id });
       if (!workingConfig) workingConfig = new WelcomeConfig({ guildId: interaction.guild.id });
 
+      // NEW: Final Output Preview — sends a live test card directly to the welcome channel
+      if (chosenVariable === 'preview') {
+        await interaction.reply({
+          content: '⏳ Generating and sending your final welcome card preview to the configured welcome channel...',
+          ephemeral: true
+        });
+
+        const previewChannelId = workingConfig?.channelId || WELCOME_CHANNEL_ID;
+        const previewChannel = interaction.guild.channels.cache.get(previewChannelId);
+
+        if (!previewChannel) {
+          return interaction.followUp({ content: '❌ Welcome channel not found. Set one first using "Output Channel Location".', ephemeral: true });
+        }
+
+        try {
+          const { embed, files } = await buildWelcomeEmbed(interaction.member, workingConfig, channelIds);
+          await previewChannel.send({ embeds: [embed], files });
+          return interaction.followUp({
+            content: `✅ **Preview sent!** Check <#${previewChannelId}> to see exactly how your welcome card will look.`,
+            ephemeral: true
+          });
+        } catch (err) {
+          console.error('Preview send error:', err);
+          return interaction.followUp({ content: '❌ Failed to send preview. Check bot permissions in the welcome channel.', ephemeral: true });
+        }
+      }
+
+      // NEW: Banner URL — validates it looks like a URL before saving
+      if (chosenVariable === 'bannerUrl') {
+        await interaction.reply({
+          content: `🖼️ **Custom Banner Setup**\nPaste the **direct image URL** for your banner (must end in \`.png\`, \`.jpg\`, \`.gif\`, or be a CDN link). Type \`remove\` to clear the current banner.\n\n_(Auto expires in 60s)_`,
+          ephemeral: true
+        });
+
+        const collectorFilter = m => m.author.id === interaction.user.id;
+        const collector = interaction.channel.createMessageCollector({ filter: collectorFilter, max: 1, time: 60000 });
+
+        collector.on('collect', async (msg) => {
+          const input = msg.content.trim();
+          try { await msg.delete(); } catch {}
+
+          if (input.toLowerCase() === 'remove') {
+            workingConfig.bannerUrl = '';
+          } else if (!input.startsWith('http')) {
+            return interaction.followUp({ content: '❌ Invalid URL. Must start with `http`. Session ended.', ephemeral: true });
+          } else {
+            workingConfig.bannerUrl = input;
+          }
+
+          client.welcomeCache.set(interaction.user.id, workingConfig);
+          await showPreviewWithCommitButtons(interaction, workingConfig, channelIds, WELCOME_CHANNEL_ID);
+        });
+
+        collector.on('end', (collected) => {
+          if (collected.size === 0) {
+            interaction.followUp({ content: '⏱️ Banner input timed out. No changes made.', ephemeral: true }).catch(() => {});
+          }
+        });
+        return;
+      }
+
+      // Default text/channel input collector (existing fields)
       await interaction.reply({
         content: `💬 **Input Watcher Engaged**\nPlease type your new value text content for the welcome **${chosenVariable.toUpperCase()}** parameters directly in this channel context. (Auto expires in 60s).`,
         ephemeral: true
@@ -233,35 +291,13 @@ We're excited to have you join **Golden Heart SMP**.
 
         workingConfig[chosenVariable] = refinedContent;
         client.welcomeCache.set(interaction.user.id, workingConfig);
+        await showPreviewWithCommitButtons(interaction, workingConfig, channelIds, WELCOME_CHANNEL_ID);
+      });
 
-        const livePreview = new EmbedBuilder()
-          .setColor(0xFFD700)
-          .setThumbnail(interaction.member.user.displayAvatarURL({ size: 512 }))
-          .setTitle("🎉 A New Adventurer Has Arrived!")
-          .setDescription(
-`## 💛 Welcome, <@${interaction.member.id}>!
-
-We're excited to have you join **Golden Heart SMP**.
-
-📖 **Read Rules** • <#${RULES_CHANNEL_ID || '123456789012345678'}>
-✅ **Verify** • <#${VERIFY_CHANNEL_ID || '123456789012345678'}>
-💬 **General** • <#${GENERAL_CHANNEL_ID || '123456789012345678'}>
-
-✨ You are our **${interaction.guild.memberCount}${getOrdinal(interaction.guild.memberCount)}** member!`
-          )
-          .setFooter({ text: 'Timing | GoldenHeart SMP' });
-
-        const commitActionRow = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId('save_welcome_approved').setLabel('Commit Changes').setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId('save_welcome_rejected').setLabel('Discard Changes').setStyle(ButtonStyle.Danger)
-        );
-
-        await interaction.followUp({
-          content: '📝 **Live System Preview Rendering Canvas:** Ensure look structure formats align correctly before global deployment:',
-          embeds: [livePreview],
-          components: [commitActionRow],
-          ephemeral: true
-        });
+      userMessageCollector.on('end', (collected) => {
+        if (collected.size === 0) {
+          interaction.followUp({ content: '⏱️ Input timed out. No changes made.', ephemeral: true }).catch(() => {});
+        }
       });
       return;
     }
@@ -269,7 +305,7 @@ We're excited to have you join **Golden Heart SMP**.
     if (interaction.isButton()) {
       if (interaction.customId === 'save_welcome_approved') {
         const activeState = client.welcomeCache.get(interaction.user.id);
-        if (!activeState) return interaction.reply({ content: '❌ Modification transaction context was lost. re-run selection setup.', ephemeral: true });
+        if (!activeState) return interaction.reply({ content: '❌ Modification transaction context was lost. Re-run selection setup.', ephemeral: true });
 
         await WelcomeConfig.findOneAndUpdate({ guildId: interaction.guild.id }, activeState.toObject(), { upsert: true });
         client.welcomeCache.delete(interaction.user.id);
@@ -282,6 +318,49 @@ We're excited to have you join **Golden Heart SMP**.
         return interaction.update({ content: '❌ **Modifications cleared out.** Cache context dropped.', embeds: [], components: [] });
       }
     }
+  });
+}
+
+// NEW: Shared helper — shows the live preview embed + Commit/Discard buttons
+async function showPreviewWithCommitButtons(interaction, workingConfig, channelIds, fallbackChannelId) {
+  const { RULES_CHANNEL_ID, VERIFY_CHANNEL_ID, GENERAL_CHANNEL_ID } = channelIds;
+
+  const previewEmbed = new EmbedBuilder()
+    .setColor(workingConfig.color ? parseInt(workingConfig.color.replace('#', ''), 16) : 0xFFD700)
+    .setThumbnail(interaction.member.user.displayAvatarURL({ size: 512 }))
+    .setTitle(workingConfig.title || '🎉 A New Adventurer Has Arrived!')
+    .setDescription(
+`## 💛 Welcome, <@${interaction.member.id}>!
+
+We're excited to have you join **Golden Heart SMP**.
+
+📖 **Read Rules** • <#${RULES_CHANNEL_ID || '123456789012345678'}>
+✅ **Verify** • <#${VERIFY_CHANNEL_ID || '123456789012345678'}>
+💬 **General** • <#${GENERAL_CHANNEL_ID || '123456789012345678'}>
+
+✨ You are our **${interaction.guild.memberCount}${getOrdinal(interaction.guild.memberCount)}** member!`
+    )
+    .setFooter({ text: 'Timing | GoldenHeart SMP' });
+
+  // Show banner in preview if set
+  if (workingConfig.bannerUrl) {
+    previewEmbed.setImage(workingConfig.bannerUrl);
+  }
+
+  const commitActionRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('save_welcome_approved').setLabel('Commit Changes').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('save_welcome_rejected').setLabel('Discard Changes').setStyle(ButtonStyle.Danger)
+  );
+
+  const bannerNote = workingConfig.bannerUrl
+    ? `\n🖼️ **Banner set:** ${workingConfig.bannerUrl}`
+    : '\n_(No custom banner set — generated card will be used)_';
+
+  await interaction.followUp({
+    content: `📝 **Live System Preview Rendering Canvas:** Ensure look structure formats align correctly before global deployment.${bannerNote}`,
+    embeds: [previewEmbed],
+    components: [commitActionRow],
+    ephemeral: true
   });
 }
 
