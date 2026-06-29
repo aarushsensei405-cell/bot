@@ -91,7 +91,7 @@ mongoose.connect(MONGODB_URI, {
 
   // Initialize your welcome manager right here
 
-  initWelcomeManager(client, { 1432272831722553398, 1516255117060341790});
+ initWelcomeManager(client, { GUILD_ID: '1432272831722553398', WELCOME_CHANNEL_ID: '1516255117060341790' });
 
 })
 
