@@ -42,19 +42,18 @@ function parseWelcomePlaceholders(text, member) {
     .replace(/{ordinal_count}/g, `${member.guild.memberCount}${getOrdinal(member.guild.memberCount)}`);
 }
 
-// Generates a 100% clean square portrait profile card container positioned on the right
+// Generates a clean square portrait container on the right side
 async function generateWelcomeCard(member) {
   const canvas = createCanvas(700, 250);
   const ctx = canvas.getContext('2d');
   
-  // Background canvas base structure
+  // Background canvas structure
   ctx.fillStyle = '#1e1e24';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Modern Right-Aligned Square Profile Image Frame (No text, no circle masking filters)
+  // Modern Right-Aligned Square Profile Image Frame
   try {
     const avatar = await loadImage(member.user.displayAvatarURL({ extension: 'png', size: 256 }));
-    // Positioned neatly towards the right layout boundary box
     ctx.drawImage(avatar, 450, 25, 200, 200);
   } catch {
     ctx.fillStyle = '#f0b429';
@@ -86,21 +85,20 @@ function initWelcomeManager(client, configDefaults) {
       const cardBuffer = await generateWelcomeCard(member);
       const attachment = new AttachmentBuilder(cardBuffer, { name: 'welcome-card.png' });
 
-      // Cleaned author element & adjusted footer timestamp strings
+      // Embed config with removed author avatar icon and added dynamic layout spacing
       const welcomeEmbed = new EmbedBuilder()
         .setColor(config.color.startsWith('#') ? config.color : 0xf0b429)
         .setAuthor({
-          name: `${member.user.username} has joined GoldenHeart SMP!`,
-          iconURL: member.user.displayAvatarURL({ dynamic: true, size: 256 }),
+          name: `${member.user.username} has joined GoldenHeart SMP!` // Removed iconURL property
         })
         .setTitle(parseWelcomePlaceholders(config.title, member))
-        .setDescription(parseWelcomePlaceholders(config.description, member))
+        // Added "\n\n" below to create clean vertical breathing space before description text block
+        .setDescription(`\n\n${parseWelcomePlaceholders(config.description, member)}`)
         .setThumbnail('attachment://welcome-card.png') 
         .setImage(config.gifUrl) 
         .setFooter({ text: `Timing | GoldenHeart SMP • Member #${member.guild.memberCount}` })
         .setTimestamp();
 
-      // ONLY sends embed — no text mention headers cluttering the view
       await channel.send({
         embeds: [welcomeEmbed],
         files: [attachment]
@@ -164,19 +162,18 @@ function initWelcomeManager(client, configDefaults) {
           const structuralGuildMembers = await interaction.guild.members.fetch();
           const physicalMembersList = Array.from(structuralGuildMembers.filter(m => !m.user.bot).values());
 
-          // Counter iteration to add incremental numbers from 1 to 100+
           for (let index = 0; index < physicalMembersList.length; index++) {
             const member = physicalMembersList[index];
-            const currentCountNumber = index + 1; // Starts cleanly at 1
+            const currentCountNumber = index + 1; 
 
             const buffer = await generateWelcomeCard(member);
             const attachFile = new AttachmentBuilder(buffer, { name: 'welcome-card.png' });
 
             const retroEmbed = new EmbedBuilder()
               .setColor(config?.color || 0xf0b429)
-              .setAuthor({ name: `${member.user.username} has joined GoldenHeart SMP!`, iconURL: member.user.displayAvatarURL({ dynamic: true }) })
+              .setAuthor({ name: `${member.user.username} has joined GoldenHeart SMP!` })
               .setTitle(parseWelcomePlaceholders(config?.title || '🏰 Welcome to GoldenHeart SMP', member))
-              .setDescription(parseWelcomePlaceholders(config?.description || 'Hey {member}, welcome!', member))
+              .setDescription(`\n\n${parseWelcomePlaceholders(config?.description || 'Hey {member}, welcome!', member)}`)
               .setThumbnail('attachment://welcome-card.png')
               .setImage(config?.gifUrl || 'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3N2N2pqOHFwYm9pZ3p4ZHpjdHpxZms0Ym9pN2pxZms0Ym9pN2pxZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/L3X9Gv1jdK4Ew/giphy.gif')
               .setFooter({ text: `Timing | GoldenHeart SMP • Member #${currentCountNumber}` })
@@ -227,7 +224,7 @@ function initWelcomeManager(client, configDefaults) {
         const livePreview = new EmbedBuilder()
           .setColor(workingConfig.color.startsWith('#') ? workingConfig.color : 0xf0b429)
           .setTitle(parseWelcomePlaceholders(workingConfig.title, interaction.member))
-          .setDescription(parseWelcomePlaceholders(workingConfig.description, interaction.member))
+          .setDescription(`\n\n${parseWelcomePlaceholders(workingConfig.description, interaction.member)}`)
           .setImage(workingConfig.gifUrl)
           .addFields({ name: '📢 Output Location Configuration Target', value: `<#${workingConfig.channelId || WELCOME_CHANNEL_ID}>` })
           .setFooter({ text: 'Timing | GoldenHeart SMP' });
