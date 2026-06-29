@@ -36,6 +36,7 @@ const https = require('https');
 const http = require('http');
 const mongoose = require('mongoose');
 const { setupTracking, getTrackingCommands } = require('./trackingIndex');
+const { initWelcomeManager, welcomeCommandsData } = require('./welcomeManager'); // <-- ADD THIS LINE
 require('dotenv').config();
 
 // ─────────────────────────────────────────
@@ -75,13 +76,31 @@ if (!MONGODB_URI) {
 }
 
 mongoose.connect(MONGODB_URI, {
+
   useNewUrlParser: true,
+
   useUnifiedTopology: true,
+
 })
-.then(() => console.log('✅ Connected to MongoDB Atlas!'))
+
+.then(() => {
+
+  console.log('✅ Connected to MongoDB Atlas!');
+
+  
+
+  // Initialize your welcome manager right here
+
+  initWelcomeManager(client, { 1432272831722553398, 1516255117060341790});
+
+})
+
 .catch(err => {
+
   console.error('❌ MongoDB connection error:', err);
+
   process.exit(1);
+
 });
 
 // ─────────────────────────────────────────
@@ -5183,7 +5202,8 @@ const commandsList = [
         { name: 'Accepted', value: 'accepted' },
         { name: 'Rejected', value: 'rejected' },
       )),
-  
+  // Welcome Manager Configuration Commands
+...welcomeCommandsData,
   // Warn commands
   new SlashCommandBuilder().setName('warn').setDescription('Warn a member')
     .addUserOption(o => o.setName('user').setDescription('Member to warn').setRequired(true))
