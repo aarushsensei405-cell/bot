@@ -37,6 +37,7 @@ const http = require('http');
 const mongoose = require('mongoose');
 const { setupTracking, getTrackingCommands } = require('./trackingIndex');
 const { initWelcomeManager, welcomeCommandsData } = require('./welcomeManager'); // <-- ADD THIS LINE
+const { initStaffManager, staffCommandsData } = require('./staffManager');
 require('dotenv').config();
 
 // ─────────────────────────────────────────
