@@ -37,7 +37,7 @@ const http = require('http');
 const mongoose = require('mongoose');
 const { setupTracking, getTrackingCommands } = require('./trackingIndex');
 const { initWelcomeManager, welcomeCommandsData } = require('./welcomeManager'); // <-- ADD THIS LINE
-const { initStaffManager, staffCommandsData } = require('./Staffmanager');
+const { initStaffManager, staffCommandsData } = require('./staffManager');
 require('dotenv').config();
 
 // ─────────────────────────────────────────
@@ -1679,8 +1679,10 @@ client.once('ready', async () => {
   
   // Initialize rulebooks
   await initializeRulebooks();
-    // Initialize staff manager
+  
+  // Initialize staff manager
   initStaffManager(client);
+  
   // Load giveaways
   const giveaways = await Giveaway.find({ ended: false });
   const now = Date.now();
@@ -1855,6 +1857,7 @@ client.on('guildMemberAdd', async member => {
   await sendLog(client, embed);
 
   // ── WELCOME CARD ──
+});
 
 // ─────────────────────────────────────────
 // MEMBER LEAVE
@@ -5161,7 +5164,7 @@ const commandsList = [
       )),
   // Welcome Manager Configuration Commands
 ...welcomeCommandsData,
-    // Staff Manager Commands
+  // Staff Manager Commands
 ...staffCommandsData,
   // Warn commands
   new SlashCommandBuilder().setName('warn').setDescription('Warn a member')
