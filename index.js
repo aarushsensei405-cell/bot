@@ -5161,6 +5161,8 @@ const commandsList = [
       )),
   // Welcome Manager Configuration Commands
 ...welcomeCommandsData,
+    // Staff Manager Commands
+...staffCommandsData,
   // Warn commands
   new SlashCommandBuilder().setName('warn').setDescription('Warn a member')
     .addUserOption(o => o.setName('user').setDescription('Member to warn').setRequired(true))
