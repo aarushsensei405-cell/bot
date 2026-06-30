@@ -1679,7 +1679,8 @@ client.once('ready', async () => {
   
   // Initialize rulebooks
   await initializeRulebooks();
-  
+    // Initialize staff manager
+  initStaffManager(client);
   // Load giveaways
   const giveaways = await Giveaway.find({ ended: false });
   const now = Date.now();
