@@ -8,11 +8,12 @@ const {
 } = require('discord.js');
 const mongoose = require('mongoose');
 
-// Retrieve your existing User model
-const User = mongoose.models.User || mongoose.model('User');
+// Helper to lazily pull the User model only when needed (prevents startup crash)
+function getUserModel() {
+  return mongoose.models.User || mongoose.model('User');
+}
 
 // --- MINES GAME STATE DATA STRUCTURE ---
-// Keeps track of active mines games in memory
 const activeMinesGames = new Map();
 
 const casinoCommandsData = [
@@ -80,6 +81,7 @@ async function handleCoinflip(interaction) {
   const choice = interaction.options.getString('side');
   const userId = interaction.user.id;
 
+  const User = getUserModel();
   let userData = await User.findOne({ userId });
   if (!userData || userData.coins < bet) {
     return interaction.reply({ 
@@ -120,6 +122,7 @@ async function handleMinesStart(interaction) {
   const bombCount = interaction.options.getInteger('bombs');
   const userId = interaction.user.id;
 
+  const User = getUserModel();
   let userData = await User.findOne({ userId });
   if (!userData || userData.coins < bet) {
     return interaction.reply({ 
@@ -165,10 +168,8 @@ async function renderMinesBoard(interaction, gameId, isUpdate = true) {
   const gameState = activeMinesGames.get(gameId);
   if (!gameState) return;
 
-  // Calculate standard House Multiply multiplier scale
-  // Multiplier formula approach: combinatorial odds with a modest house edge markup
   const safeCount = 25 - gameState.bombCount;
-  let multiplier = 0.96; // Base multiplier containing house margin protection
+  let multiplier = 0.96; 
   for (let i = 0; i < gameState.diamondsFound; i++) {
     multiplier *= (25 - i) / (safeCount - i);
   }
@@ -184,10 +185,10 @@ async function renderMinesBoard(interaction, gameId, isUpdate = true) {
       `**Bombs on Board:** ${gameState.bombCount} | **Safe Tiles:** ${safeCount}`,
       `**Tiles Cleared:** ${gameState.diamondsFound}`,
       `💰 **Current Cashout Value:** **${currentCashoutValue}** coins (\`${multiplier.toFixed(2)}x\`)`,
-      gameState.gameOver ? '\n🛑 **GAME OVER**' : '\nClick below tiles to uncover diamonds! Cash out safely before hitting a bomb.'
+      gameState.gameOver ? '\n🛑 **GAME OVER / FINISHED**' : '\nClick below tiles to uncover diamonds! Cash out safely before hitting a bomb.'
     ].join('\n'));
 
-  // Build the 5x5 grid component layout structure
+  // Build the 5x5 grid layout
   const rows = [];
   for (let row = 0; row < 5; row++) {
     const actionRow = new ActionRowBuilder();
@@ -212,7 +213,6 @@ async function renderMinesBoard(interaction, gameId, isUpdate = true) {
         }
       }
 
-      // Disable buttons if revealed or game is completely finalized
       if (isRevealed || gameState.gameOver) {
         button.setDisabled(true);
       }
@@ -241,15 +241,21 @@ async function renderMinesBoard(interaction, gameId, isUpdate = true) {
 }
 
 async function handleMinesClick(interaction) {
-  const [action, gameId, indexStr] = interaction.customId.split(':');
+  const parts = interaction.customId.split(':');
+  const action = parts[0]; // 'mines_click' or 'mines_cashout'
+  const gameId = parts[1];
+  const indexStr = parts[2];
+
   const gameState = activeMinesGames.get(gameId);
 
   if (!gameState) {
     return interaction.reply({ content: '❌ Game session expired or data missing.', ephemeral: true });
   }
   if (interaction.user.id !== gameState.userId) {
-    return interaction.reply({ content: '❌ This is not your game box context!', ephemeral: true });
+    return interaction.reply({ content: '❌ This is not your game context!', ephemeral: true });
   }
+
+  const User = getUserModel();
 
   // Cash out execution path
   if (action === 'mines_cashout') {
