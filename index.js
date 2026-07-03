@@ -38,6 +38,7 @@ const mongoose = require('mongoose');
 const { setupTracking, getTrackingCommands } = require('./trackingIndex');
 const { initWelcomeManager, welcomeCommandsData } = require('./welcomeManager'); // <-- ADD THIS LINE
 const { initStaffManager, staffCommandsData } = require('./staffManager');
+const { casinoCommandsData, handleCasinoInteraction } = require('./casinoManager'); // <-- ADD THIS LINE
 require('dotenv').config();
 
 // ─────────────────────────────────────────
@@ -1891,7 +1892,17 @@ client.on('messageDelete', async message => {
     .setFooter({ text: `Message ID: ${message.id}` }).setTimestamp();
   await sendLog(client, embed);
 });
+client.on('interactionCreate', async interaction => {
+  // ─── CASINO SYSTEM ROUTER ───
+  if (
+    (interaction.isChatInputCommand() && ['coinflip', 'mines'].includes(interaction.commandName)) ||
+    (interaction.isButton() && interaction.customId.startsWith('mines_'))
+  ) {
+    return handleCasinoInteraction(interaction);
+  }
 
+  // Your existing shop, tickets, and moderation interaction code continues below...
+});
 // ─────────────────────────────────────────
 // MESSAGE UPDATE
 // ─────────────────────────────────────────
@@ -5166,6 +5177,8 @@ const commandsList = [
 ...welcomeCommandsData,
   // Staff Manager Commands
 ...staffCommandsData,
+  // ─── CASINO SYSTEM ROUTER ───
+...casinoCommandsData,
   // Warn commands
   new SlashCommandBuilder().setName('warn').setDescription('Warn a member')
     .addUserOption(o => o.setName('user').setDescription('Member to warn').setRequired(true))
