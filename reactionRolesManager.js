@@ -1,6 +1,7 @@
 // reactionRolesManager.js
 const {
   SlashCommandBuilder,
+  EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
@@ -30,12 +31,12 @@ const ROLES = {
 const rrCommandsData = [
   new SlashCommandBuilder()
     .setName('setup-roles')
-    .setDescription('Spawns the simple text profile role setup.')
+    .setDescription('Spawns the elegant step-by-step role profile setup.')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
 ];
 
 async function handleRRSetup(interaction) {
-  // Simple, normal 3-4 line text message
+  // Simple, normal text starter message
   const textMessage = [
     'Hey! Wanna personalize your profile settings and stand out in the server?',
     'Click the button below to choose your favorite roles instantly.',
@@ -50,7 +51,7 @@ async function handleRRSetup(interaction) {
       .setStyle(ButtonStyle.Primary)
   );
 
-  await interaction.reply({ content: '✅ Text menu deployed!', ephemeral: true });
+  await interaction.reply({ content: '✅ Role menu deployed successfully!', ephemeral: true });
   await interaction.channel.send({ content: textMessage, components: [row] });
 }
 
@@ -62,7 +63,15 @@ async function handleRRInteraction(interaction) {
   // When they click the main "Personalize Profile" button
   if (interaction.isButton() && interaction.customId === 'rr_open_menu') {
     
-    // Question 1: Colors (Using color-coded button styles)
+    // We must use deferReply first to open up an ephemeral window channel token
+    await interaction.deferReply({ ephemeral: true });
+
+    // ─── EMBED & ROW 1: COLORS ───
+    const embedColor = new EmbedBuilder()
+      .setTitle('🎨 Question 1: Choose Your Name Color')
+      .setDescription('Select your signature profile color to stand out in the chat!')
+      .setColor(0x2b2d31);
+
     const colorRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`rr_btn_${ROLES.red}`).setLabel('Red').setEmoji('🔴').setStyle(ButtonStyle.Danger),
       new ButtonBuilder().setCustomId(`rr_btn_${ROLES.blue}`).setLabel('Blue').setEmoji('🔵').setStyle(ButtonStyle.Primary),
@@ -71,32 +80,51 @@ async function handleRRInteraction(interaction) {
       new ButtonBuilder().setCustomId(`rr_btn_${ROLES.pink}`).setLabel('Pink').setEmoji('🌸').setStyle(ButtonStyle.Secondary)
     );
 
-    // Question 2: Age
+    // ─── EMBED & ROW 2: AGE ───
+    const embedAge = new EmbedBuilder()
+      .setTitle('🎂 Question 2: Select Your Age Group')
+      .setDescription('Let us know your general age bracket demographic.')
+      .setColor(0x2b2d31);
+
     const ageRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`rr_btn_${ROLES.under18}`).setLabel('Under 18').setEmoji('🌱').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(`rr_btn_${ROLES.over18}`).setLabel('18 or Older').setEmoji('🌳').setStyle(ButtonStyle.Primary)
     );
 
-    // Question 3: Platform
+    // ─── EMBED & ROW 3: PLATFORM ───
+    const embedPlatform = new EmbedBuilder()
+      .setTitle('🎮 Question 3: What Do You Play On?')
+      .setDescription('What primary operational gaming device do you use to explore the SMP?')
+      .setColor(0x2b2d31)
+      .setFooter({ text: '💡 Click any button once to add a role, and click again to remove it!' });
+
     const platformRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`rr_btn_${ROLES.pc}`).setLabel('PC Player').setEmoji('💻').setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(`rr_btn_${ROLES.mobile}`).setLabel('Mobile Player').setEmoji('📱').setStyle(ButtonStyle.Secondary)
     );
 
-    // Send everything privately to the user who clicked it
-    return interaction.reply({
-      content: [
-        '**Question 1:** Select your signature profile color below!',
-        '**Question 2:** Select your current age demographic group.',
-        '**Question 3:** What gaming device do you play on?',
-        '*(Click a button once to add, click again to remove)*'
-      ].join('\n'),
-      components: [colorRow, ageRow, platformRow],
+    // 1st message: Edits the initial defer hook
+    await interaction.editReply({
+      embeds: [embedColor],
+      components: [colorRow]
+    });
+
+    // 2nd message: Drops cleanly underneath it
+    await interaction.followUp({
+      embeds: [embedAge],
+      components: [ageRow],
+      ephemeral: true
+    });
+
+    // 3rd message: Concludes the block layout underneath it
+    return interaction.followUp({
+      embeds: [embedPlatform],
+      components: [platformRow],
       ephemeral: true
     });
   }
 
-  // Handle actual profile role buttons
+  // Handle actual profile role toggling actions
   if (interaction.isButton() && interaction.customId.startsWith('rr_btn_')) {
     await interaction.deferReply({ ephemeral: true });
     
@@ -105,7 +133,7 @@ async function handleRRInteraction(interaction) {
     const role = interaction.guild.roles.cache.get(roleId);
 
     if (!role) {
-      return interaction.editReply({ content: '❌ Role config error: Role missing from Discord.' });
+      return interaction.editReply({ content: '❌ Role configuration error: Role missing from Discord server settings.' });
     }
 
     try {
@@ -118,7 +146,7 @@ async function handleRRInteraction(interaction) {
       }
     } catch (err) {
       console.error(err);
-      return interaction.editReply({ content: '❌ Error: Make sure my bot role is higher than the roles I am assigning.' });
+      return interaction.editReply({ content: '❌ Error: Make sure my bot role is higher than the roles I am assigning in server settings.' });
     }
   }
 }
