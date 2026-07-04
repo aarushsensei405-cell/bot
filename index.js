@@ -39,6 +39,7 @@ const { setupTracking, getTrackingCommands } = require('./trackingIndex');
 const { initWelcomeManager, welcomeCommandsData } = require('./welcomeManager'); // <-- ADD THIS LINE
 const { initStaffManager, staffCommandsData } = require('./staffManager');
 const { casinoCommandsData, handleCasinoInteraction } = require('./casinoManager'); // <-- ADD THIS LINE
+const { rrCommandsData, handleRRSetup, handleRRInteraction } = require('./reactionRolesManager'); // <-- ADD THIS LINE
 require('dotenv').config();
 
 // ─────────────────────────────────────────
@@ -4331,32 +4332,16 @@ client.on('interactionCreate', async interaction => {
     }
 
     // ── ROLEPANEL COMMAND ──
-    if (commandName === 'rolepanel') {
-      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
-        return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
-      
-      const title = interaction.options.getString('title') || '🎭 Self-Assign Roles';
-      const desc = interaction.options.getString('description') || 'Click a button below to add or remove a role.';
-      const rolePairs = [];
-      for (let i = 1; i <= 5; i++) {
-        const role = interaction.options.getRole(`role${i}`);
-        const label = interaction.options.getString(`label${i}`);
-        if (role && label) rolePairs.push({ role, label });
-      }
-      if (rolePairs.length === 0)
-        return interaction.reply({ content: '❌ You must provide at least one role + label pair.', ephemeral: true });
-      
-      const buttons = rolePairs.map(({ role, label }) =>
-        new ButtonBuilder().setCustomId(`role_toggle:${role.id}`).setLabel(label).setStyle(ButtonStyle.Secondary)
-      );
-      const row = new ActionRowBuilder().addComponents(...buttons);
-      const embed = new EmbedBuilder()
-        .setTitle(title).setColor(0x5865f2).setDescription(desc)
-        .setFooter({ text: 'Click to toggle a role' }).setTimestamp();
-      await interaction.channel.send({ embeds: [embed], components: [row] });
-      return interaction.reply({ content: '✅ Role panel posted!', ephemeral: true });
-    }
-
+  // ─── REACTION ROLES ROUTER ───
+  if (interaction.isChatInputCommand() && interaction.commandName === 'setup-roles') {
+    return handleRRSetup(interaction);
+  }
+  
+  if (
+    (interaction.isStringSelectMenu() && interaction.customId === 'rr_colors') ||
+    (interaction.isButton() && interaction.customId.startsWith('rr_btn_'))
+  ) {
+    return handleRRInteraction(interaction);
     // ── EDITMESSAGE COMMAND ──
     if (commandName === 'editmessage') {
       if (!isGuildOwner(interaction))
@@ -5179,6 +5164,8 @@ const commandsList = [
 ...staffCommandsData,
   // ─── CASINO SYSTEM ROUTER ───
 ...casinoCommandsData,
+  // ... role commands ...
+...rrCommandsData,
   // Warn commands
   new SlashCommandBuilder().setName('warn').setDescription('Warn a member')
     .addUserOption(o => o.setName('user').setDescription('Member to warn').setRequired(true))
