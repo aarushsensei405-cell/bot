@@ -28,6 +28,19 @@ const ROLES = {
   mobile: '1432277425726685224',
 };
 
+// Map each role ID to its specific emoji for custom response messages
+const ROLE_EMOJIS = {
+  ['1432277417572962326']: '🔴', // Red
+  ['1432277417103327343']: '🔵', // Blue
+  ['1432277419498143785']: '🟢', // Green
+  ['1432277418521137269']: '🟣', // Purple
+  ['1432277421582975027']: '🌸', // Pink
+  ['1432277422606389288']: '🌱', // Under 18
+  ['1432277423470149722']: '🌳', // 18 or Older
+  ['1432277424304951366']: '💻', // PC
+  ['1432277425726685224']: '📱', // Mobile
+};
+
 const rrCommandsData = [
   new SlashCommandBuilder()
     .setName('setup-roles')
@@ -36,11 +49,11 @@ const rrCommandsData = [
 ];
 
 async function handleRRSetup(interaction) {
-  // Simple, normal text starter message
+  // Upgraded, sleek, high-energy prompt text
   const textMessage = [
-    'Hey! Wanna personalize your profile settings and stand out in the server?',
-    'Click the button below to choose your favorite roles instantly.',
-    'It only takes a second and helps everyone get to know you better!',
+    '⚡ **Ready to lock in your identity on GoldenHeart SMP?**',
+    'Click the panel below to design your profile line-up and secure your signature chat color.',
+    'Claim your attributes instantly so the community knows exactly who you are!',
     '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
   ].join('\n');
 
@@ -63,7 +76,6 @@ async function handleRRInteraction(interaction) {
   // When they click the main "Personalize Profile" button
   if (interaction.isButton() && interaction.customId === 'rr_open_menu') {
     
-    // We must use deferReply first to open up an ephemeral window channel token
     await interaction.deferReply({ ephemeral: true });
 
     // ─── EMBED & ROW 1: COLORS ───
@@ -136,13 +148,16 @@ async function handleRRInteraction(interaction) {
       return interaction.editReply({ content: '❌ Role configuration error: Role missing from Discord server settings.' });
     }
 
+    // Grab the emoji associated with this role ID (defaults to label badge if none found)
+    const associatedEmoji = ROLE_EMOJIS[roleId] || '🏷️';
+
     try {
       if (member.roles.cache.has(roleId)) {
         await member.roles.remove(roleId);
-        return interaction.editReply({ content: `🗑️ Removed: **${role.name}**` });
+        return interaction.editReply({ content: `🗑️ Removed: ${associatedEmoji} **${role.name} role removed**` });
       } else {
         await member.roles.add(roleId);
-        return interaction.editReply({ content: `✨ Added: **${role.name}**` });
+        return interaction.editReply({ content: `✨ Added: ${associatedEmoji} **${role.name} color role added**` });
       }
     } catch (err) {
       console.error(err);
