@@ -1,7 +1,6 @@
 // reactionRolesManager.js
 const {
   SlashCommandBuilder,
-  EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
@@ -31,65 +30,73 @@ const ROLES = {
 const rrCommandsData = [
   new SlashCommandBuilder()
     .setName('setup-roles')
-    .setDescription('Spawns the fancy button-based reaction roles menu.')
+    .setDescription('Spawns the simple text profile role setup.')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
 ];
 
 async function handleRRSetup(interaction) {
-  // 1. Core Embed Menu
-  const embed = new EmbedBuilder()
-    .setTitle('✨ Personalize Your Profile ✨')
-    .setDescription([
-      'Welcome to the role assignment desk! Customize how you appear in the server by selecting your attributes below.',
-      '',
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-      '',
-      '🎨 **What is your signature color?**',
-      'Choose a clean name color from our palette line-up.',
-      '',
-      '🎂 **Which age demographic do you belong to?**',
-      'Let us know your general age bracket.',
-      '',
-      '🎮 **What device do you use to explore the SMP?**',
-      'Select your primary operational platform.',
-      '',
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-      '*All choices are completely toggleable. Click a button again to remove its associated role.*'
-    ].join('\n'))
-    .setColor(0x2b2d31)
-    .setImage('https://i.imgur.com/8Q853f2.gif')
-    .setFooter({ text: 'GoldenHeart SMP • Role Menu' });
+  // Simple, normal 3-4 line text message
+  const textMessage = [
+    'Hey! Wanna personalize your profile settings and stand out in the server?',
+    'Click the button below to choose your favorite roles instantly.',
+    'It only takes a second and helps everyone get to know you better!',
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+  ].join('\n');
 
-  // 2. Color Layout via Buttons (No drop-downs)
-  const colorRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`rr_btn_${ROLES.red}`).setLabel('Crimson Red').setEmoji('🔴').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`rr_btn_${ROLES.blue}`).setLabel('Ocean Blue').setEmoji('🌊').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`rr_btn_${ROLES.green}`).setLabel('Forest Green').setEmoji('🌲').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`rr_btn_${ROLES.purple}`).setLabel('Royal Purple').setEmoji('🔮').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`rr_btn_${ROLES.pink}`).setLabel('Neon Pink').setEmoji('🌸').setStyle(ButtonStyle.Secondary)
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('rr_open_menu')
+      .setLabel('🎨 Personalize Profile')
+      .setStyle(ButtonStyle.Primary)
   );
 
-  // 3. Age Question Buttons
-  const ageRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`rr_btn_${ROLES.under18}`).setLabel('Under 18').setEmoji('🌱').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`rr_btn_${ROLES.over18}`).setLabel('18 or Older').setEmoji('🌳').setStyle(ButtonStyle.Primary)
-  );
-
-  // 4. Platform Question Buttons
-  const platformRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`rr_btn_${ROLES.pc}`).setLabel('PC Player').setEmoji('💻').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`rr_btn_${ROLES.mobile}`).setLabel('Mobile Player').setEmoji('📱').setStyle(ButtonStyle.Success)
-  );
-
-  await interaction.reply({ content: '✅ Role menu deployed successfully!', ephemeral: true });
-  await interaction.channel.send({ embeds: [embed], components: [colorRow, ageRow, platformRow] });
+  await interaction.reply({ content: '✅ Text menu deployed!', ephemeral: true });
+  await interaction.channel.send({ content: textMessage, components: [row] });
 }
 
 // ─────────────────────────────────────────
 // INTERACTION HANDLERS
 // ─────────────────────────────────────────
 async function handleRRInteraction(interaction) {
-  // Process only button interactions handling our exact custom ID format
+  
+  // When they click the main "Personalize Profile" button
+  if (interaction.isButton() && interaction.customId === 'rr_open_menu') {
+    
+    // Question 1: Colors (Using color-coded button styles)
+    const colorRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`rr_btn_${ROLES.red}`).setLabel('Red').setEmoji('🔴').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`rr_btn_${ROLES.blue}`).setLabel('Blue').setEmoji('🔵').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`rr_btn_${ROLES.green}`).setLabel('Green').setEmoji('🟢').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`rr_btn_${ROLES.purple}`).setLabel('Purple').setEmoji('🟣').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`rr_btn_${ROLES.pink}`).setLabel('Pink').setEmoji('🌸').setStyle(ButtonStyle.Secondary)
+    );
+
+    // Question 2: Age
+    const ageRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`rr_btn_${ROLES.under18}`).setLabel('Under 18').setEmoji('🌱').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`rr_btn_${ROLES.over18}`).setLabel('18 or Older').setEmoji('🌳').setStyle(ButtonStyle.Primary)
+    );
+
+    // Question 3: Platform
+    const platformRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`rr_btn_${ROLES.pc}`).setLabel('PC Player').setEmoji('💻').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`rr_btn_${ROLES.mobile}`).setLabel('Mobile Player').setEmoji('📱').setStyle(ButtonStyle.Secondary)
+    );
+
+    // Send everything privately to the user who clicked it
+    return interaction.reply({
+      content: [
+        '**Question 1:** Select your signature profile color below!',
+        '**Question 2:** Select your current age demographic group.',
+        '**Question 3:** What gaming device do you play on?',
+        '*(Click a button once to add, click again to remove)*'
+      ].join('\n'),
+      components: [colorRow, ageRow, platformRow],
+      ephemeral: true
+    });
+  }
+
+  // Handle actual profile role buttons
   if (interaction.isButton() && interaction.customId.startsWith('rr_btn_')) {
     await interaction.deferReply({ ephemeral: true });
     
@@ -98,20 +105,20 @@ async function handleRRInteraction(interaction) {
     const role = interaction.guild.roles.cache.get(roleId);
 
     if (!role) {
-      return interaction.editReply({ content: '❌ Role configuration error: This role no longer exists on this server.' });
+      return interaction.editReply({ content: '❌ Role config error: Role missing from Discord.' });
     }
 
     try {
       if (member.roles.cache.has(roleId)) {
         await member.roles.remove(roleId);
-        return interaction.editReply({ content: `🗑️ **${role.name}** was removed from your profile.` });
+        return interaction.editReply({ content: `🗑️ Removed: **${role.name}**` });
       } else {
         await member.roles.add(roleId);
-        return interaction.editReply({ content: `✨ **${role.name}** has been added to your profile!` });
+        return interaction.editReply({ content: `✨ Added: **${role.name}**` });
       }
     } catch (err) {
       console.error(err);
-      return interaction.editReply({ content: '❌ Failed to update role. Please verify that the bot\'s role is physically ordered higher than the target roles in Server Settings!' });
+      return interaction.editReply({ content: '❌ Error: Make sure my bot role is higher than the roles I am assigning.' });
     }
   }
 }
