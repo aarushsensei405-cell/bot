@@ -4333,16 +4333,21 @@ client.on('interactionCreate', async interaction => {
 
     // ── ROLEPANEL COMMAND ──
   // ─── REACTION ROLES ROUTER ───
-  if (interaction.isChatInputCommand() && interaction.commandName === 'setup-roles') {
-    return handleRRSetup(interaction);
-  }
-  
- if (
-    (interaction.isStringSelectMenu() && interaction.customId === 'rr_colors') ||
-    (interaction.isButton() && interaction.customId.startsWith('rr_btn_'))
-  ) { 
+// ─── REACTION ROLES ROUTER ───
+if (interaction.isChatInputCommand() && interaction.commandName === 'setup-roles') {
+  return handleRRSetup(interaction);
+}
+
+if (interaction.isButton() || interaction.isStringSelectMenu()) {
+  // Catch BOTH the main setup button AND the individual role buttons
+  if (
+    interaction.customId === 'rr_open_menu' || 
+    interaction.customId.startsWith('rr_btn_') || 
+    interaction.customId === 'rr_colors'
+  ) {
     return handleRRInteraction(interaction);
   }
+}
     // ── EDITMESSAGE COMMAND ──
     if (commandName === 'editmessage') {
       if (!isGuildOwner(interaction))
