@@ -4334,20 +4334,55 @@ client.on('interactionCreate', async interaction => {
     // ── ROLEPANEL COMMAND ──
   // ─── REACTION ROLES ROUTER ───
 // ─── REACTION ROLES ROUTER ───
-if (interaction.isChatInputCommand() && interaction.commandName === 'setup-roles') {
-  return handleRRSetup(interaction);
-}
+// ─────────────────────────────────────────
+// APPLICATION CODES HOOK / INTERACTION ROUTER
+// ─────────────────────────────────────────
+client.on('interactionCreate', async interaction => {
+  try {
+    // ─── SLASH COMMANDS ───
+    if (interaction.isChatInputCommand()) {
+      if (interaction.commandName === 'setup-roles') {
+        await handleRRSetup(interaction);
+        return; // safely exit this specific execution
+      }
+      
+      if (interaction.commandName === 'coinflip' || interaction.commandName === 'mines') {
+        await handleCasinoInteraction(interaction);
+        return;
+      }
+    }
 
-if (interaction.isButton() || interaction.isStringSelectMenu()) {
-  // Catch BOTH the main setup button AND the individual role buttons
-  if (
-    interaction.customId === 'rr_open_menu' || 
-    interaction.customId.startsWith('rr_btn_') || 
-    interaction.customId === 'rr_colors'
-  ) {
-    return handleRRInteraction(interaction);
+    // ─── BUTTONS & SELECT MENUS ───
+    if (interaction.isButton() || interaction.isStringSelectMenu()) {
+      
+      // Target only reaction role components safely
+      if (
+        interaction.customId === 'rr_open_menu' || 
+        interaction.customId.startsWith('rr_btn_') || 
+        interaction.customId === 'rr_colors'
+      ) {
+        await handleRRInteraction(interaction);
+        return;
+      }
+
+      // Target casino components safely
+      if (
+        interaction.customId.startsWith('mines_click') || 
+        interaction.customId.startsWith('mines_cashout')
+      ) {
+        await handleCasinoInteraction(interaction);
+        return;
+      }
+    }
+  } catch (error) {
+    console.error('CRITICAL: Error passing interaction down the router:', error);
+    
+    // Fallback response to prevent infinite hanging loops
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: '❌ An internal routing error occurred.', ephemeral: true }).catch(() => {});
+    }
   }
-}
+});
     // ── EDITMESSAGE COMMAND ──
     if (commandName === 'editmessage') {
       if (!isGuildOwner(interaction))
