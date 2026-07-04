@@ -4337,11 +4337,12 @@ client.on('interactionCreate', async interaction => {
     return handleRRSetup(interaction);
   }
   
-  if (
+ if (
     (interaction.isStringSelectMenu() && interaction.customId === 'rr_colors') ||
     (interaction.isButton() && interaction.customId.startsWith('rr_btn_'))
-  ) {
+  ) { 
     return handleRRInteraction(interaction);
+  }
     // ── EDITMESSAGE COMMAND ──
     if (commandName === 'editmessage') {
       if (!isGuildOwner(interaction))
