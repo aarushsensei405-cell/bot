@@ -47,7 +47,6 @@ const { rrCommandsData, handleRRSetup, handleRRInteraction } = require('./reacti
 const { 
   aiChatCommandsData, 
   handleAIInteraction, 
-  handleAIMessage 
 } = require('./aiChatManager.js');
 require('dotenv').config();
 
