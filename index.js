@@ -4361,38 +4361,6 @@ client.on('messageCreate', async (message) => {
       return interaction.editReply({ embeds: [embed] });
     }
 
-     // ─── REACTION ROLES ROUTER ───
-    if (interaction.isChatInputCommand()) {
-      if (interaction.commandName === 'setup-roles') {
-        await handleRRSetup(interaction);
-        return;
-      }
-      
-      if (interaction.commandName === 'coinflip' || interaction.commandName === 'mines') {
-        await handleCasinoInteraction(interaction);
-        return;
-      }
-    }
-
-    // ─── BUTTONS & SELECT MENUS ───
-    if (interaction.isButton() || interaction.isStringSelectMenu()) {
-      if (
-        interaction.customId === 'rr_open_menu' || 
-        interaction.customId.startsWith('rr_btn_') || 
-        interaction.customId === 'rr_colors'
-      ) {
-        await handleRRInteraction(interaction);
-        return;
-      }
-
-      if (
-        interaction.customId.startsWith('mines_click') || 
-        interaction.customId.startsWith('mines_cashout')
-      ) {
-        await handleCasinoInteraction(interaction);
-        return;
-      }
-    }
     // ── EDITMESSAGE COMMAND ──
     if (commandName === 'editmessage') {
       if (!isGuildOwner(interaction))
@@ -4496,6 +4464,39 @@ client.on('messageCreate', async (message) => {
         new ActionRowBuilder().addComponents(contentInput),
       );
       return interaction.showModal(modal);
+    }
+
+    // ─── REACTION ROLES ROUTER ───
+    if (interaction.isChatInputCommand()) {
+      if (interaction.commandName === 'setup-roles') {
+        await handleRRSetup(interaction);
+        return;
+      }
+      
+      if (interaction.commandName === 'coinflip' || interaction.commandName === 'mines') {
+        await handleCasinoInteraction(interaction);
+        return;
+      }
+    }
+
+    // ─── BUTTONS & SELECT MENUS ───
+    if (interaction.isButton() || interaction.isStringSelectMenu()) {
+      if (
+        interaction.customId === 'rr_open_menu' || 
+        interaction.customId.startsWith('rr_btn_') || 
+        interaction.customId === 'rr_colors'
+      ) {
+        await handleRRInteraction(interaction);
+        return;
+      }
+
+      if (
+        interaction.customId.startsWith('mines_click') || 
+        interaction.customId.startsWith('mines_cashout')
+      ) {
+        await handleCasinoInteraction(interaction);
+        return;
+      }
     }
   }
 
@@ -5112,7 +5113,7 @@ client.on('messageCreate', async (message) => {
       return interaction.reply({ content: `${statusEmoji} Suggestion \`${suggId}\` has been **${newStatus}**!`, ephemeral: true });
     }
 
-     // ── ROLE TOGGLE ──
+    // ── ROLE TOGGLE ──
     if (interaction.customId.startsWith('role_toggle:')) {
       const roleId = interaction.customId.split(':')[1];
       const member = interaction.member;
@@ -5128,8 +5129,28 @@ client.on('messageCreate', async (message) => {
         return interaction.reply({ content: '❌ Failed to toggle role. Check bot permissions.', ephemeral: true });
       }
     }
+
+    // ─── REACTION ROLES BUTTONS ───
+    if (
+      interaction.customId === 'rr_open_menu' || 
+      interaction.customId.startsWith('rr_btn_') || 
+      interaction.customId === 'rr_colors'
+    ) {
+      await handleRRInteraction(interaction);
+      return;
+    }
+
+    // ─── CASINO BUTTONS ───
+    if (
+      interaction.customId.startsWith('mines_click') || 
+      interaction.customId.startsWith('mines_cashout')
+    ) {
+      await handleCasinoInteraction(interaction);
+      return;
+    }
   }
-});  // <-- ADD THIS BACK - EXACTLY ONE
+});  // <-- THIS CLOSES THE ENTIRE interactionCreate HANDLER
+
 // ─────────────────────────────────────────
 // SLASH COMMAND REGISTRATION
 // ─────────────────────────────────────────
@@ -5339,7 +5360,7 @@ const commandsList = [
         { name: 'Coins Data', value: 'coins' },
         { name: 'XP Data', value: 'xp' }
       )),
-];
+];  // <-- THIS CLOSES THE commandsList ARRAY - MAKE SURE IT'S HERE!
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
