@@ -3094,7 +3094,10 @@ if (interaction.isChatInputCommand()) {
 }
 
 
-getUser and 
+client.on('messageCreate', async (message) => {
+    // Pass the message and helper functions to the AI handler
+    await handleAIMessage(message, client, getUser, getLevelFromXP); 
+});
     // ── TRANSFER COMMAND ──
     if (commandName === 'transfer') {
       const target = interaction.options.getUser('user');
