@@ -653,7 +653,7 @@ async function handleAIMessage(message, client, getUserFn, getLevelFromXPFn) {
   }
 
   try {
-    await message.channel.sendTypingIndicator?.() || await message.channel.sendTyping();
+    await message.channel.sendTyping();
   } catch (e) { /* ignore */ }
 
   let guildData = {};
