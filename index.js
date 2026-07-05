@@ -10,7 +10,8 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // Automatically looks for process.env.GEMINI_API_KEY or process.env.GOOGLE_API_KEY
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// ✅ Add this:
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const express = require('express');
 const {
   Client,
