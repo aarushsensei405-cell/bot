@@ -6,6 +6,10 @@
 // ─────────────────────────────────────────
 // ALL IMPORTS FIRST - MUST COME FIRST!
 // ─────────────────────────────────────────
+const { GoogleGenAI } = require('@google/genai');
+
+// Automatically looks for process.env.GEMINI_API_KEY or process.env.GOOGLE_API_KEY
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const express = require('express');
 const {
   Client,
