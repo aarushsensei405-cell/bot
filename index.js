@@ -5117,7 +5117,7 @@ client.on('messageCreate', async (message) => {
       return;
     }
   }
-});  // <-- THIS CLOSES THE ENTIRE interactionCreate HANDLER
+}  // <-- THIS CLOSES THE ENTIRE interactionCreate HANDLER
 
 // ─────────────────────────────────────────
 // SLASH COMMAND REGISTRATION
