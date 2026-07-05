@@ -4361,19 +4361,11 @@ client.on('messageCreate', async (message) => {
       return interaction.editReply({ embeds: [embed] });
     }
 
-    // ── ROLEPANEL COMMAND ──
-  // ─── REACTION ROLES ROUTER ───
-// ─── REACTION ROLES ROUTER ───
-// ─────────────────────────────────────────
-// APPLICATION CODES HOOK / INTERACTION ROUTER
-// ─────────────────────────────────────────
-client.on('interactionCreate', async interaction => {
-  try {
-    // ─── SLASH COMMANDS ───
+     // ─── REACTION ROLES ROUTER ───
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === 'setup-roles') {
         await handleRRSetup(interaction);
-        return; // safely exit this specific execution
+        return;
       }
       
       if (interaction.commandName === 'coinflip' || interaction.commandName === 'mines') {
@@ -4384,8 +4376,6 @@ client.on('interactionCreate', async interaction => {
 
     // ─── BUTTONS & SELECT MENUS ───
     if (interaction.isButton() || interaction.isStringSelectMenu()) {
-      
-      // Target only reaction role components safely
       if (
         interaction.customId === 'rr_open_menu' || 
         interaction.customId.startsWith('rr_btn_') || 
@@ -4395,7 +4385,6 @@ client.on('interactionCreate', async interaction => {
         return;
       }
 
-      // Target casino components safely
       if (
         interaction.customId.startsWith('mines_click') || 
         interaction.customId.startsWith('mines_cashout')
@@ -4404,15 +4393,6 @@ client.on('interactionCreate', async interaction => {
         return;
       }
     }
-  } catch (error) {
-    console.error('CRITICAL: Error passing interaction down the router:', error);
-    
-    // Fallback response to prevent infinite hanging loops
-    if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: '❌ An internal routing error occurred.', ephemeral: true }).catch(() => {});
-    }
-  }
-});
     // ── EDITMESSAGE COMMAND ──
     if (commandName === 'editmessage') {
       if (!isGuildOwner(interaction))
