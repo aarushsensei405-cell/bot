@@ -5150,7 +5150,6 @@ client.on('interactionCreate', async interaction => {
     }
   }
 });
-});  
 // ─────────────────────────────────────────
 // SLASH COMMAND REGISTRATION
 // ─────────────────────────────────────────
