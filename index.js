@@ -40,6 +40,11 @@ const { initWelcomeManager, welcomeCommandsData } = require('./welcomeManager');
 const { initStaffManager, staffCommandsData } = require('./staffManager');
 const { casinoCommandsData, handleCasinoInteraction } = require('./casinoManager'); // <-- ADD THIS LINE
 const { rrCommandsData, handleRRSetup, handleRRInteraction } = require('./reactionRolesManager'); // <-- ADD THIS LINE
+const { 
+  aiChatCommandsData, 
+  handleAIInteraction, 
+  handleAIMessage 
+} = require('./aiChatManager.js');
 require('dotenv').config();
 
 // ─────────────────────────────────────────
@@ -3080,7 +3085,16 @@ client.on('interactionCreate', async interaction => {
         .setTimestamp();
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
+// ── AI COMMAND ──
+if (interaction.isChatInputCommand()) {
+  const aiCommands = ['ai', 'ai_setchannel', 'ai_memory', 'ai_forget', 'ai_forceforget', 'ai_stats'];
+  if (aiCommands.includes(interaction.commandName)) {
+    return handleAIInteraction(interaction, client, getUser, getLevelFromXP);
+  }
+}
 
+
+getUser and 
     // ── TRANSFER COMMAND ──
     if (commandName === 'transfer') {
       const target = interaction.options.getUser('user');
@@ -5207,6 +5221,8 @@ const commandsList = [
 ...casinoCommandsData,
   // ... role commands ...
 ...rrCommandsData,
+    // ... ai commands ...
+...aiChatCommandsData,   // ← ADD THIS LINE
   // Warn commands
   new SlashCommandBuilder().setName('warn').setDescription('Warn a member')
     .addUserOption(o => o.setName('user').setDescription('Member to warn').setRequired(true))
