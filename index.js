@@ -48,7 +48,8 @@ const { casinoCommandsData, handleCasinoInteraction } = require('./casinoManager
 const { rrCommandsData, handleRRSetup, handleRRInteraction } = require('./reactionRolesManager'); // <-- ADD THIS LINE
 const { 
   aiChatCommandsData, 
-  handleAIInteraction, 
+  handleAIInteraction,
+  handleAIMessage,
 } = require('./aiChatManager.js');
 require('dotenv').config();
 
