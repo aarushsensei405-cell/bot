@@ -1482,24 +1482,7 @@ async function getStaffStats() {
   
   return stats;
 }
-// Inside your client.on('interactionCreate', async interaction => { ... })
 
-if (interaction.isChatInputCommand()) {
-  const commandName = interaction.commandName;
-  
-  // ── AI COMMANDS ──
-  
-  if (interaction.isChatInputCommand()) {
-    const commandName = interaction.commandName;
-    
-    // ── AI COMMANDS ──
-    const aiCommands = ['ai', 'ai_setchannel', 'ai_memory', 'ai_forget', 'ai_forceforget', 'ai_stats'];
-    if (aiCommands.includes(commandName)) {
-      return handleAIInteraction(interaction, client, getUser, getLevelFromXP);
-    }
-  
-  // ... rest of your existing command handlers ...
-}
 // ── SUGGESTION FUNCTIONS ──
 async function createSuggestion(fromUserId, fromUsername, text) {
   const id = 'SUG-' + Date.now().toString(36).toUpperCase();
@@ -2556,6 +2539,24 @@ client.on('messageCreate', async message => {
 // INTERACTION CREATE HANDLER
 // ─────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
+  // Inside your client.on('interactionCreate', async interaction => { ... })
+
+if (interaction.isChatInputCommand()) {
+  const commandName = interaction.commandName;
+  
+  // ── AI COMMANDS ──
+  
+  if (interaction.isChatInputCommand()) {
+    const commandName = interaction.commandName;
+    
+    // ── AI COMMANDS ──
+    const aiCommands = ['ai', 'ai_setchannel', 'ai_memory', 'ai_forget', 'ai_forceforget', 'ai_stats'];
+    if (aiCommands.includes(commandName)) {
+      return handleAIInteraction(interaction, client, getUser, getLevelFromXP);
+    }
+  
+  // ... rest of your existing command handlers ...
+}
   // ── MODALS ──
   if (interaction.isModalSubmit()) {
     // Edit price modal
