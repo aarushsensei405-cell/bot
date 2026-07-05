@@ -1729,13 +1729,7 @@ client.once('ready', async () => {
   // Store trackers globally for commands
   client.voiceTracker = voiceTracker;
   client.inviteTracker = inviteTracker;
-// ─────────────────────────────────────────
-// AI MESSAGE LISTENER
-// ─────────────────────────────────────────
-client.on('messageCreate', async (message) => {
-  // Pass to AI handler - it will determine if it should respond
-  await handleAIMessage(message, client, getUser, getLevelFromXP);
-});
+  
   // Start intervals
   setInterval(() => checkBirthdays(client), 3600000);
   setInterval(() => checkReminders(client), 30000);
@@ -1928,17 +1922,7 @@ client.on('messageDelete', async message => {
     .setFooter({ text: `Message ID: ${message.id}` }).setTimestamp();
   await sendLog(client, embed);
 });
-client.on('interactionCreate', async interaction => {
-  // ─── CASINO SYSTEM ROUTER ───
-  if (
-    (interaction.isChatInputCommand() && ['coinflip', 'mines'].includes(interaction.commandName)) ||
-    (interaction.isButton() && interaction.customId.startsWith('mines_'))
-  ) {
-    return handleCasinoInteraction(interaction);
-  }
 
-  // Your existing shop, tickets, and moderation interaction code continues below...
-});
 // ─────────────────────────────────────────
 // MESSAGE UPDATE
 // ─────────────────────────────────────────
@@ -2207,7 +2191,6 @@ async function openTicket(interaction, ticketTypeKey = 'support') {
     return interaction.reply({ content: '❌ Failed to create ticket channel.', ephemeral: true });
   }
 }
-
 // ─────────────────────────────────────────
 // MESSAGE REACTION ADD (Starboard, Polls, Feedback)
 // ─────────────────────────────────────────
