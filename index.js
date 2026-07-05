@@ -2545,10 +2545,6 @@ client.on('interactionCreate', async interaction => {
 if (interaction.isChatInputCommand()) {
   const commandName = interaction.commandName;
   
-  // ── AI COMMANDS ──
-  
-  if (interaction.isChatInputCommand()) {
-    const commandName = interaction.commandName;
     
     // ── AI COMMANDS ──
     const aiCommands = ['ai', 'ai_setchannel', 'ai_memory', 'ai_forget', 'ai_forceforget', 'ai_stats'];
