@@ -526,67 +526,6 @@ let rulebooksLoaded = false;
 // ─────────────────────────────────────────
 // AI MESSAGE HANDLER (GEMINI)
 // ─────────────────────────────────────────
-async function handleAIMessage(message, client, getUser, getLevelFromXP) {
-  // Prevent bot feedback loops and check if AI is enabled
-  if (message.author.bot) return;
-  
-  // Check if message is in a DM or mentions the bot
-  const isDM = !message.guild;
-  const botMentioned = message.mentions.users.has(client.user.id);
-  
-  // Only respond if DM or bot mentioned (or if channel is AI-enabled)
-  if (!isDM && !botMentioned) return;
-  
-  // Don't respond to commands
-  if (message.content.startsWith('/')) return;
-  
-  try {
-    // Show typing status while Gemini is thinking
-    await message.channel.sendTyping();
-
-    // Get user's XP level for context
-    const user = await getUser(message.author.id);
-    const level = getLevelFromXP ? getLevelFromXP(user?.xp || 0) : 0;
-
-    // Call the Gemini model using the modern SDK
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp', // or 'gemini-2.5-flash'
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: message.content }]
-        }
-      ],
-      config: {
-        temperature: 0.7,
-        maxOutputTokens: 500,
-        systemInstruction: `You are GoldenHeart AI, a helpful assistant for GoldenHeart SMP Minecraft server. 
-          The user ${message.author.username} is level ${level}. Be friendly, helpful, and concise.
-          Keep responses under 500 characters unless asked for more detail.`
-      }
-    });
-
-    // Send Gemini's text response back
-    if (response.text) {
-      // Split long messages if needed
-      const replyText = response.text;
-      if (replyText.length > 2000) {
-        const chunks = replyText.match(/[\s\S]{1,1900}/g) || [replyText];
-        for (const chunk of chunks) {
-          await message.reply(chunk);
-        }
-      } else {
-        await message.reply(replyText);
-      }
-    } else {
-      await message.reply("⚠️ I processed that, but couldn't generate a text response.");
-    }
-
-  } catch (error) {
-    console.error("❌ Gemini API Error:", error);
-    await message.reply("💥 I encountered an error while processing your request. Please try again later.");
-  }
-}
 // ─────────────────────────────────────────
 // RULEBOOK FUNCTIONS
 // ─────────────────────────────────────────
