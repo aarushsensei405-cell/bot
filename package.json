@@ -12,7 +12,7 @@
     "mongoose": "^7.0.0",
     "canvas": "^2.11.2",
     "dotenv": "^16.0.3"
-  }
+  },
   "dependencies": {
   "@anthropic-ai/sdk": "^0.20.0"
 }
