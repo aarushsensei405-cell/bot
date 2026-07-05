@@ -1488,10 +1488,15 @@ if (interaction.isChatInputCommand()) {
   const commandName = interaction.commandName;
   
   // ── AI COMMANDS ──
-  const aiCommands = ['ai', 'ai_setchannel', 'ai_memory', 'ai_forget', 'ai_forceforget', 'ai_stats'];
-  if (aiCommands.includes(commandName)) {
-    return handleAIInteraction(interaction, client, getUser, getLevelFromXP);
-  }
+  
+  if (interaction.isChatInputCommand()) {
+    const commandName = interaction.commandName;
+    
+    // ── AI COMMANDS ──
+    const aiCommands = ['ai', 'ai_setchannel', 'ai_memory', 'ai_forget', 'ai_forceforget', 'ai_stats'];
+    if (aiCommands.includes(commandName)) {
+      return handleAIInteraction(interaction, client, getUser, getLevelFromXP);
+    }
   
   // ... rest of your existing command handlers ...
 }
