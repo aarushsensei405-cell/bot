@@ -5132,7 +5132,7 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: `${statusEmoji} Suggestion \`${suggId}\` has been **${newStatus}**!`, ephemeral: true });
     }
 
-    // ── ROLE TOGGLE ──
+     // ── ROLE TOGGLE ──
     if (interaction.customId.startsWith('role_toggle:')) {
       const roleId = interaction.customId.split(':')[1];
       const member = interaction.member;
@@ -5149,7 +5149,7 @@ client.on('interactionCreate', async interaction => {
       }
     }
   }
-});
+});  // <-- ADD THIS BACK - EXACTLY ONE
 // ─────────────────────────────────────────
 // SLASH COMMAND REGISTRATION
 // ─────────────────────────────────────────
