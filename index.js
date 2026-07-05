@@ -3997,7 +3997,7 @@ client.on('messageCreate', async (message) => {
       }
     }
 
-    // ── IMPORT DATA COMMAND ──
+        // ── IMPORT DATA COMMAND ──
     if (commandName === 'import_data') {
       if (!isServerOwner(interaction.user.id)) {
         return interaction.reply({ content: '❌ Only the server owner can import data.', ephemeral: true });
@@ -4464,39 +4464,6 @@ client.on('messageCreate', async (message) => {
         new ActionRowBuilder().addComponents(contentInput),
       );
       return interaction.showModal(modal);
-    }
-
-    // ─── REACTION ROLES ROUTER ───
-    if (interaction.isChatInputCommand()) {
-      if (interaction.commandName === 'setup-roles') {
-        await handleRRSetup(interaction);
-        return;
-      }
-      
-      if (interaction.commandName === 'coinflip' || interaction.commandName === 'mines') {
-        await handleCasinoInteraction(interaction);
-        return;
-      }
-    }
-
-    // ─── BUTTONS & SELECT MENUS ───
-    if (interaction.isButton() || interaction.isStringSelectMenu()) {
-      if (
-        interaction.customId === 'rr_open_menu' || 
-        interaction.customId.startsWith('rr_btn_') || 
-        interaction.customId === 'rr_colors'
-      ) {
-        await handleRRInteraction(interaction);
-        return;
-      }
-
-      if (
-        interaction.customId.startsWith('mines_click') || 
-        interaction.customId.startsWith('mines_cashout')
-      ) {
-        await handleCasinoInteraction(interaction);
-        return;
-      }
     }
   }
 
@@ -5360,7 +5327,7 @@ const commandsList = [
         { name: 'Coins Data', value: 'coins' },
         { name: 'XP Data', value: 'xp' }
       )),
-];  // <-- THIS CLOSES THE commandsList ARRAY - MAKE SURE IT'S HERE!
+];  // <-- THIS CLOSES THE commandsList ARRAY
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
