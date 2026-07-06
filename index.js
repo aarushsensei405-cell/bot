@@ -1688,10 +1688,10 @@ async function updateInviteUses(code, uses) {
 client.once('ready', async () => {
   console.log(`✅ ${client.user.tag} is online`);
   client.user.setPresence({
-    activities: [{ name: 'players in GoldenHeart SMP | discord.gg/We5SpWv64T', type: ActivityType.Watching }],
-    status: 'Do not disturb',
+    activities: [{ name: 'players in GoldenHeart SMP', type: ActivityType.Watching }],
+    status: 'dnd',
   });
-  
+});
   // Initialize rulebooks
   await initializeRulebooks();
   
