@@ -2456,7 +2456,7 @@ client.on('messageCreate', async message => {
       }
     }
 
-    if (msg === 'ip') return message.reply(`💛 **GoldenHeart SMP** is now online!\n🌍 **IP:** \`goldenheartsmp.minecraftnoob.com:25565\`\n⚔️ Join now and start your journey!`);
+    if (msg === 'ip') return message.reply(`💛 **GoldenHeart SMP** is now online!\n🌍 **IP:** \`goldenheartsmps4.minecraftnoob.com:25565\`\n⚔️ Join now and start your journey!`);
     if (msg === 'rules') return message.reply(`📜 Use \`/rules\` to see the full server rules!\n\n📌 Or check: <#1432277447440597028>`);
     if (msg === 'features') return message.reply(`📋 Use \`/features\` to see everything you can do as a member!`);
     return;
@@ -2542,21 +2542,10 @@ client.on('messageCreate', async message => {
 // ─────────────────────────────────────────
 // INTERACTION CREATE HANDLER
 // ─────────────────────────────────────────
+// ─────────────────────────────────────────
+// INTERACTION CREATE HANDLER - FIXED
+// ─────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
-  // Inside your client.on('interactionCreate', async interaction => { ... })
-
-if (interaction.isChatInputCommand()) {
-  const commandName = interaction.commandName;
-  
-    
-    // ── AI COMMANDS ──
-    const aiCommands = ['ai', 'ai_setchannel', 'ai_memory', 'ai_forget', 'ai_forceforget', 'ai_stats'];
-    if (aiCommands.includes(commandName)) {
-      return handleAIInteraction(interaction, client, getUser, getLevelFromXP);
-    }
-  
-  // ... rest of your existing command handlers ...
-}
   // ── MODALS ──
   if (interaction.isModalSubmit()) {
     // Edit price modal
@@ -2704,6 +2693,7 @@ if (interaction.isChatInputCommand()) {
         console.error('Edit message error:', err);
         return interaction.reply({ content: `❌ Failed to edit message: ${err.message}`, ephemeral: true });
       }
+      return;
     }
 
     // Edit embed modal
@@ -2735,6 +2725,7 @@ if (interaction.isChatInputCommand()) {
       } catch (err) {
         return interaction.reply({ content: `❌ Failed to edit embed: ${err.message}`, ephemeral: true });
       }
+      return;
     }
 
     // Edit rules modal
@@ -2757,12 +2748,19 @@ if (interaction.isChatInputCommand()) {
       const row = buildBookRow(pageIndex, book.pages.length, bookKey);
       await interaction.channel.send({ embeds: [embed], components: [row] });
       await interaction.reply({ content: `✅ Page ${pageIndex + 1} of **${book.title}** updated and reposted!`, ephemeral: true });
+      return;
     }
   }
 
   // ── SLASH COMMANDS ──
   if (interaction.isChatInputCommand()) {
     const commandName = interaction.commandName;
+
+    // ── AI COMMANDS ──
+    const aiCommands = ['ai', 'ai_setchannel', 'ai_memory', 'ai_forget', 'ai_forceforget', 'ai_stats'];
+    if (aiCommands.includes(commandName)) {
+      return handleAIInteraction(interaction, client, getUser, getLevelFromXP);
+    }
 
     // ── SHOP COMMANDS ──
     if (commandName === 'shop') {
@@ -3099,19 +3097,7 @@ if (interaction.isChatInputCommand()) {
         .setTimestamp();
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
-// ── AI COMMAND ──
-if (interaction.isChatInputCommand()) {
-  const aiCommands = ['ai', 'ai_setchannel', 'ai_memory', 'ai_forget', 'ai_forceforget', 'ai_stats'];
-  if (aiCommands.includes(interaction.commandName)) {
-    return handleAIInteraction(interaction, client, getUser, getLevelFromXP);
-  }
-}
 
-
-client.on('messageCreate', async (message) => {
-    // Pass the message and helper functions to the AI handler
-    await handleAIMessage(message, client, getUser, getLevelFromXP); 
-});
     // ── TRANSFER COMMAND ──
     if (commandName === 'transfer') {
       const target = interaction.options.getUser('user');
@@ -3756,6 +3742,7 @@ client.on('messageCreate', async (message) => {
         if (reason === 'time' && collected.size === 0)
           interaction.followUp({ content: '⏰ Timed out — no message received.', ephemeral: true }).catch(() => { });
       });
+      return;
     }
 
     // ── POLL COMMAND ──
@@ -3813,6 +3800,7 @@ client.on('messageCreate', async (message) => {
           return interaction.reply({ content: '❌ Failed to post poll.', ephemeral: true });
         }
       }
+      return;
     }
 
     // ── GIVEAWAY COMMAND ──
@@ -3851,6 +3839,7 @@ client.on('messageCreate', async (message) => {
         await endGiveaway(client, giveaway);
         return interaction.reply({ content: '🔄 Giveaway rerolled!', ephemeral: true });
       }
+      return;
     }
 
     // ── TESTWELCOMEMESSAGE COMMAND ──
@@ -3902,6 +3891,7 @@ client.on('messageCreate', async (message) => {
         console.error('Test welcome message error:', err);
         return interaction.editReply({ content: `❌ Failed to generate welcome message: ${err.message}`, ephemeral: true });
       }
+      return;
     }
 
     // ── EXPORTLEADERBOARD COMMAND ──
@@ -3996,9 +3986,10 @@ client.on('messageCreate', async (message) => {
         console.error('Export leaderboard error:', err);
         return interaction.editReply({ content: `❌ Failed to export leaderboard: ${err.message}`, ephemeral: true });
       }
+      return;
     }
 
-        // ── IMPORT DATA COMMAND ──
+    // ── IMPORT DATA COMMAND ──
     if (commandName === 'import_data') {
       if (!isServerOwner(interaction.user.id)) {
         return interaction.reply({ content: '❌ Only the server owner can import data.', ephemeral: true });
@@ -4961,6 +4952,7 @@ client.on('messageCreate', async (message) => {
       } catch (err) { console.error('Transcript error:', err); }
       
       setTimeout(() => interaction.channel.delete().catch(() => { }), 5000);
+      return;
     }
 
     // ── APPLICATION ACCEPT/REJECT ──
@@ -5117,8 +5109,7 @@ client.on('messageCreate', async (message) => {
       return;
     }
   }
-}  // <-- THIS CLOSES THE ENTIRE interactionCreate HANDLER
-
+});  // <-- THIS CLOSES THE ENTIRE interactionCreate HANDLER
 // ─────────────────────────────────────────
 // SLASH COMMAND REGISTRATION
 // ─────────────────────────────────────────
