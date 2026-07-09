@@ -1041,38 +1041,94 @@ async function sendLog(client, embed) {
 // ─────────────────────────────────────────
 // GIVEAWAY HELPER
 // ─────────────────────────────────────────
+// Find your endGiveaway function (around line 1040-1070)
+// Replace it with this improved version:
+
 async function endGiveaway(client, giveaway) {
   try {
-    const channel = await client.channels.fetch(giveaway.channelId);
-    const message = await channel.messages.fetch(giveaway.messageId);
+    const channel = await client.channels.fetch(giveaway.channelId).catch(() => null);
+    if (!channel) {
+      console.log(`❌ Channel ${giveaway.channelId} not found for giveaway ${giveaway.messageId}`);
+      await Giveaway.findOneAndUpdate(
+        { messageId: giveaway.messageId },
+        { ended: true }
+      ).catch(() => {});
+      return;
+    }
+
+    // Try to fetch the message with proper error handling
+    let message;
+    try {
+      message = await channel.messages.fetch(giveaway.messageId);
+    } catch (fetchError) {
+      if (fetchError.code === 10008) {
+        console.log(`⚠️ Giveaway message ${giveaway.messageId} was deleted. Cleaning up...`);
+        // Mark as ended in database
+        await Giveaway.findOneAndUpdate(
+          { messageId: giveaway.messageId },
+          { ended: true, winnersList: [] }
+        ).catch(() => {});
+        return;
+      }
+      throw fetchError;
+    }
+
+    // Check for reaction
     const reaction = message.reactions.cache.get('🎉');
     if (!reaction) {
       await channel.send(`🎉 Giveaway for **${giveaway.prize}** ended — no valid entries!`);
+      await Giveaway.findOneAndUpdate(
+        { messageId: giveaway.messageId },
+        { ended: true }
+      );
       return;
     }
-    const users = await reaction.users.fetch();
+
+    // Get users who reacted
+    const users = await reaction.users.fetch().catch(() => []);
     const eligible = users.filter(u => !u.bot).map(u => u);
+    
     if (eligible.length === 0) {
       await channel.send(`🎉 Giveaway for **${giveaway.prize}** ended — no valid entries!`);
+      await Giveaway.findOneAndUpdate(
+        { messageId: giveaway.messageId },
+        { ended: true }
+      );
       return;
     }
+
+    // Pick winners
     const winnerCount = Math.min(giveaway.winners, eligible.length);
     const shuffled = eligible.sort(() => Math.random() - 0.5).slice(0, winnerCount);
     const winnerMentions = shuffled.map(u => `<@${u.id}>`).join(', ');
+
+    // Update the giveaway message
     const endEmbed = EmbedBuilder.from(message.embeds[0])
       .setColor(0x57f287)
       .setTitle('🎉 GIVEAWAY ENDED')
       .setDescription(`**Prize:** ${giveaway.prize}\n\n🏆 **Winner${winnerCount > 1 ? 's' : ''}:** ${winnerMentions}\n\nCongratulations!`)
       .setFooter({ text: `Ended` })
       .setTimestamp();
-    await message.edit({ embeds: [endEmbed], components: [] });
-    await channel.send(`🎉 Congratulations ${winnerMentions}! You won **${giveaway.prize}**!`);
+
+    await message.edit({ embeds: [endEmbed], components: [] }).catch(() => {});
+    await channel.send(`🎉 Congratulations ${winnerMentions}! You won **${giveaway.prize}**!`).catch(() => {});
+
+    // Save to database
     await Giveaway.findOneAndUpdate(
       { messageId: giveaway.messageId },
-      { ended: true, winnersList: shuffled.map(u => u.id) }
-    );
+      { 
+        ended: true, 
+        winnersList: shuffled.map(u => u.id) 
+      }
+    ).catch(() => {});
+
   } catch (err) {
-    console.error('Giveaway end error:', err);
+    // Don't let errors crash the bot - just log them
+    console.error('Giveaway end error:', err.message);
+    if (err.code !== 10008) {
+      // Only log non-404 errors in detail
+      console.error('Full error:', err);
+    }
   }
 }
 
