@@ -1744,11 +1744,11 @@ async function updateInviteUses(code, uses) {
 // ─────────────────────────────────────────
 // CLIENT READY EVENT - FIXED
 // ─────────────────────────────────────────
-client.once('ready', async () => {  // <-- ADDED 'async'
+client.once('client ready', async () => {  // <-- ADDED 'async'
   console.log(`✅ ${client.user.tag} is online`);
   client.user.setPresence({
     activities: [{ name: 'players in GoldenHeart SMP', type: ActivityType.Watching }],
-    status: 'dnd',
+    status: 'online',
   });
   
   // Initialize rulebooks
