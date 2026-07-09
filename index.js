@@ -1747,7 +1747,7 @@ async function updateInviteUses(code, uses) {
 client.once('client ready', async () => {  // <-- ADDED 'async'
   console.log(`✅ ${client.user.tag} is online`);
   client.user.setPresence({
-    activities: [{ name: 'players in GoldenHeart SMP', type: ActivityType.Watching }],
+    activities: [{ name: 'Peak GoldenHeart SMP', type: ActivityType.Watching }],
     status: 'online',
   });
   
