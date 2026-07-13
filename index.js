@@ -1,17 +1,11 @@
 // ─────────────────────────────────────────
-// GOLDENHEART SMP DISCORD BOT - COMPLETE
+// AMETHMC DISCORD BOT - COMPLETE
 // WITH MONGODB PERSISTENT STORAGE
 // ─────────────────────────────────────────
 
 // ─────────────────────────────────────────
 // ALL IMPORTS FIRST - MUST COME FIRST!
 // ─────────────────────────────────────────
-// ✅ Add this:
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-
-// Automatically looks for process.env.GEMINI_API_KEY or process.env.GOOGLE_API_KEY
-// ✅ Add this:
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const express = require('express');
 const {
   Client,
@@ -42,15 +36,10 @@ const https = require('https');
 const http = require('http');
 const mongoose = require('mongoose');
 const { setupTracking, getTrackingCommands } = require('./trackingIndex');
-const { initWelcomeManager, welcomeCommandsData } = require('./welcomeManager'); // <-- ADD THIS LINE
+const { initWelcomeManager, welcomeCommandsData } = require('./welcomeManager');
 const { initStaffManager, staffCommandsData } = require('./staffManager');
-const { casinoCommandsData, handleCasinoInteraction } = require('./casinoManager'); // <-- ADD THIS LINE
-const { rrCommandsData, handleRRSetup, handleRRInteraction } = require('./reactionRolesManager'); // <-- ADD THIS LINE
-const { 
-  aiChatCommandsData, 
-  handleAIInteraction,
-  handleAIMessage,
-} = require('./aiChatManager.js');
+const { casinoCommandsData, handleCasinoInteraction } = require('./casinoManager');
+const { rrCommandsData, handleRRSetup, handleRRInteraction } = require('./reactionRolesManager');
 require('dotenv').config();
 
 // ─────────────────────────────────────────
@@ -90,31 +79,16 @@ if (!MONGODB_URI) {
 }
 
 mongoose.connect(MONGODB_URI, {
-
   useNewUrlParser: true,
-
   useUnifiedTopology: true,
-
 })
-
 .then(() => {
-
   console.log('✅ Connected to MongoDB Atlas!');
-
-  
-
-  // Initialize your welcome manager right here
-
- initWelcomeManager(client, { GUILD_ID: '1432272831722553398', WELCOME_CHANNEL_ID: '1516255117060341790' });
-
+  initWelcomeManager(client, { GUILD_ID: '1432272831722553398', WELCOME_CHANNEL_ID: '1516255117060341790' });
 })
-
 .catch(err => {
-
   console.error('❌ MongoDB connection error:', err);
-
   process.exit(1);
-
 });
 
 // ─────────────────────────────────────────
@@ -138,6 +112,17 @@ const SERVER_OWNER_ID = process.env.SERVER_OWNER || '885470207332728832';
 const VERIFY_CHANNEL_ID = process.env.VERIFY_CHANNEL || '1513364198850171010';
 const VERIFY_ROLE_ID = process.env.VERIFY_ROLE || '1432277416109281371';
 const BIRTHDAY_ROLE_ID = process.env.BIRTHDAY_ROLE || '1432277416109281371';
+
+// AmethMC Brand Colors - Purple Theme
+const COLORS = {
+  primary: 0x9b59b6,      // Amethyst Purple
+  secondary: 0x8e44ad,    // Darker Purple
+  success: 0x2ecc71,      // Green
+  danger: 0xe74c3c,       // Red
+  warning: 0xf1c40f,      // Yellow
+  info: 0x3498db,         // Blue
+  gold: 0xf0b429,         // Gold for coins
+};
 
 const SPAM_SETTINGS = {
   duplicateMessageLimit: 4,
@@ -171,7 +156,7 @@ const APP_NAMES = {
 const STARBOARD_THRESHOLD = 3;
 
 // ─────────────────────────────────────────
-// SHOP CONFIGURATION
+// SHOP CONFIGURATION - AmethMC Branded
 // ─────────────────────────────────────────
 const SHOP_CATEGORIES = {
   food: {
@@ -459,17 +444,18 @@ const AFK = mongoose.models.AFK || mongoose.model('AFK', AFKSchema);
 const Invite = mongoose.models.Invite || mongoose.model('Invite', InviteSchema);
 const Application = mongoose.models.Application || mongoose.model('Application', ApplicationSchema);
 const Rulebook = mongoose.models.Rulebook || mongoose.model('Rulebook', RulebookSchema);
+
 // ─────────────────────────────────────────
-// DEFAULT RULEBOOKS
+// DEFAULT RULEBOOKS - AmethMC Branded
 // ─────────────────────────────────────────
 const DEFAULT_RULEBOOKS = {
   mc: {
-    title: '⚔️ GoldenHeart SMP — Minecraft Rules',
-    color: 0x57f287,
+    title: '⚔️ AmethMC — Minecraft Rules',
+    color: COLORS.primary,
     pages: [
       {
         title: '🌍 Page 1 — Spawn Rules',
-        content: '> By playing on GoldenHeart SMP, you agree to follow all rules. Attempting to bypass, exploit, or abuse loopholes is punishable.\n\n**1.1 No Spawn Killing**\nKilling, trapping, baiting, crystaling, lava trapping, TNT trapping, or otherwise harming players at or near spawn is prohibited. Staff-approved events are the only exception.\n\n**1.2 No Spawn Griefing**\nDo not destroy, alter, steal from, or place blocks at spawn. If spawn protection fails, it is still against the rules. Report issues to staff immediately.\n\n**1.3 No Spawn Camping**\nRepeatedly waiting at spawn to kill, follow, or target players is prohibited.\n\n**1.4 No Spawn Traps**\nAny trap designed to kill, damage, trap, or inconvenience players near spawn is prohibited.\n\n**1.5 No Claim Blocking**\nDo not intentionally build around spawn in a way that limits expansion, movement, or future server projects.',
+        content: '> By playing on AmethMC, you agree to follow all rules. Attempting to bypass, exploit, or abuse loopholes is punishable.\n\n**1.1 No Spawn Killing**\nKilling, trapping, baiting, crystaling, lava trapping, TNT trapping, or otherwise harming players at or near spawn is prohibited. Staff-approved events are the only exception.\n\n**1.2 No Spawn Griefing**\nDo not destroy, alter, steal from, or place blocks at spawn. If spawn protection fails, it is still against the rules. Report issues to staff immediately.\n\n**1.3 No Spawn Camping**\nRepeatedly waiting at spawn to kill, follow, or target players is prohibited.\n\n**1.4 No Spawn Traps**\nAny trap designed to kill, damage, trap, or inconvenience players near spawn is prohibited.\n\n**1.5 No Claim Blocking**\nDo not intentionally build around spawn in a way that limits expansion, movement, or future server projects.',
       },
       {
         title: '⚔️ Page 2 — PvP & Combat Rules',
@@ -490,8 +476,8 @@ const DEFAULT_RULEBOOKS = {
     ],
   },
   chat: {
-    title: '💬 GoldenHeart SMP — Chat Rules',
-    color: 0xf0b429,
+    title: '💬 AmethMC — Chat Rules',
+    color: COLORS.secondary,
     pages: [
       {
         title: '💬 Page 1 — Spam, Swearing & Harassment',
@@ -504,8 +490,8 @@ const DEFAULT_RULEBOOKS = {
     ],
   },
   general: {
-    title: '📜 GoldenHeart SMP — General Rules',
-    color: 0xed4245,
+    title: '📜 AmethMC — General Rules',
+    color: COLORS.primary,
     pages: [
       {
         title: '⚠️ Page 1 — Warning System',
@@ -517,7 +503,7 @@ const DEFAULT_RULEBOOKS = {
       },
       {
         title: '⚖️ Page 3 — General Rules & Golden Rule',
-        content: '**9.1 Common Sense Rule**\nNot every possible offense can be listed. Staff may punish behavior that clearly harms the server or provides an unfair advantage.\n\n**9.2 No Loophole Abuse**\n"The rules didn\'t specifically say I couldn\'t" is not a valid defense. Attempting to bypass the intent of any rule is punishable.\n\n**9.3 No Real-Life Harm**\nDoxxing, leaking personal information, blackmail, or encouraging self-harm is strictly prohibited.\n\n**9.4 English Preferred**\nStaff must be able to moderate conversations when necessary.\n\n**9.5 Cooperation Required**\nRefusing staff investigations, evidence requests, or cheat checks may result in punishment.\n\n**9.6 The Golden Rule** ❤️\n> *Don\'t ruin the experience for other players.*\n\n*These rules are enforced based on both their wording and intended purpose. Play fair. Have fun. Win legitimately. — Golden Heart SMP Staff Team*',
+        content: '**9.1 Common Sense Rule**\nNot every possible offense can be listed. Staff may punish behavior that clearly harms the server or provides an unfair advantage.\n\n**9.2 No Loophole Abuse**\n"The rules didn\'t specifically say I couldn\'t" is not a valid defense. Attempting to bypass the intent of any rule is punishable.\n\n**9.3 No Real-Life Harm**\nDoxxing, leaking personal information, blackmail, or encouraging self-harm is strictly prohibited.\n\n**9.4 English Preferred**\nStaff must be able to moderate conversations when necessary.\n\n**9.5 Cooperation Required**\nRefusing staff investigations, evidence requests, or cheat checks may result in punishment.\n\n**9.6 The Golden Rule** ❤️\n> *Don\'t ruin the experience for other players.*\n\n*These rules are enforced based on both their wording and intended purpose. Play fair. Have fun. Win legitimately. — AmethMC Staff Team*',
       },
     ],
   },
@@ -525,9 +511,7 @@ const DEFAULT_RULEBOOKS = {
 
 let RULEBOOKS = DEFAULT_RULEBOOKS;
 let rulebooksLoaded = false;
-// ─────────────────────────────────────────
-// AI MESSAGE HANDLER (GEMINI)
-// ─────────────────────────────────────────
+
 // ─────────────────────────────────────────
 // RULEBOOK FUNCTIONS
 // ─────────────────────────────────────────
@@ -587,16 +571,16 @@ async function initializeRulebooks() {
 // ─────────────────────────────────────────
 function buildShopEmbed() {
   const embed = new EmbedBuilder()
-    .setTitle('🪙 Golden Coins Shop')
-    .setColor(0xf0b429)
+    .setTitle('💎 AmethMC Shop')
+    .setColor(COLORS.primary)
     .setDescription([
-      'Welcome to the **Golden Coins Shop**! 🛒',
+      'Welcome to the **AmethMC Shop**! 🛒',
       '',
       'Use the dropdown below to browse different categories.',
       '',
       '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
       '',
-      '💡 **How to earn coins:**',
+      '💡 **How to earn Amethyst Coins:**',
       '• 💬 **5 messages** = 1 coin',
       '• 🎤 **1 minute in VC** = 1 coin',
       '• 📨 **1 invite** = 50 coins',
@@ -608,9 +592,9 @@ function buildShopEmbed() {
       '🎫 **Coupon Codes:** Use discount codes at checkout!',
       '',
       '⚠️ **Shop prices may change** based on the server economy.',
-      '💛 **Use your coins wisely** — every purchase matters!',
+      '💜 **Use your coins wisely** — every purchase matters!',
     ].join('\n'))
-    .setFooter({ text: 'GoldenHeart SMP • Shop' })
+    .setFooter({ text: 'AmethMC • Shop' })
     .setTimestamp();
 
   return embed;
@@ -626,7 +610,7 @@ function buildCategoryEmbed(categoryKey) {
 
   const embed = new EmbedBuilder()
     .setTitle(`${category.emoji} ${category.name}`)
-    .setColor(0xf0b429)
+    .setColor(COLORS.primary)
     .setDescription([
       `Select an item from the dropdown below to purchase!`,
       '',
@@ -638,7 +622,7 @@ function buildCategoryEmbed(categoryKey) {
       '',
       `💳 **Click the dropdown** to choose an item and add to cart.`,
     ].join('\n'))
-    .setFooter({ text: 'GoldenHeart SMP • Shop' })
+    .setFooter({ text: 'AmethMC • Shop' })
     .setTimestamp();
 
   return embed;
@@ -722,8 +706,11 @@ function buildCartButtons() {
 }
 
 // ─────────────────────────────────────────
-// BOOK / PAGINATED EMBED SYSTEM
+// BOOK / PAGINATED EMBED SYSTEM - PER-USER
 // ─────────────────────────────────────────
+// Track active book sessions per user
+const bookSessions = new Map();
+
 function buildBookEmbed(bookTitle, pages, pageIndex, color) {
   const page = pages[pageIndex];
   return new EmbedBuilder()
@@ -734,20 +721,23 @@ function buildBookEmbed(bookTitle, pages, pageIndex, color) {
     .setTimestamp();
 }
 
-function buildBookRow(pageIndex, totalPages, bookKey) {
+function buildBookRow(pageIndex, totalPages, bookKey, userId) {
+  // Create a unique session ID for this user's book view
+  const sessionId = `${userId}_${bookKey}`;
+  
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`book_prev:${bookKey}:${pageIndex}`)
+      .setCustomId(`book_prev:${bookKey}:${pageIndex}:${userId}`)
       .setLabel('◀ Prev')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(pageIndex === 0),
     new ButtonBuilder()
-      .setCustomId(`book_page:${bookKey}:${pageIndex}`)
+      .setCustomId(`book_page:${bookKey}:${pageIndex}:${userId}`)
       .setLabel(`${pageIndex + 1} / ${totalPages}`)
       .setStyle(ButtonStyle.Primary)
       .setDisabled(true),
     new ButtonBuilder()
-      .setCustomId(`book_next:${bookKey}:${pageIndex}`)
+      .setCustomId(`book_next:${bookKey}:${pageIndex}:${userId}`)
       .setLabel('Next ▶')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(pageIndex === totalPages - 1),
@@ -755,7 +745,7 @@ function buildBookRow(pageIndex, totalPages, bookKey) {
 }
 
 // ─────────────────────────────────────────
-// WELCOME CARD IMAGE GENERATOR
+// WELCOME CARD IMAGE GENERATOR - AmethMC Branded
 // ─────────────────────────────────────────
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -780,56 +770,54 @@ async function generateWelcomeCard(member) {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
+  // Purple theme gradient
   const bgGradient = ctx.createLinearGradient(0, 0, width, height);
-  bgGradient.addColorStop(0, '#1a0a1a');
-  bgGradient.addColorStop(0.3, '#2d0a2d');
-  bgGradient.addColorStop(0.6, '#3d1a2d');
-  bgGradient.addColorStop(0.8, '#1a1a0a');
-  bgGradient.addColorStop(1, '#0a1a0a');
+  bgGradient.addColorStop(0, '#1a0a2e');
+  bgGradient.addColorStop(0.3, '#2d1a4e');
+  bgGradient.addColorStop(0.6, '#3d2a5e');
+  bgGradient.addColorStop(0.8, '#2a1a4e');
+  bgGradient.addColorStop(1, '#1a0a2e');
   ctx.fillStyle = bgGradient;
   ctx.fillRect(0, 0, width, height);
 
-  const grassColors = ['#6b8c42', '#5a7d32', '#7a9c52', '#4a6d22'];
-  for (let x = 0; x < width; x += 20) {
-    for (let y = height - 30; y < height; y += 20) {
-      const shade = grassColors[Math.floor(Math.random() * grassColors.length)];
-      ctx.fillStyle = shade;
-      ctx.fillRect(x + Math.random() * 10 - 5, y + Math.random() * 10 - 5, 20, 20);
-    }
-  }
-
+  // Decorative amethyst particles
+  const amethystColors = ['#9b59b6', '#8e44ad', '#a569bd', '#7d3c98', '#6c3483'];
   for (let i = 0; i < 200; i++) {
     const x = Math.random() * width;
     const y = Math.random() * height;
     const size = 2 + Math.random() * 4;
-    ctx.fillStyle = `rgba(60, 40, 30, ${0.05 + Math.random() * 0.1})`;
+    ctx.fillStyle = amethystColors[Math.floor(Math.random() * amethystColors.length)];
+    ctx.globalAlpha = 0.1 + Math.random() * 0.15;
     ctx.fillRect(x, y, size, size);
   }
+  ctx.globalAlpha = 1;
 
-  const heartX = 80, heartY = 80;
-  ctx.shadowColor = '#f0b429';
+  // Amethyst crystal icon
+  const crystalX = 80, crystalY = 80;
+  ctx.shadowColor = '#9b59b6';
   ctx.shadowBlur = 40;
-  ctx.fillStyle = '#f0b429';
+  ctx.fillStyle = '#9b59b6';
   ctx.font = '60px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('❤️', heartX, heartY);
+  ctx.fillText('💎', crystalX, crystalY);
   ctx.shadowBlur = 0;
 
-  ctx.shadowColor = '#f0b429';
+  // Server name
+  ctx.shadowColor = '#9b59b6';
   ctx.shadowBlur = 25;
-  ctx.fillStyle = '#ffd76e';
+  ctx.fillStyle = '#c39bd3';
   ctx.font = 'bold 52px "Minecraft", "Courier New", monospace';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText('GOLDENHEART SMP', 150, 70);
+  ctx.fillText('AMETHMC', 150, 70);
 
   ctx.shadowBlur = 0;
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = '#d7bde2';
   ctx.font = 'bold 28px "Minecraft", "Courier New", monospace';
   ctx.fillText('⚔️ SURVIVAL MULTIPLAYER', 150, 120);
 
-  ctx.fillStyle = '#8a8a8a';
+  ctx.fillStyle = '#8e44ad';
   ctx.font = '40px sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText('⚔️', width / 2, 170);
@@ -840,7 +828,7 @@ async function generateWelcomeCard(member) {
   let displayName = member.user.username;
   if (displayName.length > 16) displayName = displayName.slice(0, 14) + '…';
 
-  ctx.shadowColor = '#f0b429';
+  ctx.shadowColor = '#9b59b6';
   ctx.shadowBlur = 15;
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 38px "Minecraft", "Courier New", monospace';
@@ -849,14 +837,14 @@ async function generateWelcomeCard(member) {
   ctx.fillText(displayName, textX, textY);
 
   ctx.shadowBlur = 0;
-  ctx.fillStyle = '#f0b429';
+  ctx.fillStyle = '#c39bd3';
   ctx.font = '20px "Minecraft", "Courier New", monospace';
   ctx.fillText(`✦ Member #${member.guild.memberCount}`, textX, textY + 45);
 
   const infoY = 250;
   const infoBoxes = [
     { icon: '⛏️', label: 'Minecraft', value: '1.20.4+' },
-    { icon: '🌐', label: 'IP', value: 'goldenheartsmp.minecraftnoob.com' },
+    { icon: '🌐', label: 'IP', value: 'play.amethmc.fun' },
     { icon: '👥', label: 'Online', value: `${member.guild.memberCount} Players` },
   ];
 
@@ -866,11 +854,11 @@ async function generateWelcomeCard(member) {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     ctx.fill();
     roundRect(ctx, x, infoY, 250, 60, 8);
-    ctx.strokeStyle = 'rgba(240, 180, 41, 0.3)';
+    ctx.strokeStyle = 'rgba(155, 89, 182, 0.3)';
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    ctx.fillStyle = '#f0b429';
+    ctx.fillStyle = '#c39bd3';
     ctx.font = '16px sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
@@ -890,7 +878,7 @@ async function generateWelcomeCard(member) {
     const avatarImg = await loadImage(avatarURL);
 
     ctx.save();
-    ctx.shadowColor = '#f0b429';
+    ctx.shadowColor = '#9b59b6';
     ctx.shadowBlur = 40;
     ctx.beginPath();
     ctx.arc(avatarX, avatarY, avatarSize / 2 + 8, 0, Math.PI * 2);
@@ -898,9 +886,9 @@ async function generateWelcomeCard(member) {
       avatarX - 40, avatarY - 40, 10,
       avatarX, avatarY, avatarSize / 2 + 12
     );
-    ringGrad.addColorStop(0, '#ffd76e');
-    ringGrad.addColorStop(0.5, '#f0b429');
-    ringGrad.addColorStop(1, '#b8860b');
+    ringGrad.addColorStop(0, '#d7bde2');
+    ringGrad.addColorStop(0.5, '#9b59b6');
+    ringGrad.addColorStop(1, '#6c3483');
     ctx.fillStyle = ringGrad;
     ctx.fill();
     ctx.restore();
@@ -912,11 +900,11 @@ async function generateWelcomeCard(member) {
 
     ctx.beginPath();
     ctx.arc(avatarX, avatarY, avatarSize / 2 + 3, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+    ctx.strokeStyle = 'rgba(155, 89, 182, 0.3)';
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    ctx.fillStyle = '#f0b429';
+    ctx.fillStyle = '#c39bd3';
     ctx.font = 'bold 16px "Minecraft", "Courier New", monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -924,19 +912,19 @@ async function generateWelcomeCard(member) {
   } catch {
     ctx.beginPath();
     ctx.arc(avatarX, avatarY, avatarSize / 2, 0, Math.PI * 2);
-    ctx.fillStyle = '#333';
+    ctx.fillStyle = '#4a2a5e';
     ctx.fill();
   }
 
-  ctx.fillStyle = 'rgba(255, 215, 0, 0.4)';
+  ctx.fillStyle = 'rgba(155, 89, 182, 0.4)';
   ctx.font = '12px "Minecraft", "Courier New", monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
-  ctx.fillText('🏰 GoldenHeart SMP • discord.gg/We5SpWv64T • ⛏️ 1.20.4+', width / 2, height - 10);
+  ctx.fillText('💎 AmethMC • discord.gg/We5SpWv64T • ⛏️ 1.20.4+', width / 2, height - 10);
 
   const corners = [[20, 20], [width - 20, 20], [20, height - 20], [width - 20, height - 20]];
   corners.forEach(([cx, cy]) => {
-    ctx.fillStyle = '#f0b429';
+    ctx.fillStyle = '#9b59b6';
     ctx.font = '16px sans-serif';
     ctx.textAlign = cx < 50 ? 'left' : 'right';
     ctx.textBaseline = cy < 50 ? 'top' : 'bottom';
@@ -1001,7 +989,7 @@ function humanDuration(ms) {
 function fetchJSON(url) {
   return new Promise((resolve, reject) => {
     const lib = url.startsWith('https') ? https : http;
-    lib.get(url, { headers: { 'User-Agent': 'GoldenHeart-Bot/1.0' } }, res => {
+    lib.get(url, { headers: { 'User-Agent': 'AmethMC-Bot/1.0' } }, res => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
@@ -1041,9 +1029,6 @@ async function sendLog(client, embed) {
 // ─────────────────────────────────────────
 // GIVEAWAY HELPER
 // ─────────────────────────────────────────
-// Find your endGiveaway function (around line 1040-1070)
-// Replace it with this improved version:
-
 async function endGiveaway(client, giveaway) {
   try {
     const channel = await client.channels.fetch(giveaway.channelId).catch(() => null);
@@ -1056,14 +1041,12 @@ async function endGiveaway(client, giveaway) {
       return;
     }
 
-    // Try to fetch the message with proper error handling
     let message;
     try {
       message = await channel.messages.fetch(giveaway.messageId);
     } catch (fetchError) {
       if (fetchError.code === 10008) {
         console.log(`⚠️ Giveaway message ${giveaway.messageId} was deleted. Cleaning up...`);
-        // Mark as ended in database
         await Giveaway.findOneAndUpdate(
           { messageId: giveaway.messageId },
           { ended: true, winnersList: [] }
@@ -1073,7 +1056,6 @@ async function endGiveaway(client, giveaway) {
       throw fetchError;
     }
 
-    // Check for reaction
     const reaction = message.reactions.cache.get('🎉');
     if (!reaction) {
       await channel.send(`🎉 Giveaway for **${giveaway.prize}** ended — no valid entries!`);
@@ -1084,7 +1066,6 @@ async function endGiveaway(client, giveaway) {
       return;
     }
 
-    // Get users who reacted
     const users = await reaction.users.fetch().catch(() => []);
     const eligible = users.filter(u => !u.bot).map(u => u);
     
@@ -1097,14 +1078,12 @@ async function endGiveaway(client, giveaway) {
       return;
     }
 
-    // Pick winners
     const winnerCount = Math.min(giveaway.winners, eligible.length);
     const shuffled = eligible.sort(() => Math.random() - 0.5).slice(0, winnerCount);
     const winnerMentions = shuffled.map(u => `<@${u.id}>`).join(', ');
 
-    // Update the giveaway message
     const endEmbed = EmbedBuilder.from(message.embeds[0])
-      .setColor(0x57f287)
+      .setColor(COLORS.success)
       .setTitle('🎉 GIVEAWAY ENDED')
       .setDescription(`**Prize:** ${giveaway.prize}\n\n🏆 **Winner${winnerCount > 1 ? 's' : ''}:** ${winnerMentions}\n\nCongratulations!`)
       .setFooter({ text: `Ended` })
@@ -1113,7 +1092,6 @@ async function endGiveaway(client, giveaway) {
     await message.edit({ embeds: [endEmbed], components: [] }).catch(() => {});
     await channel.send(`🎉 Congratulations ${winnerMentions}! You won **${giveaway.prize}**!`).catch(() => {});
 
-    // Save to database
     await Giveaway.findOneAndUpdate(
       { messageId: giveaway.messageId },
       { 
@@ -1123,10 +1101,8 @@ async function endGiveaway(client, giveaway) {
     ).catch(() => {});
 
   } catch (err) {
-    // Don't let errors crash the bot - just log them
     console.error('Giveaway end error:', err.message);
     if (err.code !== 10008) {
-      // Only log non-404 errors in detail
       console.error('Full error:', err);
     }
   }
@@ -1155,7 +1131,7 @@ async function checkBirthdays(client) {
         }
         const channel = await client.channels.fetch(BIRTHDAY_CHANNEL_ID).catch(() => null);
         if (channel) {
-          await channel.send(`🎂 **Happy Birthday, <@${birthday.userId}>!** 🎉\n\nWishing you an amazing day from everyone at **GoldenHeart SMP**! 🥳🎈`);
+          await channel.send(`🎂 **Happy Birthday, <@${birthday.userId}>!** 🎉\n\nWishing you an amazing day from everyone at **AmethMC**! 🥳🎈`);
         }
         await Birthday.findOneAndUpdate(
           { userId: birthday.userId },
@@ -1197,7 +1173,7 @@ async function checkTempBans(client) {
         if (guild) {
           await guild.members.unban(ban.userId, 'Temporary ban expired');
           const logEmbed = new EmbedBuilder()
-            .setTitle('🔓 Temp Ban Expired — Auto Unbanned').setColor(0x57f287)
+            .setTitle('🔓 Temp Ban Expired — Auto Unbanned').setColor(COLORS.success)
             .addFields(
               { name: 'User', value: `<@${ban.userId}> (${ban.userTag})`, inline: true },
               { name: 'Original Duration', value: ban.duration, inline: true },
@@ -1741,23 +1717,16 @@ async function updateInviteUses(code, uses) {
 // ─────────────────────────────────────────
 // CLIENT READY EVENT
 // ─────────────────────────────────────────
-// ─────────────────────────────────────────
-// CLIENT READY EVENT - FIXED
-// ─────────────────────────────────────────
-client.once('client ready', async () => {  // <-- ADDED 'async'
+client.once('client ready', async () => {
   console.log(`✅ ${client.user.tag} is online`);
   client.user.setPresence({
-    activities: [{ name: 'Peak GoldenHeart SMP', type: ActivityType.Watching }],
+    activities: [{ name: '💎 AmethMC', type: ActivityType.Watching }],
     status: 'online',
   });
   
-  // Initialize rulebooks
   await initializeRulebooks();
-  
-  // Initialize staff manager
   initStaffManager(client);
   
-  // Load giveaways
   const giveaways = await Giveaway.find({ ended: false });
   const now = Date.now();
   for (const g of giveaways) {
@@ -1766,14 +1735,10 @@ client.once('client ready', async () => {  // <-- ADDED 'async'
     else { setTimeout(() => endGiveaway(client, g), remaining); }
   }
   
-  // ── SETUP TRACKING ──
   const { voiceTracker, inviteTracker } = setupTracking(client, GUILD_ID);
-  
-  // Store trackers globally for commands
   client.voiceTracker = voiceTracker;
   client.inviteTracker = inviteTracker;
   
-  // Start intervals
   setInterval(() => checkBirthdays(client), 3600000);
   setInterval(() => checkReminders(client), 30000);
   setInterval(() => checkTempBans(client), 60000);
@@ -1855,7 +1820,6 @@ let raidLockActive = false;
 client.on('guildMemberAdd', async member => {
   if (member.guild.id !== GUILD_ID) return;
   
-  // ── RAID DETECTION ──
   const now = Date.now();
   recentJoins.push(now);
   while (recentJoins.length > 0 && now - recentJoins[0] > RAID_WINDOW_MS) recentJoins.shift();
@@ -1868,7 +1832,7 @@ client.on('guildMemberAdd', async member => {
       }
     } catch (err) { console.error('Raid lock error:', err); }
     const raidEmbed = new EmbedBuilder()
-      .setTitle('🚨 RAID DETECTED — Server Locked').setColor(0xff0000)
+      .setTitle('🚨 RAID DETECTED — Server Locked').setColor(COLORS.danger)
       .setDescription(`**${recentJoins.length} accounts joined within ${RAID_WINDOW_MS / 1000} seconds.**\n\nAll text channels have been locked for @everyone.\nUse \`/unlock\` to re-open channels once the situation is resolved.`)
       .setTimestamp();
     await sendLog(client, raidEmbed);
@@ -1889,7 +1853,6 @@ client.on('guildMemberAdd', async member => {
     }, 300000);
   }
 
-  // ── INVITE TRACKING ──
   try {
     const invites = await member.guild.invites.fetch();
     for (const [code, invite] of invites) {
@@ -1908,7 +1871,7 @@ client.on('guildMemberAdd', async member => {
         console.log(`Awarded ${COINS_PER_INVITE} coins to ${invite.inviter.tag} for inviting ${member.user.tag}`);
         try {
           const inviter = await client.users.fetch(inviterId);
-          await inviter.send(`🎉 **You earned ${COINS_PER_INVITE} coins!**\n\n${member.user.tag} joined using your invite link! 🏆`);
+          await inviter.send(`🎉 **You earned ${COINS_PER_INVITE} Amethyst Coins!**\n\n${member.user.tag} joined using your invite link! 🏆`);
         } catch (err) {
           console.log(`Could not DM inviter ${inviterId}`);
         }
@@ -1919,9 +1882,8 @@ client.on('guildMemberAdd', async member => {
     console.error('Error tracking invite:', err);
   }
 
-  // ── LOG JOIN ──
   const embed = new EmbedBuilder()
-    .setTitle('📥 Member Joined').setColor(0x57f287)
+    .setTitle('📥 Member Joined').setColor(COLORS.success)
     .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
     .addFields(
       { name: 'User', value: `<@${member.id}> (${member.user.tag})`, inline: true },
@@ -1929,8 +1891,6 @@ client.on('guildMemberAdd', async member => {
     )
     .setFooter({ text: `ID: ${member.id}` }).setTimestamp();
   await sendLog(client, embed);
-
-  // ── WELCOME CARD ──
 });
 
 // ─────────────────────────────────────────
@@ -1939,7 +1899,7 @@ client.on('guildMemberAdd', async member => {
 client.on('guildMemberRemove', async member => {
   if (member.guild.id !== GUILD_ID) return;
   const embed = new EmbedBuilder()
-    .setTitle('📤 Member Left').setColor(0xed4245)
+    .setTitle('📤 Member Left').setColor(COLORS.danger)
     .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
     .addFields(
       { name: 'User', value: `${member.user.tag}`, inline: true },
@@ -1956,7 +1916,7 @@ client.on('messageDelete', async message => {
   if (!message.guild || message.guild.id !== GUILD_ID) return;
   if (message.author?.bot) return;
   const embed = new EmbedBuilder()
-    .setTitle('🗑️ Message Deleted').setColor(0xfee75c)
+    .setTitle('🗑️ Message Deleted').setColor(COLORS.warning)
     .addFields(
       { name: 'Author', value: message.author ? `<@${message.author.id}> (${message.author.tag})` : 'Unknown', inline: true },
       { name: 'Channel', value: `<#${message.channelId}>`, inline: true },
@@ -1974,7 +1934,7 @@ client.on('messageUpdate', async (oldMsg, newMsg) => {
   if (oldMsg.author?.bot) return;
   if (oldMsg.content === newMsg.content) return;
   const embed = new EmbedBuilder()
-    .setTitle('✏️ Message Edited').setColor(0x5865f2)
+    .setTitle('✏️ Message Edited').setColor(COLORS.info)
     .addFields(
       { name: 'Author', value: `<@${oldMsg.author?.id}> (${oldMsg.author?.tag})`, inline: true },
       { name: 'Channel', value: `<#${oldMsg.channelId}>`, inline: true },
@@ -1992,7 +1952,7 @@ client.on('guildAuditLogEntryCreate', async (entry, guild) => {
   if (guild.id !== GUILD_ID) return;
   if (entry.action === AuditLogEvent.MemberBanAdd) {
     const embed = new EmbedBuilder()
-      .setTitle('🔨 Member Banned').setColor(0xed4245)
+      .setTitle('🔨 Member Banned').setColor(COLORS.danger)
       .addFields(
         { name: 'Banned User', value: `${entry.target?.tag ?? 'Unknown'} (<@${entry.targetId}>)`, inline: true },
         { name: 'By', value: `<@${entry.executorId}>`, inline: true },
@@ -2003,7 +1963,7 @@ client.on('guildAuditLogEntryCreate', async (entry, guild) => {
   }
   if (entry.action === AuditLogEvent.MemberBanRemove) {
     const embed = new EmbedBuilder()
-      .setTitle('🔓 Member Unbanned').setColor(0x57f287)
+      .setTitle('🔓 Member Unbanned').setColor(COLORS.success)
       .addFields(
         { name: 'User', value: `${entry.target?.tag ?? 'Unknown'} (<@${entry.targetId}>)`, inline: true },
         { name: 'By', value: `<@${entry.executorId}>`, inline: true },
@@ -2012,7 +1972,7 @@ client.on('guildAuditLogEntryCreate', async (entry, guild) => {
   }
   if (entry.action === AuditLogEvent.MemberKick) {
     const embed = new EmbedBuilder()
-      .setTitle('👢 Member Kicked').setColor(0xffa500)
+      .setTitle('👢 Member Kicked').setColor(COLORS.warning)
       .addFields(
         { name: 'Kicked User', value: `${entry.target?.tag ?? 'Unknown'} (<@${entry.targetId}>)`, inline: true },
         { name: 'By', value: `<@${entry.executorId}>`, inline: true },
@@ -2027,7 +1987,7 @@ client.on('guildAuditLogEntryCreate', async (entry, guild) => {
     const isTimeout = !!timedOut.new;
     const embed = new EmbedBuilder()
       .setTitle(isTimeout ? '⏱️ Member Timed Out' : '✅ Timeout Removed')
-      .setColor(isTimeout ? 0xfee75c : 0x57f287)
+      .setColor(isTimeout ? COLORS.warning : COLORS.success)
       .addFields(
         { name: 'User', value: `${entry.target?.tag ?? 'Unknown'} (<@${entry.targetId}>)`, inline: true },
         { name: 'By', value: `<@${entry.executorId}>`, inline: true },
@@ -2042,7 +2002,7 @@ client.on('guildAuditLogEntryCreate', async (entry, guild) => {
     const lines = [...added.map(r => `➕ <@&${r.id}> added`), ...removed.map(r => `➖ <@&${r.id}> removed`)].join('\n');
     if (!lines) return;
     const embed = new EmbedBuilder()
-      .setTitle('🎭 Member Roles Updated').setColor(0x9b59b6)
+      .setTitle('🎭 Member Roles Updated').setColor(COLORS.primary)
       .addFields(
         { name: 'User', value: `<@${entry.targetId}>`, inline: true },
         { name: 'By', value: `<@${entry.executorId}>`, inline: true },
@@ -2052,7 +2012,7 @@ client.on('guildAuditLogEntryCreate', async (entry, guild) => {
   }
   if (entry.action === AuditLogEvent.ChannelCreate) {
     const embed = new EmbedBuilder()
-      .setTitle('📢 Channel Created').setColor(0x57f287)
+      .setTitle('📢 Channel Created').setColor(COLORS.success)
       .addFields(
         { name: 'Name', value: `#${entry.target?.name ?? 'unknown'}`, inline: true },
         { name: 'By', value: `<@${entry.executorId}>`, inline: true },
@@ -2061,7 +2021,7 @@ client.on('guildAuditLogEntryCreate', async (entry, guild) => {
   }
   if (entry.action === AuditLogEvent.ChannelDelete) {
     const embed = new EmbedBuilder()
-      .setTitle('🗑️ Channel Deleted').setColor(0xed4245)
+      .setTitle('🗑️ Channel Deleted').setColor(COLORS.danger)
       .addFields(
         { name: 'Name', value: `#${entry.target?.name ?? 'unknown'}`, inline: true },
         { name: 'By', value: `<@${entry.executorId}>`, inline: true },
@@ -2080,13 +2040,13 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
   let title, color, fields;
   if (!oldState.channelId && newState.channelId) {
-    title = '🔊 Voice Joined'; color = 0x57f287;
+    title = '🔊 Voice Joined'; color = COLORS.success;
     fields = [{ name: 'Channel', value: `<#${newState.channelId}>`, inline: true }];
   } else if (oldState.channelId && !newState.channelId) {
-    title = '🔇 Voice Left'; color = 0xed4245;
+    title = '🔇 Voice Left'; color = COLORS.danger;
     fields = [{ name: 'Channel', value: `<#${oldState.channelId}>`, inline: true }];
   } else if (oldState.channelId !== newState.channelId) {
-    title = '🔀 Voice Moved'; color = 0x5865f2;
+    title = '🔀 Voice Moved'; color = COLORS.info;
     fields = [
       { name: 'From', value: `<#${oldState.channelId}>`, inline: true },
       { name: 'To', value: `<#${newState.channelId}>`, inline: true },
@@ -2145,14 +2105,14 @@ const TICKET_TYPES = {
   support: {
     label: 'General Support',
     emoji: '🎟️',
-    color: 0xf0b429,
+    color: COLORS.primary,
     prefix: 'support',
     intro: 'Describe your issue in detail and a staff member will assist you shortly.',
   },
   shop: {
     label: 'Shop & Purchases',
     emoji: '🛍️',
-    color: 0x57f287,
+    color: COLORS.gold,
     prefix: 'shop',
     intro: 'Need help with shop purchases, rewards, or item claims? Share your details here.',
   },
@@ -2220,7 +2180,7 @@ async function openTicket(interaction, ticketTypeKey = 'support') {
           '**4.** Use the Close button when resolved',
         ].join('\n'), inline: false },
       )
-      .setFooter({ text: 'GoldenHeart SMP • Support Desk  •  Only you and staff can see this' })
+      .setFooter({ text: 'AmethMC • Support Desk  •  Only you and staff can see this' })
       .setTimestamp();
 
     await channel.send({
@@ -2234,6 +2194,7 @@ async function openTicket(interaction, ticketTypeKey = 'support') {
     return interaction.reply({ content: '❌ Failed to create ticket channel.', ephemeral: true });
   }
 }
+
 // ─────────────────────────────────────────
 // MESSAGE REACTION ADD (Starboard, Polls, Feedback)
 // ─────────────────────────────────────────
@@ -2242,7 +2203,6 @@ client.on('messageReactionAdd', async (reaction, user) => {
   if (reaction.partial) { try { await reaction.fetch(); } catch { return; } }
   if (reaction.message.partial) { try { await reaction.message.fetch(); } catch { return; } }
 
-  // ── STARBOARD ──
   if (reaction.emoji.name === '⭐' && reaction.message.guild?.id === GUILD_ID) {
     const starCount = reaction.count;
     if (starCount < STARBOARD_THRESHOLD) return;
@@ -2261,7 +2221,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
     
     const original = reaction.message;
     const embed = new EmbedBuilder()
-      .setColor(0xf0b429)
+      .setColor(COLORS.gold)
       .setAuthor({ name: original.author.username, iconURL: original.author.displayAvatarURL() })
       .setDescription(original.content || '*[no text]*')
       .addFields({ name: 'Source', value: `[Jump to message](${original.url})`, inline: false })
@@ -2277,7 +2237,6 @@ client.on('messageReactionAdd', async (reaction, user) => {
     return;
   }
 
-  // ── POLL VOTING ──
   if (reaction.message.guild) {
     const msgId = reaction.message.id;
     if (pollVotes.has(msgId)) {
@@ -2288,7 +2247,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
           try { await reaction.users.remove(user.id); } catch { }
           try {
             const dmUser = await user.createDM();
-            await dmUser.send(`⚠️ **GoldenHeart SMP — Poll Warning**\n\nYou tried to vote more than once on a poll. **Only one vote per person is allowed.**\n\nYour extra vote has been removed.`);
+            await dmUser.send(`⚠️ **AmethMC — Poll Warning**\n\nYou tried to vote more than once on a poll. **Only one vote per person is allowed.**\n\nYour extra vote has been removed.`);
           } catch { }
         } else {
           voteMap.set(user.id, reaction.emoji.name);
@@ -2299,7 +2258,6 @@ client.on('messageReactionAdd', async (reaction, user) => {
     }
   }
 
-  // ── FEEDBACK REACTIONS ──
   if (!reaction.message.guild) {
     const session = pendingFeedback.get(user.id);
     if (!session) return;
@@ -2312,7 +2270,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
       if (emojiIndex >= staffList.length) return;
       const [staffKey, staffInfo] = staffList[emojiIndex];
       const ratingEmbed = new EmbedBuilder()
-        .setTitle(`⭐ Rate ${staffInfo.label}`).setColor(0xf0b429)
+        .setTitle(`⭐ Rate ${staffInfo.label}`).setColor(COLORS.primary)
         .setDescription(`You selected **${staffInfo.label}** (${staffInfo.type}).\n\nReact with a number to give your rating:\n\n1️⃣ ⭐ — Poor\n2️⃣ ⭐⭐ — Fair\n3️⃣ ⭐⭐⭐ — Good\n4️⃣ ⭐⭐⭐⭐ — Great\n5️⃣ ⭐⭐⭐⭐⭐ — Excellent`)
         .setFooter({ text: 'React with 1️⃣ through 5️⃣ to rate.' }).setTimestamp();
       try {
@@ -2346,7 +2304,6 @@ client.on('messageCreate', async message => {
     const msg = message.content.toLowerCase();
     const content = message.content;
 
-    // AFK check
     if (message.mentions.users.size > 0) {
       const allAFK = await getAllAFK();
       for (const afk of allAFK) {
@@ -2358,7 +2315,6 @@ client.on('messageCreate', async message => {
       }
     }
 
-    // Remove AFK if user is back
     const afkUser = await getAFK(message.author.id);
     if (afkUser) {
       await removeAFK(message.author.id);
@@ -2366,7 +2322,6 @@ client.on('messageCreate', async message => {
       if (notif) autoDelete(notif, 5000);
     }
 
-    // XP gain
     const xpNow = Date.now();
     const lastXP = xpCooldown.get(message.author.id) || 0;
     if (xpNow - lastXP >= XP_COOLDOWN_MS) {
@@ -2389,7 +2344,6 @@ client.on('messageCreate', async message => {
       }
     }
 
-    // COINS GAIN (5 messages = 1 coin)
     const coinsNow = Date.now();
     const lastCoins = coinsCooldown.get(message.author.id) || 0;
     if (coinsNow - lastCoins >= COINS_COOLDOWN_MS) {
@@ -2404,7 +2358,7 @@ client.on('messageCreate', async message => {
         await user.save();
         console.log(`💰 ${message.author.tag} earned ${earnedCoins} coin(s)! Total: ${user.coins}`);
         try {
-          const sentMsg = await message.channel.send(`🪙 **${message.author.username}** earned **${earnedCoins}** Golden Coin(s)! Total: ${user.coins} 🪙`);
+          const sentMsg = await message.channel.send(`💎 **${message.author.username}** earned **${earnedCoins}** Amethyst Coin(s)! Total: ${user.coins} 💎`);
           autoDelete(sentMsg, 5000);
         } catch (err) {
           console.error('Could not send coin notification:', err);
@@ -2414,7 +2368,6 @@ client.on('messageCreate', async message => {
       }
     }
 
-    // Cultural / country jokes
     const culturalPatterns = [
       /\b(country|nation|race|ethnic|culture|religion|caste)\s*(joke|meme|humor|banter)/i,
       /\b(indian|pakistani|chinese|american|african|arab|mexican|white|black|asian|jewish|muslim|hindu|christian)\s*(joke|meme|people are|folks are)/i,
@@ -2427,13 +2380,13 @@ client.on('messageCreate', async message => {
         await message.delete();
         await message.member.timeout(24 * 60 * 60 * 1000, 'Severe violation: Cultural/country/race joke or remark');
         const warnEmbed = new EmbedBuilder()
-          .setTitle('🚨 Severe Violation — Immediate Timeout').setColor(0xff0000)
+          .setTitle('🚨 Severe Violation — Immediate Timeout').setColor(COLORS.danger)
           .setDescription(`<@${message.author.id}>, your message was removed and you have been **timed out for 24 hours**.\n\n> **Reason:** Jokes, stereotypes, or remarks targeting a country, culture, race, or religion are **strictly prohibited**.\n\nFurther violations will result in an immediate ban.`)
-          .setFooter({ text: 'GoldenHeart SMP — Zero Tolerance Policy' }).setTimestamp();
+          .setFooter({ text: 'AmethMC — Zero Tolerance Policy' }).setTimestamp();
         const sent = await message.channel.send({ embeds: [warnEmbed] });
         autoDelete(sent, 10000);
         const logEmbed = new EmbedBuilder()
-          .setTitle('🚨 Auto-Mod: Cultural Joke — 1-Day Timeout').setColor(0xff0000)
+          .setTitle('🚨 Auto-Mod: Cultural Joke — 1-Day Timeout').setColor(COLORS.danger)
           .addFields(
             { name: 'User', value: `<@${message.author.id}> (${message.author.tag})`, inline: true },
             { name: 'Channel', value: `<#${message.channelId}>`, inline: true },
@@ -2444,7 +2397,6 @@ client.on('messageCreate', async message => {
       return;
     }
 
-    // Personal swearing
     const personalSwearPatterns = [
       /\b(fuck|shit|bitch|bastard|asshole|ass hole|dick|cunt|idiot|moron|dumbass|retard)\s*(you|u|ur|your|him|her|them|he|she|they)\b/i,
       /\byou\s*(fucking?|fuckin|shit(ty)?|stupid|dumb|idiot|moron|bitch|asshole|dick|cunt|retard)\b/i,
@@ -2460,13 +2412,13 @@ client.on('messageCreate', async message => {
           try { await message.member.timeout(timeoutMins * 60 * 1000, `AutoMod Warn #${warnCount}: Swearing at a person`); } catch { }
         }
         const warnEmbed = new EmbedBuilder()
-          .setTitle('⚠️ Warning Issued — Personal Swearing').setColor(0xffa500)
+          .setTitle('⚠️ Warning Issued — Personal Swearing').setColor(COLORS.warning)
           .setDescription(`<@${message.author.id}>, your message was removed and you received **Warn #${warnCount}/8**.\n\n> **Reason:** Using swear words directly at another person is **prohibited**.\n\n${timeoutMins ? `⏱️ You have been timed out for **${timeoutMins} minutes**.` : '⚠️ Next warns will result in timeouts.'}`)
-          .setFooter({ text: 'GoldenHeart SMP — Community Rules' }).setTimestamp();
+          .setFooter({ text: 'AmethMC — Community Rules' }).setTimestamp();
         const sent = await message.channel.send({ embeds: [warnEmbed] });
         autoDelete(sent, 10000);
         const logEmbed = new EmbedBuilder()
-          .setTitle('⚠️ Auto-Mod: Personal Swear — Warn Issued').setColor(0xffa500)
+          .setTitle('⚠️ Auto-Mod: Personal Swear — Warn Issued').setColor(COLORS.warning)
           .addFields(
             { name: 'User', value: `<@${message.author.id}> (${message.author.tag})`, inline: true },
             { name: 'Channel', value: `<#${message.channelId}>`, inline: true },
@@ -2478,7 +2430,6 @@ client.on('messageCreate', async message => {
       return;
     }
 
-    // Spam / flooding
     if (!hasModPermission(message.member)) {
       const onCooldown = spamCooldown.get(message.author.id);
       if (!onCooldown || Date.now() - onCooldown > 15000) {
@@ -2492,13 +2443,13 @@ client.on('messageCreate', async message => {
             messageHistory.set(message.author.id, []);
             const labelMap = { link_spam: 'Link Spam', rapid_flood: 'Message Flooding', duplicate_spam: 'Duplicate Message Spam' };
             const warnEmbed = new EmbedBuilder()
-              .setTitle('⚠️ Spam Detected — Warning').setColor(0xffa500)
+              .setTitle('⚠️ Spam Detected — Warning').setColor(COLORS.warning)
               .setDescription(`<@${message.author.id}>, please slow down!\n\n> **Reason:** ${labelMap[violation.type] || 'Spam'}\n> ${violation.detail}\n\nYour extra messages have been removed.`)
-              .setFooter({ text: 'GoldenHeart SMP — AutoMod' }).setTimestamp();
+              .setFooter({ text: 'AmethMC — AutoMod' }).setTimestamp();
             const sent = await message.channel.send({ embeds: [warnEmbed] });
             autoDelete(sent, 10000);
             const logEmbed = new EmbedBuilder()
-              .setTitle('⚠️ Auto-Mod: Spam — Warning Issued').setColor(0xffa500)
+              .setTitle('⚠️ Auto-Mod: Spam — Warning Issued').setColor(COLORS.warning)
               .addFields(
                 { name: 'User', value: `<@${message.author.id}> (${message.author.tag})`, inline: true },
                 { name: 'Channel', value: `<#${message.channelId}>`, inline: true },
@@ -2512,13 +2463,12 @@ client.on('messageCreate', async message => {
       }
     }
 
-    if (msg === 'ip') return message.reply(`💛 **GoldenHeart SMP** is now online!\n🌍 **IP:** \`goldenheartsmps4.minecraftnoob.com:25565\`\n⚔️ Join now and start your journey!`);
+    if (msg === 'ip') return message.reply(`💎 **AmethMC** is now online!\n🌍 **IP:** \`play.amethmc.fun:25565\`\n⚔️ Join now and start your journey!`);
     if (msg === 'rules') return message.reply(`📜 Use \`/rules\` to see the full server rules!\n\n📌 Or check: <#1432277447440597028>`);
     if (msg === 'features') return message.reply(`📋 Use \`/features\` to see everything you can do as a member!`);
     return;
   }
 
-  // ── DM: Feedback comment ──
   const userId = message.author.id;
   const fbSession = pendingFeedback.get(userId);
   if (fbSession?.awaitingComment) {
@@ -2541,7 +2491,7 @@ client.on('messageCreate', async message => {
     try {
       const staffUser = await client.users.fetch(staffInfo.id);
       const dmEmbed = new EmbedBuilder()
-        .setTitle('📬 You received new feedback!').setColor(0xf0b429)
+        .setTitle('📬 You received new feedback!').setColor(COLORS.primary)
         .addFields(
           { name: 'Rating', value: `${starsDisplay(rating)} (${rating}/5)`, inline: true },
           { name: 'From', value: `Anonymous`, inline: true },
@@ -2552,7 +2502,6 @@ client.on('messageCreate', async message => {
     return message.channel.send(`✅ **Feedback submitted!**\n\n${starsDisplay(rating)} **(${rating}/5)** for **${staffInfo.label}** (${staffInfo.type})${comment ? `\n💬 *"${comment}"*` : ''}\n\nThank you for your feedback!`);
   }
 
-  // ── DM: Application flow ──
   const session = activeSessions.get(userId);
   if (!session) return;
   const questions = QUESTIONS[session.role];
@@ -2572,7 +2521,7 @@ client.on('messageCreate', async message => {
   await message.channel.send(`✅ **Application submitted!**\n\nYour **${APP_NAMES[session.role]}** application has been received.\n📋 Application ID: \`${appId}\`\n\nYou'll receive a DM when the staff team has reviewed it. Thanks for applying!`);
   const embed = new EmbedBuilder()
     .setTitle(`📋 New Application — ${APP_NAMES[session.role]}`)
-    .setColor(session.role === 'chatmod' ? 0xf0b429 : session.role === 'helper' ? 0x5b8dee : 0x3dd68c)
+    .setColor(session.role === 'chatmod' ? COLORS.secondary : session.role === 'helper' ? COLORS.info : COLORS.success)
     .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
     .addFields(
       { name: '👤 Applicant', value: `<@${userId}> (${message.author.tag})`, inline: true },
@@ -2598,13 +2547,9 @@ client.on('messageCreate', async message => {
 // ─────────────────────────────────────────
 // INTERACTION CREATE HANDLER
 // ─────────────────────────────────────────
-// ─────────────────────────────────────────
-// INTERACTION CREATE HANDLER - FIXED
-// ─────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
   // ── MODALS ──
   if (interaction.isModalSubmit()) {
-    // Edit price modal
     if (interaction.customId.startsWith('edit_price_modal:')) {
       if (!isServerOwner(interaction.user.id)) {
         return interaction.reply({ content: '❌ Only the server owner can edit shop prices.', ephemeral: true });
@@ -2630,7 +2575,7 @@ client.on('interactionCreate', async interaction => {
       
       const embed = new EmbedBuilder()
         .setTitle('💰 Shop Price Updated')
-        .setColor(0x57f287)
+        .setColor(COLORS.success)
         .setDescription(`**${item.name}** price has been updated!`)
         .addFields(
           { name: '📂 Category', value: `${category.emoji} ${category.name}`, inline: true },
@@ -2646,7 +2591,6 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
-    // Apply coupon modal
     if (interaction.customId === 'apply_coupon_modal') {
       const couponCode = interaction.fields.getTextInputValue('coupon_code').toUpperCase().trim();
       const userId = interaction.user.id;
@@ -2661,7 +2605,7 @@ client.on('interactionCreate', async interaction => {
       
       const embed = new EmbedBuilder()
         .setTitle('🎫 Coupon Applied!')
-        .setColor(0x57f287)
+        .setColor(COLORS.success)
         .setDescription(`Coupon **${couponCode}** has been applied to your cart!`)
         .addFields(
           { name: '💰 Discount', value: `${cartData.discount} coins`, inline: true },
@@ -2673,7 +2617,6 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
-    // Create coupon modal
     if (interaction.customId === 'create_coupon_modal') {
       if (!isServerOwner(interaction.user.id)) {
         return interaction.reply({ content: '❌ Only the server owner can create coupons.', ephemeral: true });
@@ -2704,7 +2647,7 @@ client.on('interactionCreate', async interaction => {
       
       const embed = new EmbedBuilder()
         .setTitle('🎫 Coupon Created!')
-        .setColor(0x57f287)
+        .setColor(COLORS.success)
         .setDescription(`A new coupon has been created!`)
         .addFields(
           { name: '🎟️ Coupon Code', value: `\`${code}\``, inline: true },
@@ -2721,7 +2664,6 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
-    // Edit message modal
     if (interaction.customId.startsWith('editmsg_modal:')) {
       if (!isGuildOwner(interaction)) {
         return interaction.reply({ content: '❌ Only the server owner can edit messages.', ephemeral: true });
@@ -2737,7 +2679,7 @@ client.on('interactionCreate', async interaction => {
         await msg.edit(newContent);
         await interaction.reply({ content: '✅ Message edited successfully!', ephemeral: true });
         const logEmbed = new EmbedBuilder()
-          .setTitle('✏️ Owner Edited Bot Message').setColor(0x5865f2)
+          .setTitle('✏️ Owner Edited Bot Message').setColor(COLORS.info)
           .addFields(
             { name: 'Editor', value: `<@${interaction.user.id}>`, inline: true },
             { name: 'Channel', value: `<#${channelId}>`, inline: true },
@@ -2752,7 +2694,6 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
-    // Edit embed modal
     if (interaction.customId.startsWith('editembed_modal:')) {
       if (!isGuildOwner(interaction)) {
         return interaction.reply({ content: '❌ Only the server owner can edit embeds.', ephemeral: true });
@@ -2784,7 +2725,6 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
-    // Edit rules modal
     if (interaction.customId.startsWith('editrules_modal:')) {
       if (!isGuildOwner(interaction)) {
         return interaction.reply({ content: '❌ Only the server owner can edit rules.', ephemeral: true });
@@ -2801,7 +2741,7 @@ client.on('interactionCreate', async interaction => {
       book.pages[pageIndex].content = newContent.trim();
       await saveRulebooks(RULEBOOKS);
       const embed = buildBookEmbed(book.title, book.pages, pageIndex, book.color);
-      const row = buildBookRow(pageIndex, book.pages.length, bookKey);
+      const row = buildBookRow(pageIndex, book.pages.length, bookKey, interaction.user.id);
       await interaction.channel.send({ embeds: [embed], components: [row] });
       await interaction.reply({ content: `✅ Page ${pageIndex + 1} of **${book.title}** updated and reposted!`, ephemeral: true });
       return;
@@ -2811,12 +2751,6 @@ client.on('interactionCreate', async interaction => {
   // ── SLASH COMMANDS ──
   if (interaction.isChatInputCommand()) {
     const commandName = interaction.commandName;
-
-    // ── AI COMMANDS ──
-    const aiCommands = ['ai', 'ai_setchannel', 'ai_memory', 'ai_forget', 'ai_forceforget', 'ai_stats'];
-    if (aiCommands.includes(commandName)) {
-      return handleAIInteraction(interaction, client, getUser, getLevelFromXP);
-    }
 
     // ── SHOP COMMANDS ──
     if (commandName === 'shop') {
@@ -2841,7 +2775,7 @@ client.on('interactionCreate', async interaction => {
       
       const embed = new EmbedBuilder()
         .setTitle('🛒 Your Shopping Cart')
-        .setColor(0xf0b429)
+        .setColor(COLORS.primary)
         .setDescription([
           itemsList,
           '',
@@ -2876,10 +2810,10 @@ client.on('interactionCreate', async interaction => {
       
       const embed = new EmbedBuilder()
         .setTitle(`💰 ${target.username}'s Shop Info`)
-        .setColor(0xf0b429)
+        .setColor(COLORS.primary)
         .setThumbnail(target.displayAvatarURL())
         .addFields(
-          { name: '🪙 Balance', value: `${user.coins} coins`, inline: true },
+          { name: '💎 Balance', value: `${user.coins} Amethyst Coins`, inline: true },
           { name: '💳 Total Spent', value: `${totalSpent} coins`, inline: true },
           { name: '📦 Total Purchases', value: `${purchases.length}`, inline: true },
           { name: '📊 Recent Purchases', value: purchases.length > 0 ?
@@ -2907,7 +2841,7 @@ client.on('interactionCreate', async interaction => {
       
       const embed = new EmbedBuilder()
         .setTitle(`📋 ${target.username}'s Purchase History`)
-        .setColor(0xf0b429)
+        .setColor(COLORS.primary)
         .setThumbnail(target.displayAvatarURL())
         .setDescription(
           purchases.map((p, i) => {
@@ -2976,7 +2910,7 @@ client.on('interactionCreate', async interaction => {
       
       const embed = new EmbedBuilder()
         .setTitle('📋 Shop Items List')
-        .setColor(0xf0b429)
+        .setColor(COLORS.primary)
         .setDescription(description || 'No items found.')
         .setFooter({ text: 'Use /shop_editprice to change prices' })
         .setTimestamp();
@@ -3068,7 +3002,7 @@ client.on('interactionCreate', async interaction => {
       
       const embed = new EmbedBuilder()
         .setTitle('🎫 Coupon List')
-        .setColor(0xf0b429)
+        .setColor(COLORS.primary)
         .setDescription(description)
         .addFields(
           { name: '📊 Total Coupons', value: `${coupons.length}`, inline: true },
@@ -3086,11 +3020,11 @@ client.on('interactionCreate', async interaction => {
       const target = interaction.options.getUser('user') || interaction.user;
       const user = await getUser(target.id);
       const embed = new EmbedBuilder()
-        .setTitle(`🪙 ${target.username}'s Golden Coins`)
-        .setColor(0xf0b429)
+        .setTitle(`💎 ${target.username}'s Amethyst Coins`)
+        .setColor(COLORS.primary)
         .setThumbnail(target.displayAvatarURL())
         .addFields(
-          { name: '💰 Balance', value: `${user.coins} Golden Coins`, inline: true },
+          { name: '💰 Balance', value: `${user.coins} Amethyst Coins`, inline: true },
           { name: '💬 Messages', value: `${user.messages || 0}`, inline: true },
           { name: '🎤 Voice Minutes', value: `${user.voiceMinutes || 0} min`, inline: true },
           { name: '📨 Invites', value: `${user.invites || 0}`, inline: true },
@@ -3104,7 +3038,7 @@ client.on('interactionCreate', async interaction => {
     if (commandName === 'coinslb') {
       const leaderboard = await getCoinsLeaderboard(10);
       if (leaderboard.length === 0) {
-        return interaction.reply({ content: '🪙 No coins have been earned yet! Be the first to earn some! 💰', ephemeral: true });
+        return interaction.reply({ content: '💎 No Amethyst Coins have been earned yet! Be the first to earn some! 💰', ephemeral: true });
       }
       
       const medals = ['🥇', '🥈', '🥉'];
@@ -3114,8 +3048,8 @@ client.on('interactionCreate', async interaction => {
       }).join('\n');
       
       const embed = new EmbedBuilder()
-        .setTitle('🪙 Golden Coins Leaderboard — Top 10')
-        .setColor(0xf0b429)
+        .setTitle('💎 Amethyst Coins Leaderboard — Top 10')
+        .setColor(COLORS.primary)
         .setDescription(lines)
         .addFields(
           { name: '📊 How to Earn', value: '💬 5 messages = 1 coin\n🎤 1 min voice = 1 coin\n📨 1 invite = 50 coins' }
@@ -3134,7 +3068,7 @@ client.on('interactionCreate', async interaction => {
       
       const today = new Date().toDateString();
       if (user.lastDaily && user.lastDaily.toDateString() === today) {
-        return interaction.reply({ content: `⏰ You already claimed your daily reward today! Come back tomorrow for another **50 Golden Coins**! 💰`, ephemeral: true });
+        return interaction.reply({ content: `⏰ You already claimed your daily reward today! Come back tomorrow for another **50 Amethyst Coins**! 💰`, ephemeral: true });
       }
       
       user.coins += 50;
@@ -3143,8 +3077,8 @@ client.on('interactionCreate', async interaction => {
       
       const embed = new EmbedBuilder()
         .setTitle('🎉 Daily Reward Claimed!')
-        .setColor(0x57f287)
-        .setDescription(`💰 You received **50 Golden Coins**!`)
+        .setColor(COLORS.success)
+        .setDescription(`💰 You received **50 Amethyst Coins**!`)
         .addFields(
           { name: '💳 New Balance', value: `${user.coins} coins`, inline: true },
           { name: '⏰ Next Claim', value: 'Tomorrow!', inline: true },
@@ -3177,8 +3111,8 @@ client.on('interactionCreate', async interaction => {
       
       const embed = new EmbedBuilder()
         .setTitle('💸 Transfer Complete!')
-        .setColor(0x57f287)
-        .setDescription(`<@${interaction.user.id}> successfully transferred **${amount}** Golden Coins to <@${target.id}>!`)
+        .setColor(COLORS.success)
+        .setDescription(`<@${interaction.user.id}> successfully transferred **${amount}** Amethyst Coins to <@${target.id}>!`)
         .addFields(
           { name: '📤 Sender\'s New Balance', value: `${sender.coins} coins`, inline: true },
           { name: '📥 Receiver\'s New Balance', value: `${receiver.coins} coins`, inline: true },
@@ -3188,7 +3122,7 @@ client.on('interactionCreate', async interaction => {
       
       try {
         const receiverUser = await client.users.fetch(target.id);
-        await receiverUser.send(`💸 **Coin Transfer Received!**\n\nYou received **${amount}** Golden Coins from **${interaction.user.username}**!\n\n💰 New Balance: ${receiver.coins} coins`);
+        await receiverUser.send(`💸 **Coin Transfer Received!**\n\nYou received **${amount}** Amethyst Coins from **${interaction.user.username}**!\n\n💰 New Balance: ${receiver.coins} coins`);
       } catch (err) { console.log(`Could not DM user ${target.id} about transfer`); }
       return;
     }
@@ -3213,7 +3147,7 @@ client.on('interactionCreate', async interaction => {
       
       const embed = new EmbedBuilder()
         .setTitle('⚙️ Balance Set')
-        .setColor(0x5865f2)
+        .setColor(COLORS.info)
         .setDescription(`<@${interaction.user.id}> set the balance for <@${target.id}>!`)
         .addFields(
           { name: '👤 User', value: `${target.tag}`, inline: true },
@@ -3227,7 +3161,7 @@ client.on('interactionCreate', async interaction => {
       
       try {
         const targetUser = await client.users.fetch(target.id);
-        await targetUser.send(`⚙️ **Balance Updated by Staff**\n\nYour Golden Coins balance has been set to **${amount}** coins.\n\n📋 Reason: ${reason}\n👤 Staff: ${interaction.user.tag}`);
+        await targetUser.send(`⚙️ **Balance Updated by Staff**\n\nYour Amethyst Coins balance has been set to **${amount}** coins.\n\n📋 Reason: ${reason}\n👤 Staff: ${interaction.user.tag}`);
       } catch (err) { console.log(`Could not DM user ${target.id} about balance update`); }
       return;
     }
@@ -3251,13 +3185,13 @@ client.on('interactionCreate', async interaction => {
       const rank = allUsers.findIndex(u => u.userId === target.id) + 1;
       
       const embed = new EmbedBuilder()
-        .setTitle(`📊 ${target.username}'s Rank`).setColor(0xf0b429)
+        .setTitle(`📊 ${target.username}'s Rank`).setColor(COLORS.primary)
         .setThumbnail(target.displayAvatarURL())
         .addFields(
           { name: '🏅 Rank', value: `#${rank}`, inline: true },
           { name: '⭐ Level', value: `${level}`, inline: true },
           { name: '✨ Total XP', value: `${user.xp}`, inline: true },
-          { name: '🪙 Coins', value: `${user.coins}`, inline: true },
+          { name: '💎 Coins', value: `${user.coins}`, inline: true },
           { name: `Progress to Level ${level + 1}`, value: `\`[${bar}]\` ${xpThisLevel}/${xpNeeded} XP`, inline: false },
         )
         .setFooter({ text: 'Keep chatting to earn more XP and coins!' }).setTimestamp();
@@ -3284,7 +3218,7 @@ client.on('interactionCreate', async interaction => {
       
       const embed = new EmbedBuilder()
         .setTitle('🏆 XP Leaderboard — Top 10')
-        .setColor(0xf0b429)
+        .setColor(COLORS.primary)
         .setDescription(lines)
         .setFooter({ text: 'Earn XP by chatting every minute!' })
         .setTimestamp();
@@ -3319,7 +3253,7 @@ client.on('interactionCreate', async interaction => {
       }
       
       try {
-        await target.user.send(`⚠️ **You have been warned in GoldenHeart SMP**\n\n📋 **Reason:** ${reason}\n🔢 **Warn #${warnCount}/8**\n👤 **Warned by:** ${interaction.user.tag}\n\n${timeoutMins ? `⏱️ You have been timed out for ${timeoutMins} minutes.` : ''}\n\nPlease review the server rules and be more careful in the future.`);
+        await target.user.send(`⚠️ **You have been warned in AmethMC**\n\n📋 **Reason:** ${reason}\n🔢 **Warn #${warnCount}/8**\n👤 **Warned by:** ${interaction.user.tag}\n\n${timeoutMins ? `⏱️ You have been timed out for ${timeoutMins} minutes.` : ''}\n\nPlease review the server rules and be more careful in the future.`);
       } catch (err) { console.log(`Could not DM warned user ${target.user.id}`); }
       
       return interaction.reply({ content: `⚠️ **${target.user.tag}** has been warned.\n📋 **Reason:** ${reason}\n🔢 **Total warns:** ${warnCount}/8${punishmentText}` });
@@ -3376,17 +3310,17 @@ client.on('interactionCreate', async interaction => {
     // ── FEATURES COMMAND ──
     if (commandName === 'features') {
       const embed = new EmbedBuilder()
-        .setTitle('✨ GoldenHeart SMP — Member Features').setColor(0xf0b429)
-        .setDescription('Here\'s everything available to you as a member of GoldenHeart SMP!')
+        .setTitle('💎 AmethMC — Member Features').setColor(COLORS.primary)
+        .setDescription('Here\'s everything available to you as a member of AmethMC!')
         .addFields(
           { name: '🔐 Verification', value: `Verify in <#${VERIFY_CHANNEL_ID}> to unlock full server access.`, inline: false },
           { name: '📋 Staff Applications', value: 'Use the **Staff Application panel** to apply for Chat Moderator, Helper, or Minecraft Chat Moderator.', inline: false },
           { name: '⭐ Staff Feedback', value: 'Use `/feedback` to rate any staff member out of 5 stars via DM. All feedback is **anonymous**.', inline: false },
           { name: '💡 Suggestions', value: 'Use `/suggest` to submit server ideas. They appear in the suggestions channel with **Accept/Reject** buttons for staff.', inline: false },
-          { name: '🌍 Minecraft Server', value: 'Type `ip` in any channel to get the MC server IP.\n> `goldenheartsmp.minecraftnoob.com:25565`', inline: false },
+          { name: '🌍 Minecraft Server', value: 'Type `ip` in any channel to get the MC server IP.\n> `play.amethmc.fun:25565`', inline: false },
           { name: '📊 Leveling & XP', value: 'Earn XP by chatting! Use `/rank` to see your level and `/leaderboard` for the top 10.', inline: false },
-          { name: '🪙 Golden Coins', value: 'Earn **Golden Coins** by chatting (5 messages = 1 coin), joining voice chat (1 coin per minute), and inviting members (50 coins per invite)! Use `/balance`, `/coinslb`, `/daily`, and `/transfer` to manage your coins.', inline: false },
-          { name: '🛒 Golden Coins Shop', value: 'Spend your hard-earned Golden Coins on useful resources and gear! Use `/shop` to browse, add items to your cart, and checkout! Use coupons for discounts!', inline: false },
+          { name: '💎 Amethyst Coins', value: 'Earn **Amethyst Coins** by chatting (5 messages = 1 coin), joining voice chat (1 coin per minute), and inviting members (50 coins per invite)! Use `/balance`, `/coinslb`, `/daily`, and `/transfer` to manage your coins.', inline: false },
+          { name: '🛒 Amethyst Shop', value: 'Spend your hard-earned Amethyst Coins on useful resources and gear! Use `/shop` to browse, add items to your cart, and checkout! Use coupons for discounts!', inline: false },
           { name: '🎫 Coupons', value: 'Use coupon codes at checkout to get discounts on your purchases!', inline: false },
           { name: '🎉 Giveaways', value: 'Watch for giveaway announcements — react with 🎉 to enter!', inline: false },
           { name: '💤 AFK System', value: 'Use `/afk <reason>` to mark yourself AFK. The bot will notify others who ping you.', inline: false },
@@ -3396,14 +3330,14 @@ client.on('interactionCreate', async interaction => {
           { name: '📜 Rules', value: 'Use `/rules` to view the full server rule set at any time.', inline: false },
           { name: '🗳️ Polls', value: 'Staff may create polls in the server — react with the emoji letter to cast your vote!', inline: false },
         )
-        .setFooter({ text: 'GoldenHeart SMP — Glad to have you here! 💛' }).setTimestamp();
+        .setFooter({ text: 'AmethMC — Glad to have you here! 💜' }).setTimestamp();
       return interaction.reply({ embeds: [embed] });
     }
 
     // ── RULES COMMAND ──
     if (commandName === 'rules') {
       const embed = new EmbedBuilder()
-        .setTitle('📜 GoldenHeart SMP — Server Rules').setColor(0xed4245)
+        .setTitle('📜 AmethMC — Server Rules').setColor(COLORS.primary)
         .setDescription('Please read all rules carefully. **"I didn\'t know" is not an excuse.**\n\nUse `/rulebook_mc`, `/rulebook_chat`, or `/rulebook_general` to browse the full paginated rulebook!')
         .addFields(
           { name: '🌍 Rule 1 — Cultural & Country Respect  🚨 SEVERE', value: 'Jokes, memes, stereotypes targeting any country, culture, race, or religion are **strictly prohibited**.\n**Punishment:** Message deleted + **immediate 24-hour timeout**.\n**Repeat:** Permanent ban.', inline: false },
@@ -3414,33 +3348,33 @@ client.on('interactionCreate', async interaction => {
           { name: '🛡️ Rule 6 — Respect Staff', value: 'Follow staff instructions. Disrespecting staff may result in additional warnings.', inline: false },
           { name: '⚠️ Warning System', value: '```\nWarn 1  →  ⚠️  Warning only\nWarn 2  →  ⚠️  Warning only\nWarn 3  →  ⏱️  30-minute timeout\nWarn 4  →  ⏱️  45-minute timeout\nWarn 5  →  ⏱️  60-minute timeout\nWarn 6  →  ⏱️  75-minute timeout\nWarn 7  →  ⏱️  90-minute timeout\nWarn 8  →  🔴  28-day (permanent) mute\n```', inline: false },
         )
-        .setFooter({ text: 'GoldenHeart SMP — Breaking rules affects everyone. Be kind. 💛' }).setTimestamp();
+        .setFooter({ text: 'AmethMC — Breaking rules affects everyone. Be kind. 💜' }).setTimestamp();
       return interaction.reply({ embeds: [embed] });
     }
 
-    // ── RULEBOOK COMMANDS ──
+    // ── RULEBOOK COMMANDS - PER-USER SESSIONS ──
     if (commandName === 'rulebook_mc') {
       const book = RULEBOOKS.mc;
       const embed = buildBookEmbed(book.title, book.pages, 0, book.color);
-      const row = buildBookRow(0, book.pages.length, 'mc');
-      await interaction.channel.send({ embeds: [embed], components: [row] });
-      return interaction.reply({ content: '📖 MC Server Rulebook posted!', ephemeral: true });
+      const row = buildBookRow(0, book.pages.length, 'mc', interaction.user.id);
+      await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+      return;
     }
     
     if (commandName === 'rulebook_chat') {
       const book = RULEBOOKS.chat;
       const embed = buildBookEmbed(book.title, book.pages, 0, book.color);
-      const row = buildBookRow(0, book.pages.length, 'chat');
-      await interaction.channel.send({ embeds: [embed], components: [row] });
-      return interaction.reply({ content: '📖 Chat Rulebook posted!', ephemeral: true });
+      const row = buildBookRow(0, book.pages.length, 'chat', interaction.user.id);
+      await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+      return;
     }
     
     if (commandName === 'rulebook_general') {
       const book = RULEBOOKS.general;
       const embed = buildBookEmbed(book.title, book.pages, 0, book.color);
-      const row = buildBookRow(0, book.pages.length, 'general');
-      await interaction.channel.send({ embeds: [embed], components: [row] });
-      return interaction.reply({ content: '📖 General Rulebook posted!', ephemeral: true });
+      const row = buildBookRow(0, book.pages.length, 'general', interaction.user.id);
+      await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+      return;
     }
 
     // ── FEEDBACK COMMAND ──
@@ -3449,7 +3383,7 @@ client.on('interactionCreate', async interaction => {
       const staffList = Object.entries(STAFF_MEMBERS);
       const memberLines = staffList.map(([key, info], i) => `${STAR_EMOJIS[i]}  **${info.label}** — ${info.type}`);
       const dmEmbed = new EmbedBuilder()
-        .setTitle('⭐ Staff Feedback — Who do you want to rate?').setColor(0xf0b429)
+        .setTitle('⭐ Staff Feedback — Who do you want to rate?').setColor(COLORS.primary)
         .setDescription(`React with the **number** next to the staff member you'd like to rate!\n\n${memberLines.join('\n')}\n\n> After reacting, I'll ask for a **1–5 star rating** and an optional comment.`)
         .setFooter({ text: 'Your feedback is anonymous and sent directly to the staff member.' }).setTimestamp();
       try {
@@ -3482,7 +3416,7 @@ client.on('interactionCreate', async interaction => {
         ).join('\n');
         
         const embed = new EmbedBuilder()
-          .setTitle(`📋 Feedback — ${staffInfo.label} (${staffInfo.type})`).setColor(0x5b8dee)
+          .setTitle(`📋 Feedback — ${staffInfo.label} (${staffInfo.type})`).setColor(COLORS.info)
           .addFields(
             { name: '⭐ Average Rating', value: `${avgRating}/5`, inline: true },
             { name: '📝 Total Reviews', value: `${feedbacks.length}`, inline: true },
@@ -3498,7 +3432,7 @@ client.on('interactionCreate', async interaction => {
           return `**${info.label}** (${info.type}) — ${starsDisplay(Math.round(Number(avg)))} **${avg}/5** *(${stats.count} review${stats.count !== 1 ? 's' : ''})*`;
         }).join('\n');
         const embed = new EmbedBuilder()
-          .setTitle('📋 Staff Performance Overview').setColor(0xf0b429)
+          .setTitle('📋 Staff Performance Overview').setColor(COLORS.primary)
           .setDescription(lines || 'No feedback data yet.').setTimestamp();
         return interaction.reply({ embeds: [embed], ephemeral: true });
       }
@@ -3518,7 +3452,7 @@ client.on('interactionCreate', async interaction => {
       }).join('\n\n');
       
       const embed = new EmbedBuilder()
-        .setTitle('📊 Staff Performance Stats').setColor(0x9b59b6)
+        .setTitle('📊 Staff Performance Stats').setColor(COLORS.primary)
         .setDescription(rows || 'No feedback data yet.')
         .setFooter({ text: `Requested by ${interaction.user.tag}` }).setTimestamp();
       return interaction.reply({ embeds: [embed], ephemeral: true });
@@ -3530,7 +3464,7 @@ client.on('interactionCreate', async interaction => {
       const suggestion = await createSuggestion(interaction.user.id, interaction.user.tag, text);
       
       const embed = new EmbedBuilder()
-        .setTitle('💡 New Suggestion').setColor(0xf0b429).setDescription(text)
+        .setTitle('💡 New Suggestion').setColor(COLORS.primary).setDescription(text)
         .addFields(
           { name: '👤 Submitted by', value: `<@${interaction.user.id}>`, inline: true },
           { name: '🆔 Suggestion ID', value: `\`${suggestion.id}\``, inline: true },
@@ -3573,7 +3507,7 @@ client.on('interactionCreate', async interaction => {
       ).join('\n\n');
       
       const embed = new EmbedBuilder()
-        .setTitle('💡 Suggestions').setColor(0xf0b429)
+        .setTitle('💡 Suggestions').setColor(COLORS.primary)
         .setDescription(lines || 'No suggestions match this filter.')
         .setFooter({ text: `Showing last 20 | Filter: ${statusFilter}` }).setTimestamp();
       return interaction.reply({ embeds: [embed], ephemeral: true });
@@ -3671,8 +3605,8 @@ client.on('interactionCreate', async interaction => {
       );
 
       const panelEmbed = new EmbedBuilder()
-        .setColor(0xf0b429)
-        .setTitle('🏰 GoldenHeart SMP — Support Desk')
+        .setColor(COLORS.primary)
+        .setTitle('💎 AmethMC — Support Desk')
         .setDescription([
           '> Need help from the staff team? **Select a category below** to open a private ticket.',
           '',
@@ -3692,7 +3626,7 @@ client.on('interactionCreate', async interaction => {
           { name: '⚡ Fast', value: 'Staff are notified instantly', inline: true },
           { name: '📋 Organized', value: 'Pick a category for faster help', inline: true },
         )
-        .setFooter({ text: 'GoldenHeart SMP • Support Desk • We\'re here to help 💛' })
+        .setFooter({ text: 'AmethMC • Support Desk • We\'re here to help 💜' })
         .setTimestamp();
 
       await interaction.channel.send({
@@ -3716,7 +3650,7 @@ client.on('interactionCreate', async interaction => {
       
       const embed = new EmbedBuilder()
         .setTitle('🔐 Verification Required')
-        .setColor(0x57f287)
+        .setColor(COLORS.primary)
         .setDescription(`Click the button below to verify yourself and gain access to the server!\n\n<#${VERIFY_CHANNEL_ID}>`)
         .setTimestamp();
       
@@ -3727,19 +3661,19 @@ client.on('interactionCreate', async interaction => {
     // ── SERVERSTATUS COMMAND ──
     if (commandName === 'serverstatus') {
       await interaction.deferReply();
-      const status = await getMCServerStatus('goldenheartsmp.minecraftnoob.com', 25565);
+      const status = await getMCServerStatus('play.amethmc.fun', 25565);
       if (!status || !status.online) {
         const embed = new EmbedBuilder()
-          .setTitle('🔴 GoldenHeart SMP — Offline').setColor(0xed4245)
+          .setTitle('🔴 AmethMC — Offline').setColor(COLORS.danger)
           .setDescription('The server appears to be **offline** or unreachable at this time.')
-          .setFooter({ text: 'goldenheartsmp.minecraftnoob.com:25565' }).setTimestamp();
+          .setFooter({ text: 'play.amethmc.fun:25565' }).setTimestamp();
         return interaction.editReply({ embeds: [embed] });
       }
       const playerList = status.players?.list?.map(p => `• ${p.name}`).join('\n') || '*No player data available*';
       const embed = new EmbedBuilder()
-        .setTitle('🟢 GoldenHeart SMP — Online').setColor(0x57f287)
+        .setTitle('🟢 AmethMC — Online').setColor(COLORS.success)
         .addFields(
-          { name: '🌍 IP', value: '`goldenheartsmp.minecraftnoob.com:25565`', inline: false },
+          { name: '🌍 IP', value: '`play.amethmc.fun:25565`', inline: false },
           { name: '👥 Players', value: `${status.players?.online ?? 0} / ${status.players?.max ?? 0}`, inline: true },
           { name: '🖥️ Version', value: status.version || 'Unknown', inline: true },
           { name: '📡 Motd', value: status.motd?.clean || '*No MOTD*', inline: false },
@@ -3762,7 +3696,7 @@ client.on('interactionCreate', async interaction => {
         const formatted = `${uuid.slice(0, 8)}-${uuid.slice(8, 12)}-${uuid.slice(12, 16)}-${uuid.slice(16, 20)}-${uuid.slice(20)}`;
         const skinHead = `https://mc-heads.net/avatar/${uuid}/64`;
         const embed = new EmbedBuilder()
-          .setTitle(`⛏️ Minecraft Player — ${profile.name}`).setColor(0x3dd68c)
+          .setTitle(`⛏️ Minecraft Player — ${profile.name}`).setColor(COLORS.success)
           .setThumbnail(skinHead)
           .addFields(
             { name: '👤 Username', value: profile.name, inline: true },
@@ -3843,7 +3777,7 @@ client.on('interactionCreate', async interaction => {
         const emojis = ['🇦', '🇧', '🇨', '🇩'];
         const optionLines = rawOptions.map((o, i) => `${emojis[i]} **${o}**`).join('\n\n');
         const embed = new EmbedBuilder()
-          .setTitle(`📊 ${question}`).setColor(0x5865f2).setDescription(optionLines)
+          .setTitle(`📊 ${question}`).setColor(COLORS.info).setDescription(optionLines)
           .addFields({ name: '🗳️ How to vote', value: 'React with **one** letter emoji. One vote per person!', inline: false })
           .setFooter({ text: `Poll by ${interaction.user.tag} • Closes in ${durationLabel}` }).setTimestamp();
         try {
@@ -3876,7 +3810,7 @@ client.on('interactionCreate', async interaction => {
         const endsAt = Date.now() + ms;
         const endsAtTs = Math.floor(endsAt / 1000);
         const embed = new EmbedBuilder()
-          .setTitle('🎉 GIVEAWAY').setColor(0xf0b429)
+          .setTitle('🎉 GIVEAWAY').setColor(COLORS.primary)
           .setDescription(`**${prize}**\n\nReact with 🎉 to enter!\n\n⏰ **Ends:** <t:${endsAtTs}:R> (<t:${endsAtTs}:F>)\n🏆 **Winners:** ${winners}\n🎟️ **Hosted by:** <@${interaction.user.id}>`)
           .setFooter({ text: `Ends at` }).setTimestamp(endsAt);
         const msg = await channel.send({ embeds: [embed] });
@@ -3913,32 +3847,32 @@ client.on('interactionCreate', async interaction => {
         const cardAttachment = new AttachmentBuilder(cardBuffer, { name: 'welcome-card.png' });
         const files = [cardAttachment];
         const welcomeEmbed = new EmbedBuilder()
-          .setColor(0xf0b429)
+          .setColor(COLORS.primary)
           .setAuthor({
-            name: `⛏️ ${targetMember.user.username} joined GoldenHeart SMP!`,
+            name: `⛏️ ${targetMember.user.username} joined AmethMC!`,
             iconURL: targetMember.user.displayAvatarURL({ dynamic: true, size: 256 }),
           })
-          .setTitle('🏰 Welcome to GoldenHeart SMP')
+          .setTitle('💎 Welcome to AmethMC')
           .setDescription([
             `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
             ``,
-            `**Hey <@${targetMember.id}>, we're glad you're here!** 💛`,
+            `**Hey <@${targetMember.id}>, we're glad you're here!** 💜`,
             ``,
-            `GoldenHeart SMP is a community-driven Minecraft survival server`,
+            `AmethMC is a community-driven Minecraft survival server`,
             `built on friendship, strategy, and epic adventures.`,
             ``,
             `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
             ``,
             `> 🔐 **Verify here:** <#${VERIFY_CHANNEL_ID}> to unlock all channels`,
             `> 📜 **Read the rules:** \`/rules\``,
-            `> ⛏️ **Join the MC server:** \`goldenheartsmp.minecraftnoob.com\``,
+            `> ⛏️ **Join the MC server:** \`play.amethmc.fun\``,
             ``,
             `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
           ].join('\n'))
           .setImage('attachment://welcome-card.png')
           .setThumbnail(targetMember.guild.iconURL({ dynamic: true, size: 256 }) || targetMember.user.displayAvatarURL({ dynamic: true }))
           .setFooter({
-            text: `⚔️ GoldenHeart SMP • Test Welcome • ${targetMember.guild.memberCount} members • 1.20.4+`,
+            text: `💎 AmethMC • Test Welcome • ${targetMember.guild.memberCount} members • 1.20.4+`,
             iconURL: targetMember.guild.iconURL({ dynamic: true }) || undefined,
           })
           .setTimestamp();
@@ -4002,11 +3936,11 @@ client.on('interactionCreate', async interaction => {
         
         const logEmbed = new EmbedBuilder()
           .setTitle('📊 Leaderboard Export')
-          .setColor(0x5865f2)
+          .setColor(COLORS.info)
           .setDescription(`Leaderboard data exported by <@${interaction.user.id}>`)
           .addFields(
             { name: '📈 XP Leaderboard', value: `Total users: **${exportData.summary.totalUsersWithXP}**\nTotal XP: **${exportData.summary.totalXP.toLocaleString()}**`, inline: true },
-            { name: '🪙 Coins Leaderboard', value: `Total users: **${exportData.summary.totalUsersWithCoins}**\nTotal Coins: **${exportData.summary.totalCoins.toLocaleString()}**`, inline: true },
+            { name: '💎 Coins Leaderboard', value: `Total users: **${exportData.summary.totalUsersWithCoins}**\nTotal Coins: **${exportData.summary.totalCoins.toLocaleString()}**`, inline: true },
             { name: '📅 Exported At', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false },
           )
           .setFooter({ text: `Exported by ${interaction.user.tag}` })
@@ -4024,10 +3958,10 @@ client.on('interactionCreate', async interaction => {
         
         const previewEmbed = new EmbedBuilder()
           .setTitle('📊 Leaderboard Preview (Top 5)')
-          .setColor(0xf0b429)
+          .setColor(COLORS.primary)
           .addFields(
             { name: '🏆 XP Leaderboard Top 5', value: xpPreview, inline: false },
-            { name: '🪙 Coins Leaderboard Top 5', value: coinsPreview, inline: false },
+            { name: '💎 Coins Leaderboard Top 5', value: coinsPreview, inline: false },
           )
           .setTimestamp();
         
@@ -4097,7 +4031,7 @@ client.on('interactionCreate', async interaction => {
         
         const embed = new EmbedBuilder()
           .setTitle('✅ Data Imported Successfully')
-          .setColor(0x57f287)
+          .setColor(COLORS.success)
           .setDescription(`Successfully imported **${dataType.toUpperCase()}** data!`)
           .addFields(
             { name: '📊 Records Imported', value: `${count}`, inline: true },
@@ -4162,7 +4096,7 @@ client.on('interactionCreate', async interaction => {
         
         const embed = new EmbedBuilder()
           .setTitle('📤 Data Exported')
-          .setColor(0x5865f2)
+          .setColor(COLORS.info)
           .setDescription(`**${dataType.toUpperCase()}** data has been exported!`)
           .addFields(
             { name: '📊 Records Exported', value: `${Object.keys(data).length}`, inline: true },
@@ -4186,11 +4120,11 @@ client.on('interactionCreate', async interaction => {
       
       const title = interaction.options.getString('title');
       const description = interaction.options.getString('description');
-      const color = interaction.options.getString('color') || '#f0b429';
+      const color = interaction.options.getString('color') || '#9b59b6';
       const footer = interaction.options.getString('footer');
       const imageUrl = interaction.options.getString('image');
       const channel = interaction.options.getChannel('channel') || interaction.channel;
-      const colorInt = parseInt(color.replace('#', ''), 16) || 0xf0b429;
+      const colorInt = parseInt(color.replace('#', ''), 16) || COLORS.primary;
       
       const embed = new EmbedBuilder()
         .setTitle(title || null)
@@ -4224,7 +4158,7 @@ client.on('interactionCreate', async interaction => {
       
       await interaction.deferReply();
       try {
-        try { await target.send(`🔨 **You have been ${duration ? 'temporarily ' : ''}banned from GoldenHeart SMP.**\n\n**Reason:** ${reason}${duration ? `\n**Duration:** ${duration}` : ''}`); } catch { }
+        try { await target.send(`🔨 **You have been ${duration ? 'temporarily ' : ''}banned from AmethMC.**\n\n**Reason:** ${reason}${duration ? `\n**Duration:** ${duration}` : ''}`); } catch { }
         await target.ban({ reason });
         if (duration) {
           const ms = parseDuration(duration);
@@ -4234,7 +4168,7 @@ client.on('interactionCreate', async interaction => {
           setTimeout(() => checkTempBans(client), ms + 1000);
         }
         const logEmbed = new EmbedBuilder()
-          .setTitle(duration ? `🔨 Member Temp-Banned (${duration})` : '🔨 Member Permanently Banned').setColor(0xed4245)
+          .setTitle(duration ? `🔨 Member Temp-Banned (${duration})` : '🔨 Member Permanently Banned').setColor(COLORS.danger)
           .addFields(
             { name: 'User', value: `${target.user.tag} (<@${target.id}>)`, inline: true },
             { name: 'By', value: `<@${interaction.user.id}>`, inline: true },
@@ -4260,10 +4194,10 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: '❌ Cannot kick an admin.', ephemeral: true });
       
       try {
-        try { await target.send(`👢 **You have been kicked from GoldenHeart SMP.**\n\n**Reason:** ${reason}`); } catch { }
+        try { await target.send(`👢 **You have been kicked from AmethMC.**\n\n**Reason:** ${reason}`); } catch { }
         await target.kick(reason);
         const logEmbed = new EmbedBuilder()
-          .setTitle('👢 Member Kicked').setColor(0xffa500)
+          .setTitle('👢 Member Kicked').setColor(COLORS.warning)
           .addFields(
             { name: 'User', value: `${target.user.tag} (<@${target.id}>)`, inline: true },
             { name: 'By', value: `<@${interaction.user.id}>`, inline: true },
@@ -4288,7 +4222,7 @@ client.on('interactionCreate', async interaction => {
         const reply = await interaction.reply({ content: `🗑️ Deleted **${deleted.size}** message${deleted.size !== 1 ? 's' : ''}.`, fetchReply: true });
         autoDelete(reply, 5000);
         const logEmbed = new EmbedBuilder()
-          .setTitle('🗑️ Purge').setColor(0xfee75c)
+          .setTitle('🗑️ Purge').setColor(COLORS.warning)
           .addFields(
             { name: 'By', value: `<@${interaction.user.id}>`, inline: true },
             { name: 'Channel', value: `<#${interaction.channelId}>`, inline: true },
@@ -4310,7 +4244,7 @@ client.on('interactionCreate', async interaction => {
         await channel.permissionOverwrites.edit(interaction.guild.roles.everyone, { SendMessages: false });
         await interaction.reply(`🔒 <#${channel.id}> has been **locked**.\n📋 **Reason:** ${reason}`);
         const logEmbed = new EmbedBuilder()
-          .setTitle('🔒 Channel Locked').setColor(0xed4245)
+          .setTitle('🔒 Channel Locked').setColor(COLORS.danger)
           .addFields(
             { name: 'Channel', value: `<#${channel.id}>`, inline: true },
             { name: 'By', value: `<@${interaction.user.id}>`, inline: true },
@@ -4331,7 +4265,7 @@ client.on('interactionCreate', async interaction => {
         await channel.permissionOverwrites.edit(interaction.guild.roles.everyone, { SendMessages: null });
         await interaction.reply(`🔓 <#${channel.id}> has been **unlocked**.`);
         const logEmbed = new EmbedBuilder()
-          .setTitle('🔓 Channel Unlocked').setColor(0x57f287)
+          .setTitle('🔓 Channel Unlocked').setColor(COLORS.success)
           .addFields(
             { name: 'Channel', value: `<#${channel.id}>`, inline: true },
             { name: 'By', value: `<@${interaction.user.id}>`, inline: true },
@@ -4389,7 +4323,7 @@ client.on('interactionCreate', async interaction => {
       const totalCoins = (await User.aggregate([{ $group: { _id: null, total: { $sum: '$coins' } } }]))[0]?.total || 0;
       
       const embed = new EmbedBuilder()
-        .setTitle(`📊 Server Info — ${guild.name}`).setColor(0x5865f2)
+        .setTitle(`📊 Server Info — ${guild.name}`).setColor(COLORS.info)
         .setThumbnail(guild.iconURL({ dynamic: true }))
         .addFields(
           { name: '👥 Total Members', value: `${totalAll}`, inline: true },
@@ -4401,7 +4335,7 @@ client.on('interactionCreate', async interaction => {
           { name: '\u200b', value: '\u200b', inline: false },
           { name: '⚠️ Total Warns Issued', value: `${totalWarns}`, inline: true },
           { name: '👤 Warned Users', value: `${warnedUsers}`, inline: true },
-          { name: '🪙 Total Coins', value: `${totalCoins}`, inline: true },
+          { name: '💎 Total Coins', value: `${totalCoins}`, inline: true },
           { name: '\u200b', value: '\u200b', inline: false },
           { name: '📋 Top Warned Members', value: warnListStr, inline: false },
         )
@@ -4465,7 +4399,7 @@ client.on('interactionCreate', async interaction => {
           .setCustomId('embed_description').setLabel('Embed Description (leave blank to keep)')
           .setStyle(TextInputStyle.Paragraph).setValue(existingEmbed.description || '').setRequired(false).setMaxLength(4000);
         const colorInput = new TextInputBuilder()
-          .setCustomId('embed_color').setLabel('Color (hex e.g. #f0b429, leave blank to keep)')
+          .setCustomId('embed_color').setLabel('Color (hex e.g. #9b59b6, leave blank to keep)')
           .setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(7);
         const footerInput = new TextInputBuilder()
           .setCustomId('embed_footer').setLabel('Footer text (leave blank to keep)')
@@ -4563,7 +4497,7 @@ client.on('interactionCreate', async interaction => {
       
       const embed = new EmbedBuilder()
         .setTitle('🛒 Added to Cart!')
-        .setColor(0x57f287)
+        .setColor(COLORS.success)
         .setDescription([
           `**${item.name}** has been added to your cart!`,
           '',
@@ -4606,7 +4540,7 @@ client.on('interactionCreate', async interaction => {
       
       const embed = new EmbedBuilder()
         .setTitle('🛒 Your Shopping Cart')
-        .setColor(0xf0b429)
+        .setColor(COLORS.primary)
         .setDescription([
           itemsList,
           '',
@@ -4690,7 +4624,7 @@ client.on('interactionCreate', async interaction => {
           
           const embed = new EmbedBuilder()
             .setTitle('🛒 Updated Cart')
-            .setColor(0xf0b429)
+            .setColor(COLORS.primary)
             .setDescription([
               itemsList,
               '',
@@ -4747,9 +4681,9 @@ client.on('interactionCreate', async interaction => {
       if (user.coins < cartData.finalTotal) {
         const embed = new EmbedBuilder()
           .setTitle('❌ Insufficient Coins!')
-          .setColor(0xed4245)
+          .setColor(COLORS.danger)
           .setDescription([
-            `You don't have enough Golden Coins to complete your purchase!`,
+            `You don't have enough Amethyst Coins to complete your purchase!`,
             '',
             `💰 **Your Balance:** ${user.coins} coins`,
             `💳 **Cart Total:** ${cartData.finalTotal} coins`,
@@ -4765,7 +4699,6 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], ephemeral: true });
       }
       
-      // Process checkout
       let totalDeducted = 0;
       const purchases = [];
       
@@ -4816,7 +4749,7 @@ client.on('interactionCreate', async interaction => {
       
       const embed = new EmbedBuilder()
         .setTitle('✅ Purchase Complete!')
-        .setColor(0x57f287)
+        .setColor(COLORS.success)
         .setDescription([
           `You successfully completed your purchase! 🎉`,
           '',
@@ -4838,12 +4771,11 @@ client.on('interactionCreate', async interaction => {
       const backButton = buildBackButton();
       await interaction.reply({ embeds: [embed], components: [backButton], ephemeral: true });
       
-      // Notify staff
       try {
         const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
         const logEmbed = new EmbedBuilder()
-          .setTitle('🪙 Shop Purchase (Cart Checkout)')
-          .setColor(0xf0b429)
+          .setTitle('💎 Shop Purchase (Cart Checkout)')
+          .setColor(COLORS.primary)
           .setDescription(`**${interaction.user.tag}** made a bulk purchase!`)
           .addFields(
             { name: '📦 Items', value: purchases.map(p => `${p.name} x${p.amount}`).join('\n'), inline: false },
@@ -4866,7 +4798,7 @@ client.on('interactionCreate', async interaction => {
           content: [
             `✅ **Purchase Confirmed!**`,
             '',
-            `You completed a bulk purchase from the Golden Coins Shop!`,
+            `You completed a bulk purchase from the Amethyst Shop!`,
             `💰 **Total Spent:** ${totalDeducted} coins`,
             `💳 **New Balance:** ${user.coins} coins`,
             cartData.coupon ? `🎫 **Coupon Used:** ${cartData.coupon.code} (${cartData.discount} coins saved!)` : '',
@@ -4902,7 +4834,7 @@ client.on('interactionCreate', async interaction => {
       
       const oldEmbed = interaction.message.embeds[0];
       const updatedEmbed = EmbedBuilder.from(oldEmbed)
-        .setColor(0x57f287)
+        .setColor(COLORS.success)
         .setDescription(
           oldEmbed.description.replace('📦 **Status:** ⏳ Pending', '📦 **Status:** ✅ **Completed!**')
         )
@@ -4926,7 +4858,7 @@ client.on('interactionCreate', async interaction => {
         const logChannel = await client.channels.fetch(STAFF_LOG_CHANNEL);
         const logEmbed = new EmbedBuilder()
           .setTitle('✅ Shop Order Completed')
-          .setColor(0x57f287)
+          .setColor(COLORS.success)
           .setDescription(`Order has been marked as **COMPLETED**!`)
           .addFields(
             { name: '✅ Completed By', value: `<@${interaction.user.id}>`, inline: true },
@@ -4952,7 +4884,7 @@ client.on('interactionCreate', async interaction => {
     if (interaction.customId === 'verify') {
       try {
         await interaction.member.roles.add(VERIFY_ROLE_ID);
-        return interaction.reply({ content: '✅ You are now verified! Welcome to GoldenHeart SMP! 🎉', ephemeral: true });
+        return interaction.reply({ content: '✅ You are now verified! Welcome to AmethMC! 🎉', ephemeral: true });
       } catch {
         return interaction.reply({ content: '❌ Failed to verify. Please contact a staff member.', ephemeral: true });
       }
@@ -4971,7 +4903,7 @@ client.on('interactionCreate', async interaction => {
       
       await claimTicket(channelId, interaction.user.id);
       const claimEmbed = new EmbedBuilder()
-        .setColor(0x57f287)
+        .setColor(COLORS.success)
         .setDescription(`✅ **<@${interaction.user.id}>** has claimed this ticket and will be assisting you.`)
         .setTimestamp();
       await interaction.channel.send({ embeds: [claimEmbed] });
@@ -4995,7 +4927,7 @@ client.on('interactionCreate', async interaction => {
           `[${new Date(m.createdTimestamp).toISOString()}] ${m.author.tag}: ${m.content}`
         ).join('\n');
         const logEmbed = new EmbedBuilder()
-          .setTitle(`🎟️ Ticket Closed — #${interaction.channel.name}`).setColor(0xed4245)
+          .setTitle(`🎟️ Ticket Closed — #${interaction.channel.name}`).setColor(COLORS.danger)
           .addFields(
             { name: 'Opened by', value: `<@${ticket.userId}>`, inline: true },
             { name: 'Closed by', value: `<@${interaction.user.id}>`, inline: true },
@@ -5023,7 +4955,7 @@ client.on('interactionCreate', async interaction => {
         new ButtonBuilder().setCustomId('_noop_reject').setLabel('❌ Reject').setStyle(ButtonStyle.Danger).setDisabled(true),
       );
       try {
-        const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setColor(0x3dd68c).setFooter({ text: `✅ Accepted by ${interaction.user.tag}` });
+        const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setColor(COLORS.success).setFooter({ text: `✅ Accepted by ${interaction.user.tag}` });
         await interaction.message.edit({ embeds: [updatedEmbed], components: [disabledRow] });
       } catch (err) { console.error('Could not update app message:', err); }
       
@@ -5050,7 +4982,7 @@ client.on('interactionCreate', async interaction => {
         new ButtonBuilder().setCustomId('_noop_rejected').setLabel('❌ Rejected').setStyle(ButtonStyle.Danger).setDisabled(true),
       );
       try {
-        const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setColor(0xe05c5c).setFooter({ text: `❌ Rejected by ${interaction.user.tag}` });
+        const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setColor(COLORS.danger).setFooter({ text: `❌ Rejected by ${interaction.user.tag}` });
         await interaction.message.edit({ embeds: [updatedEmbed], components: [disabledRow] });
       } catch (err) { console.error('Could not update app message:', err); }
       
@@ -5061,33 +4993,33 @@ client.on('interactionCreate', async interaction => {
       return interaction.editReply({ content: `❌ Application **${appId}** rejected.` });
     }
 
-    // ── BOOK NAVIGATION ──
+    // ── BOOK NAVIGATION - PER-USER ──
     if (interaction.customId.startsWith('book_prev:') || interaction.customId.startsWith('book_next:')) {
-      const [action, bookKey, pageRaw] = interaction.customId.split(':');
-      let book = RULEBOOKS[bookKey];
-      let currentPage = Number.parseInt(pageRaw, 10);
+      const parts = interaction.customId.split(':');
+      const action = parts[0];
+      const bookKey = parts[1];
+      const currentPage = parseInt(parts[2], 10);
+      const userId = parts[3];
       
-      if (!book || Number.isNaN(currentPage)) {
-        const embedData = interaction.message.embeds?.[0];
-        const text = `${embedData?.title || ''} ${embedData?.footer?.text || ''}`;
-        let foundKey = 'mc';
-        if (text.includes('Chat Rules')) foundKey = 'chat';
-        else if (text.includes('General Rules')) foundKey = 'general';
-        book = RULEBOOKS[foundKey];
-        const pageMatch = (embedData?.footer?.text || '').match(/Page (\d+) of/i);
-        currentPage = pageMatch ? Number.parseInt(pageMatch[1], 10) - 1 : 0;
+      // Verify this is the same user who requested the book
+      if (userId !== interaction.user.id) {
+        return interaction.reply({ 
+          content: '❌ You cannot control this rulebook view. Please use `/rulebook_mc`, `/rulebook_chat`, or `/rulebook_general` to open your own view.', 
+          ephemeral: true 
+        });
       }
       
-      if (Number.isNaN(currentPage) || !book) {
-        return interaction.reply({ content: '❌ This book has expired. Please repost the rulebook.', ephemeral: true });
+      const book = RULEBOOKS[bookKey];
+      if (!book || isNaN(currentPage)) {
+        return interaction.reply({ content: '❌ This rulebook has expired. Please use the rulebook commands again.', ephemeral: true });
       }
       
-      const direction = interaction.customId.startsWith('book_prev:') ? -1 : 1;
+      const direction = action === 'book_prev' ? -1 : 1;
       const newPage = Math.max(0, Math.min(book.pages.length - 1, currentPage + direction));
       if (newPage === currentPage) return interaction.deferUpdate();
       
       const embed = buildBookEmbed(book.title, book.pages, newPage, book.color);
-      const row = buildBookRow(newPage, book.pages.length, bookKey);
+      const row = buildBookRow(newPage, book.pages.length, bookKey, interaction.user.id);
       return interaction.update({ embeds: [embed], components: [row] });
     }
 
@@ -5100,7 +5032,7 @@ client.on('interactionCreate', async interaction => {
       const isAccept = interaction.customId.startsWith('suggest_accept:');
       const newStatus = isAccept ? 'accepted' : 'rejected';
       const statusEmoji = isAccept ? '✅' : '❌';
-      const statusColor = isAccept ? 0x57f287 : 0xed4245;
+      const statusColor = isAccept ? COLORS.success : COLORS.danger;
       
       const suggestion = await updateSuggestionStatus(suggId, newStatus);
       if (!suggestion) return interaction.reply({ content: `❌ Suggestion \`${suggId}\` not found.`, ephemeral: true });
@@ -5165,7 +5097,8 @@ client.on('interactionCreate', async interaction => {
       return;
     }
   }
-});  // <-- THIS CLOSES THE ENTIRE interactionCreate HANDLER
+});
+
 // ─────────────────────────────────────────
 // SLASH COMMAND REGISTRATION
 // ─────────────────────────────────────────
@@ -5193,13 +5126,13 @@ const commandsList = [
   new SlashCommandBuilder().setName('inviteleaderboard').setDescription('View the invite leaderboard'),
   
   // Shop commands
-  new SlashCommandBuilder().setName('shop').setDescription('🪙 Open the Golden Coins Shop'),
+  new SlashCommandBuilder().setName('shop').setDescription('💎 Open the Amethyst Shop'),
   new SlashCommandBuilder().setName('cart').setDescription('View your shopping cart'),
-  new SlashCommandBuilder().setName('shop_balance').setDescription('💰 Check your Golden Coins balance and purchase history')
+  new SlashCommandBuilder().setName('shop_balance').setDescription('💰 Check your Amethyst Coins balance and purchase history')
     .addUserOption(o => o.setName('user').setDescription('User to check (default: yourself)').setRequired(false)),
   new SlashCommandBuilder().setName('shop_purchases').setDescription('📋 View your purchase history')
     .addUserOption(o => o.setName('user').setDescription('User to check (default: yourself)').setRequired(false)),
-  new SlashCommandBuilder().setName('shoppanel').setDescription('🛒 Post the Golden Coins Shop panel (admin only)'),
+  new SlashCommandBuilder().setName('shoppanel').setDescription('🛒 Post the Amethyst Shop panel (admin only)'),
   new SlashCommandBuilder().setName('shop_editprice').setDescription('Edit the price of a shop item (Owner only)')
     .addStringOption(o => o.setName('category').setDescription('Category of the item').setRequired(true).addChoices(...categoryChoices))
     .addStringOption(o => o.setName('item').setDescription('Item ID to edit').setRequired(true)),
@@ -5210,11 +5143,11 @@ const commandsList = [
   new SlashCommandBuilder().setName('list_coupons').setDescription('List all coupons (Owner only)'),
   
   // Coin commands
-  new SlashCommandBuilder().setName('balance').setDescription('Check your Golden Coins balance (or another member\'s)')
+  new SlashCommandBuilder().setName('balance').setDescription('Check your Amethyst Coins balance (or another member\'s)')
     .addUserOption(o => o.setName('user').setDescription('Member to check (default: yourself)').setRequired(false)),
-  new SlashCommandBuilder().setName('coinslb').setDescription('View the top 10 richest members by Golden Coins'),
-  new SlashCommandBuilder().setName('daily').setDescription('Claim your daily 50 Golden Coins reward!'),
-  new SlashCommandBuilder().setName('transfer').setDescription('Transfer Golden Coins to another member')
+  new SlashCommandBuilder().setName('coinslb').setDescription('View the top 10 richest members by Amethyst Coins'),
+  new SlashCommandBuilder().setName('daily').setDescription('Claim your daily 50 Amethyst Coins reward!'),
+  new SlashCommandBuilder().setName('transfer').setDescription('Transfer Amethyst Coins to another member')
     .addUserOption(o => o.setName('user').setDescription('Member to transfer coins to').setRequired(true))
     .addNumberOption(o => o.setName('amount').setDescription('Amount of coins to transfer').setRequired(true).setMinValue(1)),
   new SlashCommandBuilder().setName('setbalance').setDescription('Set a user\'s coin balance (admin only)')
@@ -5248,12 +5181,11 @@ const commandsList = [
 ...welcomeCommandsData,
   // Staff Manager Commands
 ...staffCommandsData,
-  // ─── CASINO SYSTEM ROUTER ───
+  // Casino System
 ...casinoCommandsData,
-  // ... role commands ...
+  // Reaction Roles
 ...rrCommandsData,
-    // ... ai commands ...
-...aiChatCommandsData,   // ← ADD THIS LINE
+  
   // Warn commands
   new SlashCommandBuilder().setName('warn').setDescription('Warn a member')
     .addUserOption(o => o.setName('user').setDescription('Member to warn').setRequired(true))
@@ -5307,13 +5239,13 @@ const commandsList = [
   
   // Misc commands
   new SlashCommandBuilder().setName('ticketpanel').setDescription('Post the support ticket panel (admin only)'),
-  new SlashCommandBuilder().setName('serverstatus').setDescription('Check if the GoldenHeart SMP Minecraft server is online'),
+  new SlashCommandBuilder().setName('serverstatus').setDescription('Check if the AmethMC Minecraft server is online'),
   new SlashCommandBuilder().setName('mcplayer').setDescription('Look up a Minecraft player by username')
     .addStringOption(o => o.setName('username').setDescription('Minecraft username').setRequired(true)),
   new SlashCommandBuilder().setName('embed').setDescription('Post a custom embed (admin only)')
     .addStringOption(o => o.setName('title').setDescription('Embed title').setRequired(false))
     .addStringOption(o => o.setName('description').setDescription('Embed description').setRequired(false))
-    .addStringOption(o => o.setName('color').setDescription('Hex color e.g. #ff0000 (default: gold)').setRequired(false))
+    .addStringOption(o => o.setName('color').setDescription('Hex color e.g. #9b59b6 (default: purple)').setRequired(false))
     .addStringOption(o => o.setName('footer').setDescription('Footer text').setRequired(false))
     .addStringOption(o => o.setName('image').setDescription('Image URL').setRequired(false))
     .addChannelOption(o => o.setName('channel').setDescription('Channel to post in (default: current)').setRequired(false)),
@@ -5375,7 +5307,7 @@ const commandsList = [
         { name: 'Coins Data', value: 'coins' },
         { name: 'XP Data', value: 'xp' }
       )),
-];  // <-- THIS CLOSES THE commandsList ARRAY
+];
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
