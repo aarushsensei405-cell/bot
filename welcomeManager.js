@@ -19,9 +19,9 @@ const { createCanvas, loadImage } = require('canvas');
 const WelcomeConfigSchema = new Schema({
   guildId:   { type: String, required: true, unique: true },
   channelId: { type: String, default: '' },
-  title:     { type: String, default: '🎉 A New Adventurer Has Arrived!' },
+  title:     { type: String, default: '💎 A New Adventurer Has Arrived!' },
   description: { type: String, default: '' },
-  color:     { type: String, default: '#FFD700' },
+  color:     { type: String, default: '#9b59b6' },
   gifUrl:    { type: String, default: '' },
   bannerUrl: { type: String, default: '' }
 });
@@ -38,16 +38,90 @@ async function generateWelcomeCard(member) {
   const canvas = createCanvas(700, 250);
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = '#1e1e24';
+  // Purple AmethMC theme
+  const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+  gradient.addColorStop(0, '#1a0a2e');
+  gradient.addColorStop(0.5, '#2d1a4e');
+  gradient.addColorStop(1, '#1a0a2e');
+  ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // Decorative amethyst particles
+  for (let i = 0; i < 50; i++) {
+    const x = Math.random() * canvas.width;
+    const y = Math.random() * canvas.height;
+    const size = 1 + Math.random() * 3;
+    ctx.fillStyle = `rgba(155, 89, 182, ${0.1 + Math.random() * 0.2})`;
+    ctx.fillRect(x, y, size, size);
+  }
+
+  // Server name
+  ctx.fillStyle = '#c39bd3';
+  ctx.font = 'bold 36px "Minecraft", "Courier New", monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('💎 AMETHMC', 30, 40);
+
+  ctx.fillStyle = '#d7bde2';
+  ctx.font = '18px "Minecraft", "Courier New", monospace';
+  ctx.fillText('⚔️ Survival Multiplayer', 30, 80);
+
+  // Welcome text
+  ctx.shadowColor = '#9b59b6';
+  ctx.shadowBlur = 20;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 28px "Minecraft", "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  
+  let displayName = member.user.username;
+  if (displayName.length > 16) displayName = displayName.slice(0, 14) + '…';
+  ctx.fillText(`Welcome, ${displayName}!`, canvas.width / 2, 130);
+  ctx.shadowBlur = 0;
+
+  // Member count
+  ctx.fillStyle = '#c39bd3';
+  ctx.font = '16px "Minecraft", "Courier New", monospace';
+  ctx.fillText(`✦ Member #${member.guild.memberCount}`, canvas.width / 2, 175);
+
+  // IP info
+  ctx.fillStyle = 'rgba(155, 89, 182, 0.6)';
+  ctx.font = '12px "Minecraft", "Courier New", monospace';
+  ctx.fillText('🌐 play.amethmc.fun • 1.20.4+', canvas.width / 2, 215);
+
+  // Avatar
   try {
     const avatar = await loadImage(member.user.displayAvatarURL({ extension: 'png', size: 256 }));
-    ctx.drawImage(avatar, 450, 25, 200, 200);
+    const avatarX = canvas.width - 80;
+    const avatarY = 50;
+    const avatarSize = 60;
+
+    // Avatar border
+    ctx.beginPath();
+    ctx.arc(avatarX, avatarY, avatarSize / 2 + 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#9b59b6';
+    ctx.fill();
+
+    // Avatar clip
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(avatarX, avatarY, avatarSize / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(avatar, avatarX - avatarSize / 2, avatarY - avatarSize / 2, avatarSize, avatarSize);
+    ctx.restore();
   } catch {
-    ctx.fillStyle = '#FFD700';
-    ctx.fillRect(450, 25, 200, 200);
+    // Fallback if avatar fails to load
+    ctx.beginPath();
+    ctx.arc(canvas.width - 80, 50, 30, 0, Math.PI * 2);
+    ctx.fillStyle = '#4a2a5e';
+    ctx.fill();
   }
+
+  // Border glow
+  ctx.strokeStyle = 'rgba(155, 89, 182, 0.3)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
 
   return canvas.toBuffer();
 }
@@ -58,33 +132,30 @@ async function buildWelcomeEmbed(member, config, channelIds, memberNumber) {
   const { RULES_CHANNEL_ID, VERIFY_CHANNEL_ID, GENERAL_CHANNEL_ID } = channelIds;
   const count = memberNumber ?? member.guild.memberCount;
 
-  // FIX: correct member mention format — was missing "<@" prefix in description
   const description =
 `## <@${member.id}>!
 
-We're excited to have you join **AMETHMC**.
+We're excited to have you join **AMETHMC**. 💜
 
-📖 **Read Rules** • <#1432277447440597028>
-✅ **Verify** • <#1513364198850171010>
-💬 **General** • <#1502596253589180457>
+📖 **Read Rules** • <#${RULES_CHANNEL_ID || '1432277447440597028'}>
+✅ **Verify** • <#${VERIFY_CHANNEL_ID || '1513364198850171010'}>
+💬 **General** • <#${GENERAL_CHANNEL_ID || '1502596253589180457'}>
 
 ✨ You are our **${count}${getOrdinal(count)}** member!`;
 
   const embed = new EmbedBuilder()
-    .setColor(config?.color ? parseInt(config.color.replace('#', ''), 16) : 0xFFD700)
-    .setTitle(config?.title || '🎉 A New Adventurer Has Arrived!')
+    .setColor(config?.color ? parseInt(config.color.replace('#', ''), 16) : 0x9b59b6)
+    .setTitle(config?.title || '💎 A New Adventurer Has Arrived!')
     .setDescription(description)
     .setThumbnail(member.user.displayAvatarURL({ size: 512 }))
     .setFooter({ text: `AMETHMC • Member #${count}` })
     .setTimestamp();
 
-  // FIX: if banner is set, use it as the image — no card needed, skip generating it
   if (config?.bannerUrl) {
     embed.setImage(config.bannerUrl);
     return { embed, files: [] };
   }
 
-  // No banner — generate and attach the canvas card
   const cardBuffer = await generateWelcomeCard(member);
   const attachment = new AttachmentBuilder(cardBuffer, { name: 'welcome-card.png' });
   embed.setImage('attachment://welcome-card.png');
@@ -119,15 +190,21 @@ async function showPreviewWithCommitButtons(interaction, workingConfig, channelI
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 function initWelcomeManager(client, configDefaults) {
+  // ─── FIX: Use the specific channel ID from configDefaults ──────────────────
+  const WELCOME_CHANNEL_ID = configDefaults.WELCOME_CHANNEL_ID || '1526212463853572186';
+  
   const {
     GUILD_ID,
-    WELCOME_CHANNEL_ID,
     RULES_CHANNEL_ID,
     VERIFY_CHANNEL_ID,
     GENERAL_CHANNEL_ID
   } = configDefaults;
 
-  const channelIds = { RULES_CHANNEL_ID, VERIFY_CHANNEL_ID, GENERAL_CHANNEL_ID };
+  const channelIds = { 
+    RULES_CHANNEL_ID: RULES_CHANNEL_ID || '1432277447440597028', 
+    VERIFY_CHANNEL_ID: VERIFY_CHANNEL_ID || '1513364198850171010', 
+    GENERAL_CHANNEL_ID: GENERAL_CHANNEL_ID || '1502596253589180457' 
+  };
 
   client.welcomeCache = new Map();
 
@@ -137,11 +214,18 @@ function initWelcomeManager(client, configDefaults) {
 
     let config = await WelcomeConfig.findOne({ guildId: member.guild.id });
     if (!config) {
-      config = await WelcomeConfig.create({ guildId: member.guild.id, channelId: WELCOME_CHANNEL_ID });
+      config = await WelcomeConfig.create({ 
+        guildId: member.guild.id, 
+        channelId: WELCOME_CHANNEL_ID 
+      });
     }
 
+    // ─── FIX: Use the stored channelId or fallback to the specified channel ───
     const channel = member.guild.channels.cache.get(config.channelId || WELCOME_CHANNEL_ID);
-    if (!channel) return;
+    if (!channel) {
+      console.log(`[WelcomeManager] Channel ${config.channelId || WELCOME_CHANNEL_ID} not found`);
+      return;
+    }
 
     try {
       const { embed, files } = await buildWelcomeEmbed(member, config, channelIds);
@@ -166,7 +250,10 @@ function initWelcomeManager(client, configDefaults) {
 
         let config = await WelcomeConfig.findOne({ guildId: interaction.guild.id });
         if (!config) {
-          config = await WelcomeConfig.create({ guildId: interaction.guild.id, channelId: WELCOME_CHANNEL_ID });
+          config = await WelcomeConfig.create({ 
+            guildId: interaction.guild.id, 
+            channelId: WELCOME_CHANNEL_ID 
+          });
         }
 
         const editMenu = new ActionRowBuilder().addComponents(
@@ -176,7 +263,7 @@ function initWelcomeManager(client, configDefaults) {
             .addOptions([
               { label: 'Embed Title',          description: 'Change the bold title at the top of the embed',        value: 'title'     },
               { label: 'Description Body',      description: 'Edit the main text (supports {member}, {count} etc.)', value: 'description' },
-              { label: 'Accent Color',          description: 'Set the left-bar hex color e.g. #FFD700',              value: 'color'     },
+              { label: 'Accent Color',          description: 'Set the left-bar hex color e.g. #9b59b6',              value: 'color'     },
               { label: 'Output Channel',        description: 'Tag the channel where welcomes are sent',              value: 'channel'   },
               { label: '🖼️ Custom Banner',      description: 'Paste an image URL to use as the embed banner',        value: 'bannerUrl' },
               { label: '📤 Send Live Preview',  description: 'Fire a real test card to the welcome channel now',     value: 'preview'   }
@@ -214,8 +301,10 @@ function initWelcomeManager(client, configDefaults) {
             await targetChannel.send({ embeds: [embed], files });
             await new Promise(res => setTimeout(res, 1200));
           }
+          await interaction.followUp({ content: `✅ Sent ${humanMembers.length} welcome messages!`, ephemeral: true });
         } catch (err) {
           console.error('[WelcomeManager] startwelcomemsg error:', err);
+          await interaction.followUp({ content: '❌ Error sending welcome messages.', ephemeral: true });
         }
         return;
       }
@@ -312,7 +401,6 @@ function initWelcomeManager(client, configDefaults) {
         let value = msg.content.trim();
         try { await msg.delete(); } catch {}
 
-        // FIX: channel option — extract ID from mention
         if (chosen === 'channel') {
           const mentioned = msg.mentions.channels.first();
           if (!mentioned) {
@@ -346,7 +434,6 @@ function initWelcomeManager(client, configDefaults) {
           return interaction.reply({ content: '❌ Session expired. Re-run `/welcomemsg`.', ephemeral: true });
         }
 
-        // FIX: use $set so Mongoose actually writes every changed field to MongoDB
         const updatePayload = {
           title:     cached.title,
           description: cached.description,
