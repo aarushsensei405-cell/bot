@@ -62,7 +62,7 @@ async function buildWelcomeEmbed(member, config, channelIds, memberNumber) {
   const description =
 `## <@${member.id}>!
 
-We're excited to have you join **Golden Heart SMP**.
+We're excited to have you join **AMETHMC**.
 
 📖 **Read Rules** • <#1432277447440597028>
 ✅ **Verify** • <#1513364198850171010>
@@ -75,7 +75,7 @@ We're excited to have you join **Golden Heart SMP**.
     .setTitle(config?.title || '🎉 A New Adventurer Has Arrived!')
     .setDescription(description)
     .setThumbnail(member.user.displayAvatarURL({ size: 512 }))
-    .setFooter({ text: `GoldenHeart SMP • Member #${count}` })
+    .setFooter({ text: `AMETHMC • Member #${count}` })
     .setTimestamp();
 
   // FIX: if banner is set, use it as the image — no card needed, skip generating it
