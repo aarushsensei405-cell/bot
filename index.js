@@ -90,6 +90,10 @@ mongoose.connect(MONGODB_URI, {
   console.error('❌ MongoDB connection error:', err);
   process.exit(1);
 });
+initWelcomeManager(client, { 
+  GUILD_ID: '1432272831722553398', 
+  WELCOME_CHANNEL_ID: '1526212463853572186' 
+});
 
 // ─────────────────────────────────────────
 // CONFIG VARIABLES
@@ -100,7 +104,6 @@ const GUILD_ID = process.env.GUILD_ID || '1432272831722553398';
 
 const STAFF_LOG_CHANNEL = process.env.STAFF_LOG_CHANNEL || '1432277470878498866';
 const SUGGESTIONS_CHANNEL_ID = process.env.SUGGESTIONS_CHANNEL || '1515769765514313819';
-const WELCOME_CHANNEL_ID = process.env.WELCOME_CHANNEL || '1526212463853572186';
 const STARBOARD_CHANNEL_ID = process.env.STARBOARD_CHANNEL || '1432277447440597028';
 const BIRTHDAY_CHANNEL_ID = process.env.BIRTHDAY_CHANNEL || '1432277447440597028';
 const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY || '1518439159189213225';
