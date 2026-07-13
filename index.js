@@ -1,11 +1,3 @@
-// ─────────────────────────────────────────
-// AMETHMC DISCORD BOT - COMPLETE
-// WITH MONGODB PERSISTENT STORAGE
-// ─────────────────────────────────────────
-
-// ─────────────────────────────────────────
-// ALL IMPORTS FIRST - MUST COME FIRST!
-// ─────────────────────────────────────────
 const express = require('express');
 const {
   Client,
@@ -84,16 +76,22 @@ mongoose.connect(MONGODB_URI, {
 })
 .then(() => {
   console.log('✅ Connected to MongoDB Atlas!');
-  initWelcomeManager(client, { GUILD_ID: '1432272831722553398', WELCOME_CHANNEL_ID: '1516255117060341790' });
+  // ─── FIX: Only call initWelcomeManager ONCE with the correct channel ───
+  initWelcomeManager(client, { 
+    GUILD_ID: '1432272831722553398', 
+    WELCOME_CHANNEL_ID: '1526212463853572186' 
+  });
 })
 .catch(err => {
   console.error('❌ MongoDB connection error:', err);
   process.exit(1);
 });
-initWelcomeManager(client, { 
-  GUILD_ID: '1432272831722553398', 
-  WELCOME_CHANNEL_ID: '1526212463853572186' 
-});
+
+// ─── REMOVE THIS DUPLICATE CALL ───
+// initWelcomeManager(client, { 
+//   GUILD_ID: '1432272831722553398', 
+//   WELCOME_CHANNEL_ID: '1526212463853572186' 
+// });
 
 // ─────────────────────────────────────────
 // CONFIG VARIABLES
