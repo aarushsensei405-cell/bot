@@ -76,7 +76,6 @@ mongoose.connect(MONGODB_URI, {
 })
 .then(() => {
   console.log('✅ Connected to MongoDB Atlas!');
-  // ─── FIX: Only call initWelcomeManager ONCE with the correct channel ───
   initWelcomeManager(client, { 
     GUILD_ID: '1432272831722553398', 
     WELCOME_CHANNEL_ID: '1526212463853572186' 
@@ -87,12 +86,6 @@ mongoose.connect(MONGODB_URI, {
   process.exit(1);
 });
 
-// ─── REMOVE THIS DUPLICATE CALL ───
-// initWelcomeManager(client, { 
-//   GUILD_ID: '1432272831722553398', 
-//   WELCOME_CHANNEL_ID: '1526212463853572186' 
-// });
-
 // ─────────────────────────────────────────
 // CONFIG VARIABLES
 // ─────────────────────────────────────────
@@ -102,10 +95,12 @@ const GUILD_ID = process.env.GUILD_ID || '1432272831722553398';
 
 const STAFF_LOG_CHANNEL = process.env.STAFF_LOG_CHANNEL || '1432277470878498866';
 const SUGGESTIONS_CHANNEL_ID = process.env.SUGGESTIONS_CHANNEL || '1515769765514313819';
+const WELCOME_CHANNEL_ID = process.env.WELCOME_CHANNEL || '1526212463853572186';
 const STARBOARD_CHANNEL_ID = process.env.STARBOARD_CHANNEL || '1432277447440597028';
 const BIRTHDAY_CHANNEL_ID = process.env.BIRTHDAY_CHANNEL || '1432277447440597028';
 const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY || '1518439159189213225';
 const LEVEL_UP_CHANNEL_ID = process.env.LEVEL_UP_CHANNEL || '1432277463366504484';
+const RULES_CHANNEL_ID = process.env.RULES_CHANNEL || '1432277447440597028';
 
 const SHOP_COMPLETED_USER_ID = process.env.SHOP_COMPLETED_USER || '1519764530425495643';
 const SERVER_OWNER_ID = process.env.SERVER_OWNER || '885470207332728832';
@@ -116,13 +111,13 @@ const BIRTHDAY_ROLE_ID = process.env.BIRTHDAY_ROLE || '1432277416109281371';
 
 // AmethMC Brand Colors - Purple Theme
 const COLORS = {
-  primary: 0x9b59b6,      // Amethyst Purple
-  secondary: 0x8e44ad,    // Darker Purple
-  success: 0x2ecc71,      // Green
-  danger: 0xe74c3c,       // Red
-  warning: 0xf1c40f,      // Yellow
-  info: 0x3498db,         // Blue
-  gold: 0xf0b429,         // Gold for coins
+  primary: 0x9b59b6,
+  secondary: 0x8e44ad,
+  success: 0x2ecc71,
+  danger: 0xe74c3c,
+  warning: 0xf1c40f,
+  info: 0x3498db,
+  gold: 0xf0b429,
 };
 
 const SPAM_SETTINGS = {
@@ -568,6 +563,106 @@ async function initializeRulebooks() {
 }
 
 // ─────────────────────────────────────────
+// BOOK / PAGINATED EMBED SYSTEM - PUBLIC VIEW
+// ─────────────────────────────────────────
+// Track active book messages for auto-reset
+const bookMessages = new Map(); // messageId -> { bookKey, pageIndex, timeout }
+
+function buildBookEmbed(bookTitle, pages, pageIndex, color) {
+  const page = pages[pageIndex];
+  return new EmbedBuilder()
+    .setTitle(page.title)
+    .setDescription(page.content)
+    .setColor(color)
+    .setFooter({ text: `📖 ${bookTitle}  •  Page ${pageIndex + 1} of ${pages.length}` })
+    .setTimestamp();
+}
+
+function buildBookRow(pageIndex, totalPages, bookKey, messageId) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`book_prev:${bookKey}:${pageIndex}:${messageId}`)
+      .setLabel('◀ Prev')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(pageIndex === 0),
+    new ButtonBuilder()
+      .setCustomId(`book_page:${bookKey}:${pageIndex}:${messageId}`)
+      .setLabel(`${pageIndex + 1} / ${totalPages}`)
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(true),
+    new ButtonBuilder()
+      .setCustomId(`book_next:${bookKey}:${pageIndex}:${messageId}`)
+      .setLabel('Next ▶')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(pageIndex === totalPages - 1),
+  );
+}
+
+// Function to reset a book message to page 0
+async function resetBookToPageZero(messageId, channelId) {
+  try {
+    const channel = await client.channels.fetch(channelId).catch(() => null);
+    if (!channel) {
+      bookMessages.delete(messageId);
+      return;
+    }
+    
+    const message = await channel.messages.fetch(messageId).catch(() => null);
+    if (!message) {
+      bookMessages.delete(messageId);
+      return;
+    }
+    
+    // Find which book this is from the stored data
+    const bookData = bookMessages.get(messageId);
+    if (!bookData) return;
+    
+    const book = RULEBOOKS[bookData.bookKey];
+    if (!book) {
+      bookMessages.delete(messageId);
+      return;
+    }
+    
+    // Reset to page 0
+    const embed = buildBookEmbed(book.title, book.pages, 0, book.color);
+    const row = buildBookRow(0, book.pages.length, bookData.bookKey, messageId);
+    
+    await message.edit({ embeds: [embed], components: [row] }).catch(() => {});
+    
+    // Update the stored page index
+    bookData.pageIndex = 0;
+    bookMessages.set(messageId, bookData);
+    
+  } catch (err) {
+    console.error('Error resetting book:', err);
+  }
+}
+
+// Function to schedule reset for a book message
+function scheduleBookReset(messageId, channelId) {
+  // Clear any existing timeout for this message
+  const existing = bookMessages.get(messageId);
+  if (existing && existing.timeout) {
+    clearTimeout(existing.timeout);
+  }
+  
+  // Set new timeout for 2 minutes
+  const timeout = setTimeout(() => {
+    resetBookToPageZero(messageId, channelId);
+  }, 120000); // 2 minutes
+  
+  // Store the timeout reference
+  if (bookMessages.has(messageId)) {
+    const data = bookMessages.get(messageId);
+    data.timeout = timeout;
+    bookMessages.set(messageId, data);
+  } else {
+    // This shouldn't happen, but just in case
+    bookMessages.set(messageId, { timeout });
+  }
+}
+
+// ─────────────────────────────────────────
 // SHOP UI BUILDERS
 // ─────────────────────────────────────────
 function buildShopEmbed() {
@@ -707,45 +802,6 @@ function buildCartButtons() {
 }
 
 // ─────────────────────────────────────────
-// BOOK / PAGINATED EMBED SYSTEM - PER-USER
-// ─────────────────────────────────────────
-// Track active book sessions per user
-const bookSessions = new Map();
-
-function buildBookEmbed(bookTitle, pages, pageIndex, color) {
-  const page = pages[pageIndex];
-  return new EmbedBuilder()
-    .setTitle(page.title)
-    .setDescription(page.content)
-    .setColor(color)
-    .setFooter({ text: `📖 ${bookTitle}  •  Page ${pageIndex + 1} of ${pages.length}` })
-    .setTimestamp();
-}
-
-function buildBookRow(pageIndex, totalPages, bookKey, userId) {
-  // Create a unique session ID for this user's book view
-  const sessionId = `${userId}_${bookKey}`;
-  
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`book_prev:${bookKey}:${pageIndex}:${userId}`)
-      .setLabel('◀ Prev')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(pageIndex === 0),
-    new ButtonBuilder()
-      .setCustomId(`book_page:${bookKey}:${pageIndex}:${userId}`)
-      .setLabel(`${pageIndex + 1} / ${totalPages}`)
-      .setStyle(ButtonStyle.Primary)
-      .setDisabled(true),
-    new ButtonBuilder()
-      .setCustomId(`book_next:${bookKey}:${pageIndex}:${userId}`)
-      .setLabel('Next ▶')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(pageIndex === totalPages - 1),
-  );
-}
-
-// ─────────────────────────────────────────
 // WELCOME CARD IMAGE GENERATOR - AmethMC Branded
 // ─────────────────────────────────────────
 function roundRect(ctx, x, y, w, h, r) {
@@ -771,7 +827,6 @@ async function generateWelcomeCard(member) {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  // Purple theme gradient
   const bgGradient = ctx.createLinearGradient(0, 0, width, height);
   bgGradient.addColorStop(0, '#1a0a2e');
   bgGradient.addColorStop(0.3, '#2d1a4e');
@@ -781,7 +836,6 @@ async function generateWelcomeCard(member) {
   ctx.fillStyle = bgGradient;
   ctx.fillRect(0, 0, width, height);
 
-  // Decorative amethyst particles
   const amethystColors = ['#9b59b6', '#8e44ad', '#a569bd', '#7d3c98', '#6c3483'];
   for (let i = 0; i < 200; i++) {
     const x = Math.random() * width;
@@ -793,7 +847,6 @@ async function generateWelcomeCard(member) {
   }
   ctx.globalAlpha = 1;
 
-  // Amethyst crystal icon
   const crystalX = 80, crystalY = 80;
   ctx.shadowColor = '#9b59b6';
   ctx.shadowBlur = 40;
@@ -804,7 +857,6 @@ async function generateWelcomeCard(member) {
   ctx.fillText('💎', crystalX, crystalY);
   ctx.shadowBlur = 0;
 
-  // Server name
   ctx.shadowColor = '#9b59b6';
   ctx.shadowBlur = 25;
   ctx.fillStyle = '#c39bd3';
@@ -2742,7 +2794,7 @@ client.on('interactionCreate', async interaction => {
       book.pages[pageIndex].content = newContent.trim();
       await saveRulebooks(RULEBOOKS);
       const embed = buildBookEmbed(book.title, book.pages, pageIndex, book.color);
-      const row = buildBookRow(pageIndex, book.pages.length, bookKey, interaction.user.id);
+      const row = buildBookRow(pageIndex, book.pages.length, bookKey, null);
       await interaction.channel.send({ embeds: [embed], components: [row] });
       await interaction.reply({ content: `✅ Page ${pageIndex + 1} of **${book.title}** updated and reposted!`, ephemeral: true });
       return;
@@ -3353,29 +3405,54 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ embeds: [embed] });
     }
 
-    // ── RULEBOOK COMMANDS - PER-USER SESSIONS ──
+    // ── RULEBOOK COMMANDS - PUBLIC VIEW ──
     if (commandName === 'rulebook_mc') {
       const book = RULEBOOKS.mc;
       const embed = buildBookEmbed(book.title, book.pages, 0, book.color);
-      const row = buildBookRow(0, book.pages.length, 'mc', interaction.user.id);
-      await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
-      return;
+      const message = await interaction.channel.send({ embeds: [embed] });
+      const row = buildBookRow(0, book.pages.length, 'mc', message.id);
+      await message.edit({ components: [row] });
+      
+      // Store the message for auto-reset
+      const timeout = setTimeout(() => {
+        resetBookToPageZero(message.id, interaction.channelId);
+      }, 120000);
+      
+      bookMessages.set(message.id, { bookKey: 'mc', pageIndex: 0, timeout });
+      
+      return interaction.reply({ content: '📖 Rulebook posted in the channel!', ephemeral: true });
     }
     
     if (commandName === 'rulebook_chat') {
       const book = RULEBOOKS.chat;
       const embed = buildBookEmbed(book.title, book.pages, 0, book.color);
-      const row = buildBookRow(0, book.pages.length, 'chat', interaction.user.id);
-      await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
-      return;
+      const message = await interaction.channel.send({ embeds: [embed] });
+      const row = buildBookRow(0, book.pages.length, 'chat', message.id);
+      await message.edit({ components: [row] });
+      
+      const timeout = setTimeout(() => {
+        resetBookToPageZero(message.id, interaction.channelId);
+      }, 120000);
+      
+      bookMessages.set(message.id, { bookKey: 'chat', pageIndex: 0, timeout });
+      
+      return interaction.reply({ content: '📖 Rulebook posted in the channel!', ephemeral: true });
     }
     
     if (commandName === 'rulebook_general') {
       const book = RULEBOOKS.general;
       const embed = buildBookEmbed(book.title, book.pages, 0, book.color);
-      const row = buildBookRow(0, book.pages.length, 'general', interaction.user.id);
-      await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
-      return;
+      const message = await interaction.channel.send({ embeds: [embed] });
+      const row = buildBookRow(0, book.pages.length, 'general', message.id);
+      await message.edit({ components: [row] });
+      
+      const timeout = setTimeout(() => {
+        resetBookToPageZero(message.id, interaction.channelId);
+      }, 120000);
+      
+      bookMessages.set(message.id, { bookKey: 'general', pageIndex: 0, timeout });
+      
+      return interaction.reply({ content: '📖 Rulebook posted in the channel!', ephemeral: true });
     }
 
     // ── FEEDBACK COMMAND ──
@@ -4526,6 +4603,55 @@ client.on('interactionCreate', async interaction => {
 
   // ── BUTTONS ──
   if (interaction.isButton()) {
+    // ── BOOK NAVIGATION - PUBLIC VIEW ──
+    if (interaction.customId.startsWith('book_prev:') || interaction.customId.startsWith('book_next:')) {
+      const parts = interaction.customId.split(':');
+      const action = parts[0];
+      const bookKey = parts[1];
+      const currentPage = parseInt(parts[2], 10);
+      const messageId = parts[3];
+      
+      // Verify the message exists and is tracked
+      if (!bookMessages.has(messageId)) {
+        return interaction.reply({ 
+          content: '❌ This rulebook has expired. Please use `/rulebook_mc`, `/rulebook_chat`, or `/rulebook_general` to post a new one.', 
+          ephemeral: true 
+        });
+      }
+      
+      const book = RULEBOOKS[bookKey];
+      if (!book || isNaN(currentPage)) {
+        return interaction.reply({ content: '❌ This rulebook is invalid.', ephemeral: true });
+      }
+      
+      const direction = action === 'book_prev' ? -1 : 1;
+      const newPage = Math.max(0, Math.min(book.pages.length - 1, currentPage + direction));
+      if (newPage === currentPage) return interaction.deferUpdate();
+      
+      const embed = buildBookEmbed(book.title, book.pages, newPage, book.color);
+      const row = buildBookRow(newPage, book.pages.length, bookKey, messageId);
+      await interaction.update({ embeds: [embed], components: [row] });
+      
+      // Update the stored page index
+      const bookData = bookMessages.get(messageId);
+      if (bookData) {
+        bookData.pageIndex = newPage;
+        // Reset the timeout since the page was changed
+        if (bookData.timeout) {
+          clearTimeout(bookData.timeout);
+        }
+        // Schedule new reset for 2 minutes from now
+        const channelId = interaction.channelId;
+        const timeout = setTimeout(() => {
+          resetBookToPageZero(messageId, channelId);
+        }, 120000);
+        bookData.timeout = timeout;
+        bookMessages.set(messageId, bookData);
+      }
+      
+      return;
+    }
+
     // ── SHOP CART VIEW ──
     if (interaction.customId === 'shop_cart_view') {
       const userId = interaction.user.id;
@@ -4994,36 +5120,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.editReply({ content: `❌ Application **${appId}** rejected.` });
     }
 
-    // ── BOOK NAVIGATION - PER-USER ──
-    if (interaction.customId.startsWith('book_prev:') || interaction.customId.startsWith('book_next:')) {
-      const parts = interaction.customId.split(':');
-      const action = parts[0];
-      const bookKey = parts[1];
-      const currentPage = parseInt(parts[2], 10);
-      const userId = parts[3];
-      
-      // Verify this is the same user who requested the book
-      if (userId !== interaction.user.id) {
-        return interaction.reply({ 
-          content: '❌ You cannot control this rulebook view. Please use `/rulebook_mc`, `/rulebook_chat`, or `/rulebook_general` to open your own view.', 
-          ephemeral: true 
-        });
-      }
-      
-      const book = RULEBOOKS[bookKey];
-      if (!book || isNaN(currentPage)) {
-        return interaction.reply({ content: '❌ This rulebook has expired. Please use the rulebook commands again.', ephemeral: true });
-      }
-      
-      const direction = action === 'book_prev' ? -1 : 1;
-      const newPage = Math.max(0, Math.min(book.pages.length - 1, currentPage + direction));
-      if (newPage === currentPage) return interaction.deferUpdate();
-      
-      const embed = buildBookEmbed(book.title, book.pages, newPage, book.color);
-      const row = buildBookRow(newPage, book.pages.length, bookKey, interaction.user.id);
-      return interaction.update({ embeds: [embed], components: [row] });
-    }
-
     // ── SUGGESTION ACCEPT/REJECT ──
     if (interaction.customId.startsWith('suggest_accept:') || interaction.customId.startsWith('suggest_reject:')) {
       if (!hasModPermission(interaction.member))
@@ -5113,9 +5209,9 @@ const commandsList = [
   // Core commands
   new SlashCommandBuilder().setName('features').setDescription('See all features available to members'),
   new SlashCommandBuilder().setName('rules').setDescription('View the full server rules and warning system'),
-  new SlashCommandBuilder().setName('rulebook_mc').setDescription('📖 Browse the Minecraft Server Rules (paginated book)'),
-  new SlashCommandBuilder().setName('rulebook_chat').setDescription('📖 Browse the Chat Rules (paginated book)'),
-  new SlashCommandBuilder().setName('rulebook_general').setDescription('📖 Browse the General Rules, Warning System & Staff Rules (paginated book)'),
+  new SlashCommandBuilder().setName('rulebook_mc').setDescription('📖 Post the Minecraft Server Rules (paginated book)'),
+  new SlashCommandBuilder().setName('rulebook_chat').setDescription('📖 Post the Chat Rules (paginated book)'),
+  new SlashCommandBuilder().setName('rulebook_general').setDescription('📖 Post the General Rules, Warning System & Staff Rules (paginated book)'),
   new SlashCommandBuilder().setName('applypanel').setDescription('Send the staff application dropdown panel'),
   new SlashCommandBuilder().setName('verifypanel').setDescription('Send verification panel'),
   new SlashCommandBuilder().setName('announce').setDescription('Send announcement').addStringOption(o => o.setName('title').setDescription('Optional title').setRequired(false)),
