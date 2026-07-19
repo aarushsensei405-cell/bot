@@ -27,11 +27,13 @@ const { AttachmentBuilder } = require('discord.js');
 const https = require('https');
 const http = require('http');
 const mongoose = require('mongoose');
-const { setupTracking, getTrackingCommands } = require('./trackingIndex');
-const { initWelcomeManager, welcomeCommandsData } = require('./welcomeManager');
-const { initStaffManager, staffCommandsData } = require('./staffManager');
-const { casinoCommandsData, handleCasinoInteraction } = require('./casinoManager');
-const { rrCommandsData, handleRRSetup, handleRRInteraction } = require('./reactionRolesManager');
+// FIX: These modules need to exist or be removed
+// Commenting out missing imports - create these files or remove these lines
+// const { setupTracking, getTrackingCommands } = require('./trackingIndex');
+// const { initWelcomeManager, welcomeCommandsData } = require('./welcomeManager');
+// const { initStaffManager, staffCommandsData } = require('./staffManager');
+// const { casinoCommandsData, handleCasinoInteraction } = require('./casinoManager');
+// const { rrCommandsData, handleRRSetup, handleRRInteraction } = require('./reactionRolesManager');
 require('dotenv').config();
 
 // ─────────────────────────────────────────
@@ -76,10 +78,11 @@ mongoose.connect(MONGODB_URI, {
 })
 .then(() => {
   console.log('✅ Connected to MongoDB Atlas!');
-  initWelcomeManager(client, { 
-    GUILD_ID: '1432272831722553398', 
-    WELCOME_CHANNEL_ID: '1526212463853572186' 
-  });
+  // FIX: Comment out missing functions
+  // initWelcomeManager(client, { 
+  //   GUILD_ID: '1432272831722553398', 
+  //   WELCOME_CHANNEL_ID: '1526212463853572186' 
+  // });
 })
 .catch(err => {
   console.error('❌ MongoDB connection error:', err);
@@ -1770,7 +1773,7 @@ async function updateInviteUses(code, uses) {
 // ─────────────────────────────────────────
 // CLIENT READY EVENT
 // ─────────────────────────────────────────
-client.once('client ready', async () => {
+client.once('ready', async () => {
   console.log(`✅ ${client.user.tag} is online`);
   client.user.setPresence({
     activities: [{ name: '💎 AmethMC', type: ActivityType.Watching }],
@@ -1778,7 +1781,8 @@ client.once('client ready', async () => {
   });
   
   await initializeRulebooks();
-  initStaffManager(client);
+  // FIX: Comment out missing functions
+  // initStaffManager(client);
   
   const giveaways = await Giveaway.find({ ended: false });
   const now = Date.now();
@@ -1788,9 +1792,10 @@ client.once('client ready', async () => {
     else { setTimeout(() => endGiveaway(client, g), remaining); }
   }
   
-  const { voiceTracker, inviteTracker } = setupTracking(client, GUILD_ID);
-  client.voiceTracker = voiceTracker;
-  client.inviteTracker = inviteTracker;
+  // FIX: Comment out missing functions
+  // const { voiceTracker, inviteTracker } = setupTracking(client, GUILD_ID);
+  // client.voiceTracker = voiceTracker;
+  // client.inviteTracker = inviteTracker;
   
   setInterval(() => checkBirthdays(client), 3600000);
   setInterval(() => checkReminders(client), 30000);
@@ -5174,25 +5179,6 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: '❌ Failed to toggle role. Check bot permissions.', ephemeral: true });
       }
     }
-
-    // ─── REACTION ROLES BUTTONS ───
-    if (
-      interaction.customId === 'rr_open_menu' || 
-      interaction.customId.startsWith('rr_btn_') || 
-      interaction.customId === 'rr_colors'
-    ) {
-      await handleRRInteraction(interaction);
-      return;
-    }
-
-    // ─── CASINO BUTTONS ───
-    if (
-      interaction.customId.startsWith('mines_click') || 
-      interaction.customId.startsWith('mines_cashout')
-    ) {
-      await handleCasinoInteraction(interaction);
-      return;
-    }
   }
 });
 
@@ -5215,12 +5201,6 @@ const commandsList = [
   new SlashCommandBuilder().setName('applypanel').setDescription('Send the staff application dropdown panel'),
   new SlashCommandBuilder().setName('verifypanel').setDescription('Send verification panel'),
   new SlashCommandBuilder().setName('announce').setDescription('Send announcement').addStringOption(o => o.setName('title').setDescription('Optional title').setRequired(false)),
-  
-  // Tracking commands
-  new SlashCommandBuilder().setName('voicestats').setDescription('View your voice chat stats'),
-  new SlashCommandBuilder().setName('invitestats').setDescription('View your invite stats'),
-  new SlashCommandBuilder().setName('voiceleaderboard').setDescription('View the voice chat leaderboard'),
-  new SlashCommandBuilder().setName('inviteleaderboard').setDescription('View the invite leaderboard'),
   
   // Shop commands
   new SlashCommandBuilder().setName('shop').setDescription('💎 Open the Amethyst Shop'),
@@ -5274,14 +5254,6 @@ const commandsList = [
         { name: 'Accepted', value: 'accepted' },
         { name: 'Rejected', value: 'rejected' },
       )),
-  // Welcome Manager Configuration Commands
-...welcomeCommandsData,
-  // Staff Manager Commands
-...staffCommandsData,
-  // Casino System
-...casinoCommandsData,
-  // Reaction Roles
-...rrCommandsData,
   
   // Warn commands
   new SlashCommandBuilder().setName('warn').setDescription('Warn a member')
