@@ -29,11 +29,11 @@ const http = require('http');
 const mongoose = require('mongoose');
 // FIX: These modules need to exist or be removed
 // Commenting out missing imports - create these files or remove these lines
-// const { setupTracking, getTrackingCommands } = require('./trackingIndex');
-// const { initWelcomeManager, welcomeCommandsData } = require('./welcomeManager');
-// const { initStaffManager, staffCommandsData } = require('./staffManager');
-// const { casinoCommandsData, handleCasinoInteraction } = require('./casinoManager');
-// const { rrCommandsData, handleRRSetup, handleRRInteraction } = require('./reactionRolesManager');
+const { setupTracking, getTrackingCommands } = require('./trackingIndex');
+const { initWelcomeManager, welcomeCommandsData } = require('./welcomeManager');
+const { initStaffManager, staffCommandsData } = require('./staffManager');
+const { casinoCommandsData, handleCasinoInteraction } = require('./casinoManager');
+const { rrCommandsData, handleRRSetup, handleRRInteraction } = require('./reactionRolesManager');
 require('dotenv').config();
 
 // ─────────────────────────────────────────
