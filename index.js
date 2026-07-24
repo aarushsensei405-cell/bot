@@ -4857,7 +4857,11 @@ client.on('interactionCreate', async interaction => {
         .setFooter({ text: 'AmethMC FAQ • Still need help? Open a ticket!' })
         .setTimestamp();
 
-      return interaction.reply({ embeds: [embed], ephemeral: true });
+      // Reset the dropdown to default placeholder by editing the original message,
+      // then send the answer ephemerally so the menu is reusable
+      await interaction.deferUpdate();
+      await interaction.message.edit({ components: interaction.message.components });
+      return interaction.followUp({ embeds: [embed], ephemeral: true });
     }
 
     if (interaction.customId === 'apply_select') {
