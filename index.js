@@ -4151,7 +4151,6 @@ client.on('interactionCreate', async interaction => {
           return interaction.reply({ content: '❌ No permission.', ephemeral: true });
 
         const title       = interaction.options.getString('title');
-        const description = interaction.options.getString('description') || '';
         const type        = interaction.options.getString('type') || 'general';
         const startStr    = interaction.options.getString('starts_at');
         const durationStr = interaction.options.getString('duration');
@@ -4159,83 +4158,110 @@ client.on('interactionCreate', async interaction => {
         const maxSlots    = interaction.options.getInteger('max_slots') || 0;
         const channel     = interaction.options.getChannel('channel') || interaction.channel;
 
-        // Parse start time — accepts "30m", "2h", "1d" from now, or unix timestamp
+        // Parse start time
         const startMs = parseDuration(startStr);
         if (!startMs)
           return interaction.reply({ content: '❌ Invalid `starts_at`. Use e.g. `30m`, `2h`, `1d`.', ephemeral: true });
 
-        const startsAt = new Date(Date.now() + startMs);
-
-        let endsAt = null;
-        if (durationStr) {
-          const durMs = parseDuration(durationStr);
-          if (durMs) endsAt = new Date(startsAt.getTime() + durMs);
-        }
-
-        const eventId = 'EVT-' + Date.now().toString(36).toUpperCase();
-        const startTs = Math.floor(startsAt.getTime() / 1000);
-
-        const TYPE_EMOJIS = { pvp: '⚔️', build: '🏗️', trivia: '🧠', race: '🏃', hunt: '🗺️', general: '🎉' };
-        const typeEmoji = TYPE_EMOJIS[type] || '🎉';
-
-        const embed = new EmbedBuilder()
-          .setColor(COLORS.primary)
-          .setTitle(`${typeEmoji} ${title}`)
-          .setDescription([
-            description,
-            '',
-            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-            `📅 **Starts:** <t:${startTs}:F> (<t:${startTs}:R>)`,
-            endsAt ? `⏱️ **Duration:** ${durationStr}` : '',
-            prize ? `🏆 **Prize:** ${prize}` : '',
-            maxSlots > 0 ? `👥 **Slots:** 0 / ${maxSlots}` : '👥 **Slots:** Unlimited',
-            `🎭 **Type:** ${typeEmoji} ${type.charAt(0).toUpperCase() + type.slice(1)}`,
-            `👑 **Host:** <@${interaction.user.id}>`,
-            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-            '',
-            '> Click **✅ RSVP** to get reminders and be notified when the event starts!',
-          ].filter(Boolean).join('\n'))
-          .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
-          .setFooter({ text: `Event ID: ${eventId} • 0 attending` })
-          .setTimestamp();
-
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`event_rsvp:${eventId}`)
-            .setLabel('✅ RSVP')
-            .setStyle(ButtonStyle.Success),
-          new ButtonBuilder()
-            .setCustomId(`event_unrsvp:${eventId}`)
-            .setLabel('❌ Remove RSVP')
-            .setStyle(ButtonStyle.Danger),
-          new ButtonBuilder()
-            .setCustomId(`event_attendees:${eventId}`)
-            .setLabel('👥 See Attendees')
-            .setStyle(ButtonStyle.Secondary),
-        );
-
-        const announceMsg = await channel.send({
-          content: `@everyone 📣 **New Event Announced!**`,
-          embeds: [embed],
-          components: [row],
+        // Ask for description via next message
+        await interaction.reply({
+          content: `📝 **Send the event description** in your next message.\n\nThis will be shown on the event announcement. You have **60 seconds**.`,
+          ephemeral: true,
         });
 
-        await new ServerEvent({
-          eventId,
-          title,
-          description,
-          type,
-          hostId: interaction.user.id,
-          channelId: channel.id,
-          messageId: announceMsg.id,
-          startsAt,
-          endsAt,
-          prize,
-          maxSlots,
-          rsvpList: [],
-        }).save();
+        const collector = interaction.channel.createMessageCollector({
+          filter: m => m.author.id === interaction.user.id,
+          max: 1,
+          time: 60_000,
+        });
 
-        return interaction.reply({ content: `✅ Event **${title}** announced in <#${channel.id}>! ID: \`${eventId}\``, ephemeral: true });
+        collector.on('collect', async msg => {
+          const description = msg.content.trim();
+          try { await msg.delete(); } catch { /* can't delete, ignore */ }
+
+          const startsAt = new Date(Date.now() + startMs);
+          let endsAt = null;
+          if (durationStr) {
+            const durMs = parseDuration(durationStr);
+            if (durMs) endsAt = new Date(startsAt.getTime() + durMs);
+          }
+
+          const eventId = 'EVT-' + Date.now().toString(36).toUpperCase();
+          const startTs = Math.floor(startsAt.getTime() / 1000);
+
+          const TYPE_EMOJIS = { pvp: '⚔️', build: '🏗️', trivia: '🧠', race: '🏃', hunt: '🗺️', general: '🎉' };
+          const typeEmoji = TYPE_EMOJIS[type] || '🎉';
+
+          const embed = new EmbedBuilder()
+            .setColor(COLORS.primary)
+            .setTitle(`${typeEmoji} ${title}`)
+            .setDescription([
+              description,
+              '',
+              '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+              `📅 **Starts:** <t:${startTs}:F> (<t:${startTs}:R>)`,
+              endsAt ? `⏱️ **Duration:** ${durationStr}` : '',
+              prize ? `🏆 **Prize:** ${prize}` : '',
+              maxSlots > 0 ? `👥 **Slots:** 0 / ${maxSlots}` : '👥 **Slots:** Unlimited',
+              `🎭 **Type:** ${typeEmoji} ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+              `👑 **Host:** <@${interaction.user.id}>`,
+              '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+              '',
+              '> Click **✅ RSVP** to get reminders and be notified when the event starts!',
+            ].filter(Boolean).join('\n'))
+            .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
+            .setFooter({ text: `Event ID: ${eventId} • 0 attending` })
+            .setTimestamp();
+
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`event_rsvp:${eventId}`)
+              .setLabel('✅ RSVP')
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId(`event_unrsvp:${eventId}`)
+              .setLabel('❌ Remove RSVP')
+              .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+              .setCustomId(`event_attendees:${eventId}`)
+              .setLabel('👥 See Attendees')
+              .setStyle(ButtonStyle.Secondary),
+          );
+
+          const announceMsg = await channel.send({
+            content: `@everyone 📣 **New Event Announced!**`,
+            embeds: [embed],
+            components: [row],
+          });
+
+          await new ServerEvent({
+            eventId,
+            title,
+            description,
+            type,
+            hostId: interaction.user.id,
+            channelId: channel.id,
+            messageId: announceMsg.id,
+            startsAt,
+            endsAt,
+            prize,
+            maxSlots,
+            rsvpList: [],
+          }).save();
+
+          await interaction.followUp({
+            content: `✅ Event **${title}** announced in <#${channel.id}>! ID: \`${eventId}\``,
+            ephemeral: true,
+          });
+        });
+
+        collector.on('end', (collected, reason) => {
+          if (reason === 'time' && collected.size === 0) {
+            interaction.followUp({ content: '⏰ Timed out — event creation cancelled. No description received.', ephemeral: true }).catch(() => {});
+          }
+        });
+
+        return;
       }
 
       // ── /event list ──
