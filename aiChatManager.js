@@ -266,7 +266,7 @@ async function getOrCreateProfile(userId, username) {
 // ─────────────────────────────────────────
 // MAIN: GENERATE AI RESPONSE
 // ─────────────────────────────────────────
-async function generateAIResponse(userId, username, userMessage, guildData = {}) {
+async function generateAIResponse(userId, username, userMessage, guildData = {}, retryCount = 0) {
   try {
     const profile = await getOrCreateProfile(userId, username);
 
