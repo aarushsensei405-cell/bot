@@ -3849,12 +3849,6 @@ client.on('interactionCreate', async interaction => {
           '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
         ].join('\n'))
         .setThumbnail(interaction.guild.iconURL({ dynamic: true, size: 256 }) || null)
-        .addFields(
-          { name: '🌐 Minecraft IP', value: '`play.amethmc.fun`', inline: true },
-          { name: '🎮 Version', value: '1.20.4+', inline: true },
-          { name: '👥 Members', value: `${interaction.guild.memberCount}`, inline: true },
-        )
-        .setImage(interaction.guild.iconURL({ dynamic: true, size: 512 }) || null)
         .setFooter({ text: 'AmethMC • Click the button below to verify 💜' })
         .setTimestamp();
 
