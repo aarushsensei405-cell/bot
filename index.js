@@ -104,6 +104,7 @@ const BIRTHDAY_CHANNEL_ID = process.env.BIRTHDAY_CHANNEL || '1432277447440597028
 const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY || '1518439159189213225';
 const LEVEL_UP_CHANNEL_ID = process.env.LEVEL_UP_CHANNEL || '1432277463366504484';
 const RULES_CHANNEL_ID = process.env.RULES_CHANNEL || '1432277447440597028';
+const EVENTS_CHANNEL_ID = process.env.EVENTS_CHANNEL || '1432277447440597028';
 
 const SHOP_COMPLETED_USER_ID = process.env.SHOP_COMPLETED_USER || '1519764530425495643';
 const SERVER_OWNER_ID = process.env.SERVER_OWNER || '885470207332728832';
@@ -389,6 +390,26 @@ const ReminderSchema = new mongoose.Schema({
   fireAt: Date,
 });
 
+const ServerEventSchema = new mongoose.Schema({
+  eventId:     { type: String, required: true, unique: true },
+  title:       String,
+  description: String,
+  type:        { type: String, default: 'general' }, // pvp, build, trivia, general
+  hostId:      String,
+  channelId:   String,   // where the announcement was posted
+  messageId:   String,   // the announcement message
+  startsAt:    Date,
+  endsAt:      Date,
+  prize:       String,
+  maxSlots:    { type: Number, default: 0 }, // 0 = unlimited
+  rsvpList:    [{ userId: String, username: String, joinedAt: { type: Date, default: Date.now } }],
+  reminded30:  { type: Boolean, default: false }, // 30-min reminder sent
+  reminded5:   { type: Boolean, default: false }, // 5-min reminder sent
+  started:     { type: Boolean, default: false },
+  cancelled:   { type: Boolean, default: false },
+  createdAt:   { type: Date, default: Date.now },
+});
+
 const AFKSchema = new mongoose.Schema({
   userId: { type: String, required: true, unique: true },
   username: String,
@@ -439,6 +460,7 @@ const Ticket = mongoose.models.Ticket || mongoose.model('Ticket', TicketSchema);
 const Starboard = mongoose.models.Starboard || mongoose.model('Starboard', StarboardSchema);
 const Giveaway = mongoose.models.Giveaway || mongoose.model('Giveaway', GiveawaySchema);
 const Reminder = mongoose.models.Reminder || mongoose.model('Reminder', ReminderSchema);
+const ServerEvent = mongoose.models.ServerEvent || mongoose.model('ServerEvent', ServerEventSchema);
 const AFK = mongoose.models.AFK || mongoose.model('AFK', AFKSchema);
 const Invite = mongoose.models.Invite || mongoose.model('Invite', InviteSchema);
 const Application = mongoose.models.Application || mongoose.model('Application', ApplicationSchema);
@@ -1215,6 +1237,121 @@ async function checkReminders(client) {
 }
 
 // ─────────────────────────────────────────
+// EVENT CHECK — reminders, start & end notifs
+// ─────────────────────────────────────────
+async function checkEvents(client) {
+  const now = new Date();
+  const guild = client.guilds.cache.get(GUILD_ID);
+  if (!guild) return;
+
+  // Only fetch active, non-cancelled events
+  const activeEvents = await ServerEvent.find({ cancelled: false, startsAt: { $gt: new Date(now - 3600000) } });
+
+  for (const event of activeEvents) {
+    const msToStart = event.startsAt.getTime() - now.getTime();
+    const msToEnd   = event.endsAt ? event.endsAt.getTime() - now.getTime() : null;
+
+    // ── Fetch the announcement message to edit it ──
+    let announceMsg = null;
+    try {
+      const ch = await client.channels.fetch(event.channelId).catch(() => null);
+      if (ch) announceMsg = await ch.messages.fetch(event.messageId).catch(() => null);
+    } catch { /* channel/message deleted */ }
+
+    // ── 30-minute reminder ──
+    if (!event.reminded30 && msToStart > 0 && msToStart <= 30 * 60 * 1000) {
+      event.reminded30 = true;
+      await event.save();
+      for (const rsvp of event.rsvpList) {
+        try {
+          const user = await client.users.fetch(rsvp.userId);
+          await user.send([
+            `⏰ **30-Minute Reminder!**`,
+            ``,
+            `**${event.title}** starts in **30 minutes!**`,
+            `📅 <t:${Math.floor(event.startsAt.getTime() / 1000)}:F>`,
+            event.prize ? `🏆 Prize: **${event.prize}**` : '',
+            ``,
+            `Get ready! 🎉`,
+          ].filter(Boolean).join('\n'));
+        } catch { /* DMs closed */ }
+      }
+      // Edit embed to show countdown
+      if (announceMsg) {
+        const updated = EmbedBuilder.from(announceMsg.embeds[0])
+          .setColor(0xf0b429)
+          .setFooter({ text: `⏰ Starting in ~30 minutes! • ${event.rsvpList.length} attending` });
+        await announceMsg.edit({ embeds: [updated] }).catch(() => {});
+      }
+    }
+
+    // ── 5-minute reminder ──
+    if (!event.reminded5 && msToStart > 0 && msToStart <= 5 * 60 * 1000) {
+      event.reminded5 = true;
+      await event.save();
+      for (const rsvp of event.rsvpList) {
+        try {
+          const user = await client.users.fetch(rsvp.userId);
+          await user.send([
+            `🚨 **5-Minute Warning!**`,
+            ``,
+            `**${event.title}** is starting **RIGHT NOW** (almost)!`,
+            `📅 <t:${Math.floor(event.startsAt.getTime() / 1000)}:R>`,
+            ``,
+            `Don't miss it! 🏃`,
+          ].join('\n'));
+        } catch { /* DMs closed */ }
+      }
+      if (announceMsg) {
+        const updated = EmbedBuilder.from(announceMsg.embeds[0])
+          .setColor(0xed4245)
+          .setFooter({ text: `🚨 Starting in ~5 minutes! • ${event.rsvpList.length} attending` });
+        await announceMsg.edit({ embeds: [updated] }).catch(() => {});
+      }
+    }
+
+    // ── Event started ──
+    if (!event.started && msToStart <= 0) {
+      event.started = true;
+      await event.save();
+      try {
+        const evCh = await client.channels.fetch(event.channelId).catch(() => null);
+        if (evCh) {
+          const mentions = event.rsvpList.map(r => `<@${r.userId}>`).join(' ') || '@everyone';
+          await evCh.send([
+            `🎉 **${event.title} IS NOW LIVE!**`,
+            ``,
+            mentions,
+            ``,
+            event.prize ? `🏆 **Prize:** ${event.prize}` : '',
+            `Good luck everyone! Have fun! 🔥`,
+          ].filter(Boolean).join('\n'));
+        }
+      } catch (err) { console.error('Event start notification error:', err); }
+      if (announceMsg) {
+        const updated = EmbedBuilder.from(announceMsg.embeds[0])
+          .setColor(0x57f287)
+          .setTitle(`🟢 LIVE — ${event.title}`)
+          .setFooter({ text: `🟢 Event is LIVE now! • ${event.rsvpList.length} attending` });
+        await announceMsg.edit({ embeds: [updated] }).catch(() => {});
+      }
+    }
+
+    // ── Event ended ──
+    if (msToEnd !== null && msToEnd <= 0 && event.started) {
+      await ServerEvent.findOneAndUpdate({ eventId: event.eventId }, { cancelled: true });
+      if (announceMsg) {
+        const updated = EmbedBuilder.from(announceMsg.embeds[0])
+          .setColor(0x4f545c)
+          .setTitle(`⬛ ENDED — ${event.title}`)
+          .setFooter({ text: `Event has ended • Thanks for participating!` });
+        await announceMsg.edit({ embeds: [updated], components: [] }).catch(() => {});
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────
 // TEMP BAN CHECK
 // ─────────────────────────────────────────
 async function checkTempBans(client) {
@@ -1794,7 +1931,9 @@ client.once('ready', async () => {
   setInterval(() => checkBirthdays(client), 3600000);
   setInterval(() => checkReminders(client), 30000);
   setInterval(() => checkTempBans(client), 60000);
+  setInterval(() => checkEvents(client), 60000); // check events every minute
   checkBirthdays(client);
+  checkEvents(client);
 });
 
 // ─────────────────────────────────────────
@@ -4002,6 +4141,173 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
+    // ── EVENT COMMAND ──
+    if (commandName === 'event') {
+      const sub = interaction.options.getSubcommand();
+
+      // ── /event create ──
+      if (sub === 'create') {
+        if (!hasModPermission(interaction.member))
+          return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+
+        const title       = interaction.options.getString('title');
+        const description = interaction.options.getString('description') || '';
+        const type        = interaction.options.getString('type') || 'general';
+        const startStr    = interaction.options.getString('starts_at');
+        const durationStr = interaction.options.getString('duration');
+        const prize       = interaction.options.getString('prize') || null;
+        const maxSlots    = interaction.options.getInteger('max_slots') || 0;
+        const channel     = interaction.options.getChannel('channel') || interaction.channel;
+
+        // Parse start time — accepts "30m", "2h", "1d" from now, or unix timestamp
+        const startMs = parseDuration(startStr);
+        if (!startMs)
+          return interaction.reply({ content: '❌ Invalid `starts_at`. Use e.g. `30m`, `2h`, `1d`.', ephemeral: true });
+
+        const startsAt = new Date(Date.now() + startMs);
+
+        let endsAt = null;
+        if (durationStr) {
+          const durMs = parseDuration(durationStr);
+          if (durMs) endsAt = new Date(startsAt.getTime() + durMs);
+        }
+
+        const eventId = 'EVT-' + Date.now().toString(36).toUpperCase();
+        const startTs = Math.floor(startsAt.getTime() / 1000);
+
+        const TYPE_EMOJIS = { pvp: '⚔️', build: '🏗️', trivia: '🧠', race: '🏃', hunt: '🗺️', general: '🎉' };
+        const typeEmoji = TYPE_EMOJIS[type] || '🎉';
+
+        const embed = new EmbedBuilder()
+          .setColor(COLORS.primary)
+          .setTitle(`${typeEmoji} ${title}`)
+          .setDescription([
+            description,
+            '',
+            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+            `📅 **Starts:** <t:${startTs}:F> (<t:${startTs}:R>)`,
+            endsAt ? `⏱️ **Duration:** ${durationStr}` : '',
+            prize ? `🏆 **Prize:** ${prize}` : '',
+            maxSlots > 0 ? `👥 **Slots:** 0 / ${maxSlots}` : '👥 **Slots:** Unlimited',
+            `🎭 **Type:** ${typeEmoji} ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+            `👑 **Host:** <@${interaction.user.id}>`,
+            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+            '',
+            '> Click **✅ RSVP** to get reminders and be notified when the event starts!',
+          ].filter(Boolean).join('\n'))
+          .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
+          .setFooter({ text: `Event ID: ${eventId} • 0 attending` })
+          .setTimestamp();
+
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`event_rsvp:${eventId}`)
+            .setLabel('✅ RSVP')
+            .setStyle(ButtonStyle.Success),
+          new ButtonBuilder()
+            .setCustomId(`event_unrsvp:${eventId}`)
+            .setLabel('❌ Remove RSVP')
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId(`event_attendees:${eventId}`)
+            .setLabel('👥 See Attendees')
+            .setStyle(ButtonStyle.Secondary),
+        );
+
+        const announceMsg = await channel.send({
+          content: `@everyone 📣 **New Event Announced!**`,
+          embeds: [embed],
+          components: [row],
+        });
+
+        await new ServerEvent({
+          eventId,
+          title,
+          description,
+          type,
+          hostId: interaction.user.id,
+          channelId: channel.id,
+          messageId: announceMsg.id,
+          startsAt,
+          endsAt,
+          prize,
+          maxSlots,
+          rsvpList: [],
+        }).save();
+
+        return interaction.reply({ content: `✅ Event **${title}** announced in <#${channel.id}>! ID: \`${eventId}\``, ephemeral: true });
+      }
+
+      // ── /event list ──
+      if (sub === 'list') {
+        const events = await ServerEvent.find({ cancelled: false })
+          .sort({ startsAt: 1 })
+          .limit(10)
+          .lean();
+
+        if (events.length === 0)
+          return interaction.reply({ content: '📋 No upcoming events scheduled.', ephemeral: true });
+
+        const TYPE_EMOJIS = { pvp: '⚔️', build: '🏗️', trivia: '🧠', race: '🏃', hunt: '🗺️', general: '🎉' };
+        const lines = events.map((e, i) => {
+          const emoji = TYPE_EMOJIS[e.type] || '🎉';
+          const status = e.started ? '🟢 LIVE' : `<t:${Math.floor(new Date(e.startsAt).getTime() / 1000)}:R>`;
+          return `**${i + 1}.** ${emoji} **${e.title}** — ${status} — \`${e.eventId}\` — 👥 ${e.rsvpList.length}`;
+        }).join('\n');
+
+        const embed = new EmbedBuilder()
+          .setTitle('📅 Upcoming Events')
+          .setColor(COLORS.primary)
+          .setDescription(lines)
+          .setFooter({ text: 'Use /event cancel <id> to cancel an event' })
+          .setTimestamp();
+
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+      }
+
+      // ── /event cancel ──
+      if (sub === 'cancel') {
+        if (!hasModPermission(interaction.member))
+          return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+
+        const eventId = interaction.options.getString('event_id').toUpperCase();
+        const event = await ServerEvent.findOne({ eventId });
+
+        if (!event)
+          return interaction.reply({ content: `❌ Event \`${eventId}\` not found.`, ephemeral: true });
+        if (event.cancelled)
+          return interaction.reply({ content: `⚠️ Event \`${eventId}\` is already cancelled.`, ephemeral: true });
+
+        event.cancelled = true;
+        await event.save();
+
+        // Edit the announcement embed
+        try {
+          const ch = await client.channels.fetch(event.channelId).catch(() => null);
+          if (ch) {
+            const msg = await ch.messages.fetch(event.messageId).catch(() => null);
+            if (msg) {
+              const cancelEmbed = EmbedBuilder.from(msg.embeds[0])
+                .setColor(0x4f545c)
+                .setTitle(`⛔ CANCELLED — ${event.title}`)
+                .setFooter({ text: `Event cancelled by ${interaction.user.tag}` });
+              await msg.edit({ embeds: [cancelEmbed], components: [] });
+            }
+          }
+        } catch (err) { console.error('Event cancel edit error:', err); }
+
+        // DM everyone who RSVPd
+        for (const rsvp of event.rsvpList) {
+          try {
+            const user = await client.users.fetch(rsvp.userId);
+            await user.send(`❌ **Event Cancelled**\n\n**${event.title}** has been cancelled by staff.\nSorry for the inconvenience!`);
+          } catch { /* DMs closed */ }
+        }
+
+        return interaction.reply({ content: `✅ Event \`${eventId}\` cancelled and all attendees notified.`, ephemeral: true });
+      }
+    }
+
     // ── GIVEAWAY COMMAND ──
     if (commandName === 'giveaway') {
       const sub = interaction.options.getSubcommand();
@@ -5492,6 +5798,107 @@ client.on('interactionCreate', async interaction => {
       } catch { }
       
       return interaction.reply({ content: `${statusEmoji} Suggestion \`${suggId}\` has been **${newStatus}**!`, ephemeral: true });
+    }
+
+    // ── EVENT RSVP ──
+    if (interaction.customId.startsWith('event_rsvp:')) {
+      const eventId = interaction.customId.split(':')[1];
+      const event = await ServerEvent.findOne({ eventId });
+
+      if (!event)
+        return interaction.reply({ content: '❌ Event not found or has been deleted.', ephemeral: true });
+      if (event.cancelled)
+        return interaction.reply({ content: '❌ This event has been cancelled.', ephemeral: true });
+      if (event.started)
+        return interaction.reply({ content: '⚠️ This event has already started!', ephemeral: true });
+
+      const alreadyIn = event.rsvpList.some(r => r.userId === interaction.user.id);
+      if (alreadyIn)
+        return interaction.reply({ content: '✅ You\'re already on the attendee list!', ephemeral: true });
+
+      if (event.maxSlots > 0 && event.rsvpList.length >= event.maxSlots)
+        return interaction.reply({ content: `❌ This event is full! (${event.maxSlots}/${event.maxSlots} slots taken)`, ephemeral: true });
+
+      event.rsvpList.push({ userId: interaction.user.id, username: interaction.user.tag });
+      await event.save();
+
+      // Update embed footer with new attendee count
+      const updated = EmbedBuilder.from(interaction.message.embeds[0]);
+      const slotText = event.maxSlots > 0
+        ? `👥 ${event.rsvpList.length} / ${event.maxSlots} attending`
+        : `👥 ${event.rsvpList.length} attending`;
+      updated.setFooter({ text: `Event ID: ${eventId} • ${slotText}` });
+
+      // Also update the slots line inside description if maxSlots set
+      await interaction.update({ embeds: [updated], components: interaction.message.components });
+
+      // DM confirmation
+      try {
+        const startTs = Math.floor(event.startsAt.getTime() / 1000);
+        await interaction.user.send([
+          `✅ **RSVP Confirmed — ${event.title}**`,
+          ``,
+          `📅 **Starts:** <t:${startTs}:F> (<t:${startTs}:R>)`,
+          event.prize ? `🏆 **Prize:** ${event.prize}` : '',
+          ``,
+          `You'll receive a reminder **30 minutes** and **5 minutes** before it starts.`,
+          `To cancel your RSVP, click **❌ Remove RSVP** on the event post.`,
+        ].filter(Boolean).join('\n'));
+      } catch { /* DMs closed — that's fine */ }
+
+      return;
+    }
+
+    // ── EVENT REMOVE RSVP ──
+    if (interaction.customId.startsWith('event_unrsvp:')) {
+      const eventId = interaction.customId.split(':')[1];
+      const event = await ServerEvent.findOne({ eventId });
+
+      if (!event)
+        return interaction.reply({ content: '❌ Event not found.', ephemeral: true });
+      if (event.started)
+        return interaction.reply({ content: '⚠️ Event already started — can\'t remove RSVP now.', ephemeral: true });
+
+      const idx = event.rsvpList.findIndex(r => r.userId === interaction.user.id);
+      if (idx === -1)
+        return interaction.reply({ content: '⚠️ You\'re not on the attendee list.', ephemeral: true });
+
+      event.rsvpList.splice(idx, 1);
+      await event.save();
+
+      const updated = EmbedBuilder.from(interaction.message.embeds[0]);
+      const slotText = event.maxSlots > 0
+        ? `👥 ${event.rsvpList.length} / ${event.maxSlots} attending`
+        : `👥 ${event.rsvpList.length} attending`;
+      updated.setFooter({ text: `Event ID: ${eventId} • ${slotText}` });
+
+      await interaction.update({ embeds: [updated], components: interaction.message.components });
+      return;
+    }
+
+    // ── EVENT ATTENDEES ──
+    if (interaction.customId.startsWith('event_attendees:')) {
+      const eventId = interaction.customId.split(':')[1];
+      const event = await ServerEvent.findOne({ eventId }).lean();
+
+      if (!event)
+        return interaction.reply({ content: '❌ Event not found.', ephemeral: true });
+
+      if (event.rsvpList.length === 0)
+        return interaction.reply({ content: '📋 No one has RSVPd yet — be the first!', ephemeral: true });
+
+      const list = event.rsvpList
+        .map((r, i) => `\`${i + 1}.\` <@${r.userId}>`)
+        .join('\n');
+
+      const embed = new EmbedBuilder()
+        .setTitle(`👥 Attendees — ${event.title}`)
+        .setColor(COLORS.primary)
+        .setDescription(list)
+        .setFooter({ text: `${event.rsvpList.length} attending${event.maxSlots > 0 ? ` • ${event.maxSlots - event.rsvpList.length} slots left` : ''}` })
+        .setTimestamp();
+
+      return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
     // ── ROLE TOGGLE ──
