@@ -6047,6 +6047,29 @@ const commandsList = [
   // Misc commands
   new SlashCommandBuilder().setName('ticketpanel').setDescription('Post the support ticket panel (admin only)'),
   new SlashCommandBuilder().setName('faqpanel').setDescription('Post the FAQ self-serve panel (admin only)'),
+  new SlashCommandBuilder().setName('event').setDescription('Event management')
+    .addSubcommand(sub => sub.setName('create').setDescription('Announce a new server event')
+      .addStringOption(o => o.setName('title').setDescription('Event title').setRequired(true))
+      .addStringOption(o => o.setName('starts_at').setDescription('Time until start e.g. 30m, 2h, 1d').setRequired(true))
+      .addStringOption(o => o.setName('type').setDescription('Event type').setRequired(false)
+        .addChoices(
+          { name: '🎉 General', value: 'general' },
+          { name: '⚔️ PvP', value: 'pvp' },
+          { name: '🏗️ Building', value: 'build' },
+          { name: '🧠 Trivia', value: 'trivia' },
+          { name: '🏃 Race', value: 'race' },
+          { name: '🗺️ Treasure Hunt', value: 'hunt' },
+        ))
+      .addStringOption(o => o.setName('description').setDescription('Event description').setRequired(false))
+      .addStringOption(o => o.setName('prize').setDescription('Prize for the winner').setRequired(false))
+      .addStringOption(o => o.setName('duration').setDescription('How long the event runs e.g. 1h, 30m').setRequired(false))
+      .addIntegerOption(o => o.setName('max_slots').setDescription('Max attendees (0 = unlimited)').setRequired(false).setMinValue(0))
+      .addChannelOption(o => o.setName('channel').setDescription('Channel to post in (default: current)').setRequired(false))
+    )
+    .addSubcommand(sub => sub.setName('list').setDescription('List all upcoming events'))
+    .addSubcommand(sub => sub.setName('cancel').setDescription('Cancel an event and notify attendees')
+      .addStringOption(o => o.setName('event_id').setDescription('Event ID e.g. EVT-ABC123').setRequired(true))
+    ),
   new SlashCommandBuilder().setName('serverstatus').setDescription('Check if the AmethMC Minecraft server is online'),
   new SlashCommandBuilder().setName('mcplayer').setDescription('Look up a Minecraft player by username')
     .addStringOption(o => o.setName('username').setDescription('Minecraft username').setRequired(true)),
