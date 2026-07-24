@@ -2807,6 +2807,21 @@ client.on('interactionCreate', async interaction => {
   if (interaction.isChatInputCommand()) {
     const commandName = interaction.commandName;
 
+    // ── CASINO COMMANDS (coinflip, mines) ──
+    if (commandName === 'coinflip' || commandName === 'mines') {
+      return handleCasinoInteraction(interaction);
+    }
+
+    // ── REACTION ROLES SETUP COMMAND ──
+    if (commandName === 'setup-roles') {
+      return handleRRSetup(interaction);
+    }
+
+    // ── AI CHAT COMMANDS ──
+    if (commandName.startsWith('ai')) {
+      return handleAIInteraction(interaction, client, getUser, getLevelFromXP);
+    }
+
     // ── SHOP COMMANDS ──
     if (commandName === 'shop') {
       const embed = buildShopEmbed();
@@ -4642,6 +4657,11 @@ client.on('interactionCreate', async interaction => {
 
   // ── BUTTONS ──
   if (interaction.isButton()) {
+    // ── REACTION ROLES BUTTONS ──
+    if (interaction.customId === 'rr_open_menu' || interaction.customId.startsWith('rr_btn_')) {
+      return handleRRInteraction(interaction);
+    }
+
     // ── BOOK NAVIGATION - PUBLIC VIEW ──
     if (interaction.customId.startsWith('book_prev:') || interaction.customId.startsWith('book_next:')) {
       const parts = interaction.customId.split(':');
@@ -5213,11 +5233,6 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: '❌ Failed to toggle role. Check bot permissions.', ephemeral: true });
       }
     }
-  }
-
-  // ── AI CHAT COMMANDS ──
-  if (interaction.isChatInputCommand() && interaction.commandName.startsWith('ai')) {
-    return handleAIInteraction(interaction, client, getUser, getLevelFromXP);
   }
 });
 
