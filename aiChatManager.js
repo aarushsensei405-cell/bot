@@ -344,6 +344,8 @@ const {
   EmbedBuilder,
   ChannelType,
 } = require('discord.js');
+// Note: the above constructors are used only in this section; the module-top
+// imports (mongoose, GoogleGenerativeAI) are separate and unaffected.
 
 const aiChatCommandsData = [
   new SlashCommandBuilder()
