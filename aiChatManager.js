@@ -1,16 +1,19 @@
 // ─────────────────────────────────────────
 // AI CHAT MANAGER — GoldenHeart SMP
 // Multilingual, memory-aware, witty friend bot
-// Uses Gemini API via Google Generative AI
+// Uses BazaarLink API (OpenAI-compatible)
 // ─────────────────────────────────────────
 
 const mongoose = require('mongoose');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const OpenAI = require('openai').default || require('openai');
 
 // ─────────────────────────────────────────
-// GEMINI API CLIENT
+// BAZAARLINK CLIENT (OpenAI-compatible)
 // ─────────────────────────────────────────
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const openai = new OpenAI({
+  apiKey: process.env.BAZAARLINK_API_KEY,
+  baseURL: 'https://bazaarlink.ai/api/v1',
+});
 
 // ─────────────────────────────────────────
 // SCHEMAS
@@ -284,32 +287,30 @@ async function generateAIResponse(userId, username, userMessage, guildData = {})
       if (guildData.warnings > 0) extraContext.push(`They have ${guildData.warnings} active warnings`);
     }
 
-    // Trim conversation history to last MAX_HISTORY messages
-    const history = profile.conversationHistory.slice(-MAX_HISTORY);
-
     const systemPrompt = buildSystemPrompt(profile, extraContext.join('\n'));
 
-    // Initialize Gemini model config
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash',
-      systemInstruction: systemPrompt,
+    // Build messages array: system + rolling history + new user message
+    const history = profile.conversationHistory.slice(-MAX_HISTORY);
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...history.map(h => ({ role: h.role, content: h.content })),
+      { role: 'user', content: userMessage },
+    ];
+
+    const completion = await openai.chat.completions.create({
+      model: 'meta-llama/llama-3.1-8b-instruct:free',
+      messages,
+      max_tokens: 512,
+      temperature: 0.85,
     });
 
-    // Start Chat and feed formatted history into Gemini structure
-    const chat = model.startChat({
-      history: history.map(h => ({
-        role: h.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: h.content }],
-      })),
-    });
-
-    const result = await chat.sendMessage(userMessage);
-    const botReply = result.response.text() || "yo my brain lagged 💀 say that again?";
+    const botReply = completion.choices?.[0]?.message?.content?.trim()
+      || "yo my brain lagged 💀 say that again?";
 
     // Save conversation to history
     profile.conversationHistory.push(
-      { role: 'user', content: userMessage, timestamp: new Date() },
-      { role: 'assistant', content: botReply, timestamp: new Date() }
+      { role: 'user',      content: userMessage, timestamp: new Date() },
+      { role: 'assistant', content: botReply,    timestamp: new Date() }
     );
 
     // Keep history trimmed
@@ -324,11 +325,10 @@ async function generateAIResponse(userId, username, userMessage, guildData = {})
 
   } catch (err) {
     console.error('AI Chat error:', err);
-    // Generic API catch blocks for Gemini fallback errors
-    if (err.message?.includes('429') || err.status === 429) {
+    if (err.status === 429 || err.message?.includes('429')) {
       return "bro i'm literally being spammed rn 😭 give me a sec";
     }
-    if (err.message?.includes('500') || err.status === 500) {
+    if (err.status === 500 || err.message?.includes('500')) {
       return "my brain just crashed bestie, try again in a sec 💀";
     }
     return "something went sideways on my end, not you 😅 try again?";
