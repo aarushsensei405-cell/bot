@@ -27,13 +27,11 @@ const { AttachmentBuilder } = require('discord.js');
 const https = require('https');
 const http = require('http');
 const mongoose = require('mongoose');
-// FIX: These modules need to exist or be removed
-// Commenting out missing imports - create these files or remove these lines
-const { setupTracking, getTrackingCommands } = require('./trackingIndex');
 const { initWelcomeManager, welcomeCommandsData } = require('./welcomeManager');
 const { initStaffManager, staffCommandsData } = require('./staffManager');
 const { casinoCommandsData, handleCasinoInteraction } = require('./casinoManager');
 const { rrCommandsData, handleRRSetup, handleRRInteraction } = require('./reactionRolesManager');
+const { aiChatCommandsData, handleAIInteraction, handleAIMessage } = require('./aiChatManager');
 require('dotenv').config();
 
 // ─────────────────────────────────────────
@@ -78,11 +76,13 @@ mongoose.connect(MONGODB_URI, {
 })
 .then(() => {
   console.log('✅ Connected to MongoDB Atlas!');
-  // FIX: Comment out missing functions
-  // initWelcomeManager(client, { 
-  //   GUILD_ID: '1432272831722553398', 
-  //   WELCOME_CHANNEL_ID: '1526212463853572186' 
-  // });
+  initWelcomeManager(client, {
+    GUILD_ID: GUILD_ID,
+    WELCOME_CHANNEL_ID: WELCOME_CHANNEL_ID,
+    RULES_CHANNEL_ID: RULES_CHANNEL_ID,
+    VERIFY_CHANNEL_ID: VERIFY_CHANNEL_ID,
+    GENERAL_CHANNEL_ID: '1502596253589180457',
+  });
 })
 .catch(err => {
   console.error('❌ MongoDB connection error:', err);
@@ -1781,8 +1781,7 @@ client.once('ready', async () => {
   });
   
   await initializeRulebooks();
-  // FIX: Comment out missing functions
-  // initStaffManager(client);
+  initStaffManager(client);
   
   const giveaways = await Giveaway.find({ ended: false });
   const now = Date.now();
@@ -1791,11 +1790,6 @@ client.once('ready', async () => {
     if (remaining <= 0) { await endGiveaway(client, g); }
     else { setTimeout(() => endGiveaway(client, g), remaining); }
   }
-  
-  // FIX: Comment out missing functions
-  // const { voiceTracker, inviteTracker } = setupTracking(client, GUILD_ID);
-  // client.voiceTracker = voiceTracker;
-  // client.inviteTracker = inviteTracker;
   
   setInterval(() => checkBirthdays(client), 3600000);
   setInterval(() => checkReminders(client), 30000);
@@ -2524,6 +2518,9 @@ client.on('messageCreate', async message => {
     if (msg === 'ip') return message.reply(`💎 **AmethMC** is now online!\n🌍 **IP:** \`play.amethmc.fun:25565\`\n⚔️ Join now and start your journey!`);
     if (msg === 'rules') return message.reply(`📜 Use \`/rules\` to see the full server rules!\n\n📌 Or check: <#1432277447440597028>`);
     if (msg === 'features') return message.reply(`📋 Use \`/features\` to see everything you can do as a member!`);
+
+    // ── AI CHAT (mention or designated channel) ──
+    await handleAIMessage(message, client, getUser, getLevelFromXP);
     return;
   }
 
@@ -4131,6 +4128,43 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
+    // ── ROLEPANEL COMMAND ──
+    if (commandName === 'rolepanel') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
+        return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+
+      const roles = [];
+      for (let i = 1; i <= 5; i++) {
+        const role  = interaction.options.getRole(`role${i}`);
+        const label = interaction.options.getString(`label${i}`);
+        if (role && label) roles.push({ role, label });
+      }
+
+      if (roles.length === 0)
+        return interaction.reply({ content: '❌ You must provide at least one role and label.', ephemeral: true });
+
+      const panelTitle       = interaction.options.getString('title')       || '🎭 Self-Roles';
+      const panelDescription = interaction.options.getString('description') || 'Click a button to add or remove a role.';
+
+      const embed = new EmbedBuilder()
+        .setTitle(panelTitle)
+        .setColor(COLORS.primary)
+        .setDescription(panelDescription)
+        .setTimestamp();
+
+      const row = new ActionRowBuilder().addComponents(
+        roles.map(({ role, label }) =>
+          new ButtonBuilder()
+            .setCustomId(`role_toggle:${role.id}`)
+            .setLabel(label)
+            .setStyle(ButtonStyle.Secondary)
+        )
+      );
+
+      await interaction.channel.send({ embeds: [embed], components: [row] });
+      return interaction.reply({ content: '✅ Role panel posted!', ephemeral: true });
+    }
+
     // ── EXPORT DATA COMMAND ──
     if (commandName === 'export_data') {
       if (!isServerOwner(interaction.user.id)) {
@@ -5180,6 +5214,11 @@ client.on('interactionCreate', async interaction => {
       }
     }
   }
+
+  // ── AI CHAT COMMANDS ──
+  if (interaction.isChatInputCommand() && interaction.commandName.startsWith('ai')) {
+    return handleAIInteraction(interaction, client, getUser, getLevelFromXP);
+  }
 });
 
 // ─────────────────────────────────────────
@@ -5376,6 +5415,18 @@ const commandsList = [
         { name: 'Coins Data', value: 'coins' },
         { name: 'XP Data', value: 'xp' }
       )),
+
+  // ── STAFF COMMANDS ──
+  ...staffCommandsData,
+
+  // ── WELCOME COMMANDS ──
+  ...welcomeCommandsData,
+
+  // ── REACTION ROLES COMMANDS ──
+  ...rrCommandsData,
+
+  // ── AI CHAT COMMANDS ──
+  ...aiChatCommandsData,
 ];
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
