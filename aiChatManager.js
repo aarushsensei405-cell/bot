@@ -54,9 +54,14 @@ const AIChannelConfigSchema = new mongoose.Schema({
   channelId: { type: String, required: true, unique: true },
   guildId: String,
   enabled: { type: Boolean, default: true },
-  // respond to all messages or only @mentions
   respondMode: { type: String, enum: ['mention', 'all', 'off'], default: 'mention' },
-  customPersonality: String, // server owner can tweak personality per channel
+  customPersonality: String,
+});
+
+// Global AI toggle per guild
+const AIGlobalConfigSchema = new mongoose.Schema({
+  guildId: { type: String, required: true, unique: true },
+  enabled: { type: Boolean, default: true },
 });
 
 const AIChatProfile = mongoose.models.AIChatProfile
@@ -64,6 +69,26 @@ const AIChatProfile = mongoose.models.AIChatProfile
 
 const AIChannelConfig = mongoose.models.AIChannelConfig
   || mongoose.model('AIChannelConfig', AIChannelConfigSchema);
+
+const AIGlobalConfig = mongoose.models.AIGlobalConfig
+  || mongoose.model('AIGlobalConfig', AIGlobalConfigSchema);
+
+// ─────────────────────────────────────────
+// GLOBAL TOGGLE HELPERS
+// ─────────────────────────────────────────
+async function isAIEnabled(guildId) {
+  const config = await AIGlobalConfig.findOne({ guildId }).lean();
+  if (!config) return true; // default on
+  return config.enabled;
+}
+
+async function setAIEnabled(guildId, enabled) {
+  await AIGlobalConfig.findOneAndUpdate(
+    { guildId },
+    { guildId, enabled },
+    { upsert: true }
+  );
+}
 
 // ─────────────────────────────────────────
 // CONSTANTS
@@ -398,6 +423,19 @@ const aiChatCommandsData = [
   new SlashCommandBuilder()
     .setName('ai_stats')
     .setDescription('View AI chat statistics for the server (admin only)'),
+
+  new SlashCommandBuilder()
+    .setName('ai_toggle')
+    .setDescription('Enable or disable ALL AI chat features server-wide (admin only)')
+    .addStringOption(o =>
+      o.setName('state')
+        .setDescription('Turn AI on or off')
+        .setRequired(true)
+        .addChoices(
+          { name: '✅ Enable', value: 'on' },
+          { name: '🔕 Disable', value: 'off' },
+        )
+    ),
 ];
 
 // ─────────────────────────────────────────
@@ -405,6 +443,37 @@ const aiChatCommandsData = [
 // ─────────────────────────────────────────
 async function handleAIInteraction(interaction, client, getUserFn, getLevelFromXPFn) {
   const { commandName } = interaction;
+
+  // ── /ai_toggle — must work even when AI is disabled ──
+  if (commandName === 'ai_toggle') {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+    }
+    const state = interaction.options.getString('state');
+    const enabling = state === 'on';
+    await setAIEnabled(interaction.guild.id, enabling);
+
+    const embed = new EmbedBuilder()
+      .setTitle(enabling ? '✅ AI Chat Enabled' : '🔕 AI Chat Disabled')
+      .setColor(enabling ? 0x57f287 : 0xed4245)
+      .setDescription(enabling
+        ? 'All AI chat features are now **enabled**.\nThe bot will respond to `/ai` commands and configured channels.'
+        : 'All AI chat features are now **disabled**.\nThe bot will not respond to any `/ai` commands or messages until re-enabled.'
+      )
+      .setFooter({ text: `Changed by ${interaction.user.tag}` })
+      .setTimestamp();
+
+    return interaction.reply({ embeds: [embed] });
+  }
+
+  // ── Global disable check for all other AI commands ──
+  const aiOn = await isAIEnabled(interaction.guild.id);
+  if (!aiOn) {
+    return interaction.reply({
+      content: '🔕 AI chat is currently **disabled** on this server. An admin can re-enable it with `/ai_toggle state:Enable`.',
+      ephemeral: true,
+    });
+  }
 
   if (commandName === 'ai') {
     const message = interaction.options.getString('message');
@@ -623,6 +692,12 @@ async function handleAIInteraction(interaction, client, getUserFn, getLevelFromX
 // ─────────────────────────────────────────
 async function handleAIMessage(message, client, getUserFn, getLevelFromXPFn) {
   if (message.author.bot) return;
+
+  // Global disable check
+  if (message.guild) {
+    const aiOn = await isAIEnabled(message.guild.id);
+    if (!aiOn) return;
+  }
 
   const botMentioned = message.mentions.has(client.user);
   const channelConfig = await AIChannelConfig.findOne({ channelId: message.channelId });
