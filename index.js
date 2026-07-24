@@ -2168,6 +2168,13 @@ const TICKET_TYPES = {
     prefix: 'shop',
     intro: 'Need help with shop purchases, rewards, or item claims? Share your details here.',
   },
+  event: {
+    label: 'Event Request',
+    emoji: '🎉',
+    color: COLORS.secondary,
+    prefix: 'event',
+    intro: 'Want to host or suggest a server event? Fill in the details below and staff will get back to you!\n\n**Please include:**\n• Event type (PvP, Building, Trivia, etc.)\n• Suggested date & time\n• Any prizes or rewards you have in mind',
+  },
 };
 
 async function openTicket(interaction, ticketTypeKey = 'support') {
@@ -3696,6 +3703,11 @@ client.on('interactionCreate', async interaction => {
               .setDescription('Help with shop purchases, rewards, or item claims')
               .setEmoji('🛍️')
               .setValue('shop'),
+            new StringSelectMenuOptionBuilder()
+              .setLabel('Event Request')
+              .setDescription('Suggest or request a server event')
+              .setEmoji('🎉')
+              .setValue('event'),
           )
       );
 
@@ -3712,6 +3724,9 @@ client.on('interactionCreate', async interaction => {
           '',
           '🛍️ **Shop & Purchases**',
           '> Help with shop purchases, rewards, or item claims',
+          '',
+          '🎉 **Event Request**',
+          '> Suggest or request a server event',
           '',
           '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
         ].join('\n'))
@@ -3731,24 +3746,129 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: '✅ Ticket panel posted!', ephemeral: true });
     }
 
+    // ── FAQPANEL COMMAND ──
+    if (commandName === 'faqpanel') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
+        return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+
+      const faqEmbed = new EmbedBuilder()
+        .setColor(COLORS.primary)
+        .setTitle('❓ AmethMC — Frequently Asked Questions')
+        .setDescription([
+          '> Got a question? **Select a topic below** for an instant answer!',
+          '> No need to open a ticket for common questions.',
+          '',
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+          '',
+          '🌐 **Server & Connection** — IP, version, how to join',
+          '💎 **Coins & Economy** — How to earn, spend, transfer',
+          '🛒 **Shop** — How to buy, cart, coupons',
+          '📊 **XP & Levels** — How leveling works',
+          '🎟️ **Tickets** — When and how to open one',
+          '⚖️ **Rules & Bans** — Punishments, appeals, warnings',
+          '🎉 **Events** — How to join or suggest events',
+          '🤖 **Bot Commands** — Full list of commands',
+          '',
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        ].join('\n'))
+        .setThumbnail(interaction.guild.iconURL({ dynamic: true, size: 256 }) || null)
+        .setFooter({ text: 'AmethMC • FAQ • Still stuck? Open a ticket!' })
+        .setTimestamp();
+
+      const faqRow = new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId('faq_select')
+          .setPlaceholder('📖 Pick a topic to get an instant answer...')
+          .addOptions(
+            new StringSelectMenuOptionBuilder()
+              .setLabel('🌐 Server & Connection')
+              .setDescription('IP address, version, how to join')
+              .setValue('faq_server'),
+            new StringSelectMenuOptionBuilder()
+              .setLabel('💎 Coins & Economy')
+              .setDescription('How to earn, spend, and transfer coins')
+              .setValue('faq_coins'),
+            new StringSelectMenuOptionBuilder()
+              .setLabel('🛒 Shop & Purchases')
+              .setDescription('How to buy items, use cart & coupons')
+              .setValue('faq_shop'),
+            new StringSelectMenuOptionBuilder()
+              .setLabel('📊 XP & Levels')
+              .setDescription('How the leveling system works')
+              .setValue('faq_xp'),
+            new StringSelectMenuOptionBuilder()
+              .setLabel('🎟️ Tickets')
+              .setDescription('When and how to open a support ticket')
+              .setValue('faq_tickets'),
+            new StringSelectMenuOptionBuilder()
+              .setLabel('⚖️ Rules & Bans')
+              .setDescription('Warnings, punishments, ban appeals')
+              .setValue('faq_rules'),
+            new StringSelectMenuOptionBuilder()
+              .setLabel('🎉 Events')
+              .setDescription('How to join or suggest server events')
+              .setValue('faq_events'),
+            new StringSelectMenuOptionBuilder()
+              .setLabel('🤖 Bot Commands')
+              .setDescription('Full list of available commands')
+              .setValue('faq_commands'),
+          )
+      );
+
+      await interaction.channel.send({ embeds: [faqEmbed], components: [faqRow] });
+      return interaction.reply({ content: '✅ FAQ panel posted!', ephemeral: true });
+    }
+
     // ── VERIFYPANEL COMMAND ──
     if (commandName === 'verifypanel') {
       if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
         return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
-      
+
+      const embed = new EmbedBuilder()
+        .setColor(0x9b59b6)
+        .setTitle('🔐 Verify Yourself — Welcome to AmethMC!')
+        .setDescription([
+          '> To gain **full access** to AmethMC, click the button below.',
+          '',
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+          '',
+          '**By verifying, you confirm that you:**',
+          '> ✅ Have read and agree to all server rules',
+          `> ✅ Understand our <#${RULES_CHANNEL_ID}> apply to all channels`,
+          '> ✅ Are ready to be a positive member of our community',
+          '',
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+          '',
+          '**What you unlock after verifying:**',
+          '> 💬 Access to all public channels',
+          '> 🎤 Voice channels & community events',
+          '> 🛒 Amethyst Shop & economy system',
+          '> 📊 XP, leveling & leaderboards',
+          '> ⛏️ Minecraft server connection info',
+          '',
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        ].join('\n'))
+        .setThumbnail(interaction.guild.iconURL({ dynamic: true, size: 256 }) || null)
+        .addFields(
+          { name: '🌐 Minecraft IP', value: '`play.amethmc.fun`', inline: true },
+          { name: '🎮 Version', value: '1.20.4+', inline: true },
+          { name: '👥 Members', value: `${interaction.guild.memberCount}`, inline: true },
+        )
+        .setImage(interaction.guild.iconURL({ dynamic: true, size: 512 }) || null)
+        .setFooter({ text: 'AmethMC • Click the button below to verify 💜' })
+        .setTimestamp();
+
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId('verify')
-          .setLabel('✅ Click to Verify')
-          .setStyle(ButtonStyle.Success)
+          .setLabel('✅ Verify Me!')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setLabel('📜 Read Rules')
+          .setStyle(ButtonStyle.Link)
+          .setURL('https://discord.com/channels/' + GUILD_ID + '/' + RULES_CHANNEL_ID),
       );
-      
-      const embed = new EmbedBuilder()
-        .setTitle('🔐 Verification Required')
-        .setColor(COLORS.primary)
-        .setDescription(`Click the button below to verify yourself and gain access to the server!\n\n<#${VERIFY_CHANNEL_ID}>`)
-        .setTimestamp();
-      
+
       await interaction.channel.send({ embeds: [embed], components: [row] });
       return interaction.reply({ content: '✅ Verify panel sent!', ephemeral: true });
     }
@@ -4587,6 +4707,165 @@ client.on('interactionCreate', async interaction => {
       return openTicket(interaction, interaction.values[0]);
     }
 
+    // ── FAQ SELECT ──
+    if (interaction.customId === 'faq_select') {
+      const FAQ_ANSWERS = {
+        faq_server: {
+          title: '🌐 Server & Connection',
+          answer: [
+            '**How do I join AmethMC?**',
+            '> Open Minecraft Java Edition and add a new server with:',
+            '> 🌐 **IP:** `play.amethmc.fun`',
+            '> 🎮 **Version:** 1.20.4+',
+            '',
+            '**The server says "Connection Refused" or "Unknown Host"**',
+            '> Make sure you are using Java Edition (not Bedrock).',
+            '> Double-check the IP is spelled correctly.',
+            '> The server may be temporarily offline — check `/serverstatus`.',
+            '',
+            '**What gamemode is it?**',
+            '> Survival Multiplayer (SMP) with PvP, raiding, and community events.',
+          ].join('\n'),
+        },
+        faq_coins: {
+          title: '💎 Coins & Economy',
+          answer: [
+            '**How do I earn Amethyst Coins?**',
+            '> 💬 Send **5 messages** = 1 coin',
+            '> 🎤 Spend **1 minute in voice chat** = 1 coin',
+            '> 📨 **Invite a member** = 50 coins',
+            '> 🎁 Use `/daily` once per day = 50 coins',
+            '',
+            '**How do I check my balance?**',
+            '> Use `/balance` to see your coins, messages, voice time & invites.',
+            '',
+            '**How do I send coins to someone?**',
+            '> Use `/transfer @user amount`.',
+            '',
+            '**Can staff take my coins?**',
+            '> Only admins can adjust balances using `/setbalance`.',
+          ].join('\n'),
+        },
+        faq_shop: {
+          title: '🛒 Shop & Purchases',
+          answer: [
+            '**How do I buy something?**',
+            '> Use `/shop` to browse categories, add items to your cart, then checkout.',
+            '',
+            '**How do I use a coupon code?**',
+            '> In the cart view click **🎫 Apply Coupon** and enter your code.',
+            '',
+            '**I bought something — when do I get it?**',
+            '> Staff are notified automatically. They will deliver your items in-game.',
+            '> Open a 🛍️ Shop ticket if you haven\'t received your order after 24h.',
+            '',
+            '**Item prices seem high — can they change?**',
+            '> Yes, prices are adjusted by the server owner based on the economy.',
+          ].join('\n'),
+        },
+        faq_xp: {
+          title: '📊 XP & Levels',
+          answer: [
+            '**How do I earn XP?**',
+            '> Send messages in the server — you earn **15 XP per message** (1 min cooldown).',
+            '',
+            '**How do I check my level?**',
+            '> Use `/rank` to see your level, XP, rank position and progress bar.',
+            '',
+            '**Where\'s the leaderboard?**',
+            '> Use `/leaderboard` for the top 10 XP earners.',
+            '> Use `/coinslb` for the top 10 coin holders.',
+            '',
+            '**Does XP give any rewards?**',
+            '> You get a level-up announcement when you rank up!',
+            '> Future rewards may be added — stay tuned.',
+          ].join('\n'),
+        },
+        faq_tickets: {
+          title: '🎟️ Tickets',
+          answer: [
+            '**When should I open a ticket?**',
+            '> Open a ticket for issues that need staff attention:',
+            '> • Shop order not received',
+            '> • Reporting a player or bug',
+            '> • Appeal a ban or warning',
+            '> • Event suggestions',
+            '',
+            '**How do I open a ticket?**',
+            '> Use the **Support Desk** panel and select a category.',
+            '> Or open one directly with `/ticketpanel` (staff only to post).',
+            '',
+            '**Can I have multiple tickets?**',
+            '> No — you can only have one open ticket at a time.',
+            '> Close your current one before opening another.',
+          ].join('\n'),
+        },
+        faq_rules: {
+          title: '⚖️ Rules & Bans',
+          answer: [
+            '**Where are the full rules?**',
+            `> Use \`/rules\` or browse the rulebooks with \`/rulebook_mc\`, \`/rulebook_chat\`, \`/rulebook_general\`.`,
+            '',
+            '**How does the warning system work?**',
+            '> Warn 1–2 → Warning only',
+            '> Warn 3 → 30 min timeout',
+            '> Warn 4–7 → Increasing timeouts',
+            '> Warn 8 → 28-day mute',
+            '',
+            '**I was banned — how do I appeal?**',
+            '> Open a ticket in the Support Desk and select General Support.',
+            '> Provide your username and reason for appeal.',
+            '',
+            '**Can I get my warnings removed?**',
+            '> Only admins can clear warnings. Open a ticket if you believe a warn was unfair.',
+          ].join('\n'),
+        },
+        faq_events: {
+          title: '🎉 Events',
+          answer: [
+            '**How do I join a server event?**',
+            '> Watch announcements — events are posted with details on how to join.',
+            '> React or click the button when an event is announced.',
+            '',
+            '**How do I suggest or host an event?**',
+            '> Open an **🎉 Event Request** ticket from the Support Desk.',
+            '> Include: event type, suggested date/time, and any prize ideas.',
+            '',
+            '**What kind of events does AmethMC run?**',
+            '> PvP tournaments, building contests, trivia nights, treasure hunts, and more!',
+            '> Community members can suggest new event types in a ticket.',
+          ].join('\n'),
+        },
+        faq_commands: {
+          title: '🤖 Bot Commands',
+          answer: [
+            '**Economy:** `/balance` `/daily` `/transfer` `/coinslb`',
+            '**Shop:** `/shop` `/cart`',
+            '**Levels:** `/rank` `/leaderboard`',
+            '**Moderation:** `/warn` `/warnings` `/ban` `/kick` `/purge` `/lock` `/unlock`',
+            '**Utility:** `/afk` `/remindme` `/suggest` `/feedback` `/birthday`',
+            '**Minecraft:** `/serverstatus` `/mcplayer`',
+            '**Rules:** `/rules` `/rulebook_mc` `/rulebook_chat` `/rulebook_general`',
+            '**AI Chat:** `/ai` `/ai_memory` `/ai_forget`',
+            '**Giveaways:** `/giveaway start` `/giveaway reroll`',
+            '**Staff only:** `/warn` `/clearwarns` `/ban` `/kick` `/purge` `/poll` `/announce` `/giveaway`',
+          ].join('\n'),
+        },
+      };
+
+      const faq = FAQ_ANSWERS[interaction.values[0]];
+      if (!faq) return interaction.reply({ content: '❌ FAQ not found.', ephemeral: true });
+
+      const embed = new EmbedBuilder()
+        .setTitle(faq.title)
+        .setDescription(faq.answer)
+        .setColor(COLORS.primary)
+        .setFooter({ text: 'AmethMC FAQ • Still need help? Open a ticket!' })
+        .setTimestamp();
+
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
     if (interaction.customId === 'apply_select') {
       const role = interaction.values[0];
       const userId = interaction.user.id;
@@ -5362,6 +5641,7 @@ const commandsList = [
   
   // Misc commands
   new SlashCommandBuilder().setName('ticketpanel').setDescription('Post the support ticket panel (admin only)'),
+  new SlashCommandBuilder().setName('faqpanel').setDescription('Post the FAQ self-serve panel (admin only)'),
   new SlashCommandBuilder().setName('serverstatus').setDescription('Check if the AmethMC Minecraft server is online'),
   new SlashCommandBuilder().setName('mcplayer').setDescription('Look up a Minecraft player by username')
     .addStringOption(o => o.setName('username').setDescription('Minecraft username').setRequired(true)),
