@@ -291,7 +291,7 @@ async function generateAIResponse(userId, username, userMessage, guildData = {})
 
     // Initialize Gemini model
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash',
       systemInstruction: systemPrompt,
     });
 
@@ -321,14 +321,13 @@ async function generateAIResponse(userId, username, userMessage, guildData = {})
   } catch (err) {
     console.error('AI Chat error status:', err.status);
     console.error('AI Chat error message:', err.message);
-    console.error('AI Chat full error:', JSON.stringify(err, null, 2));
     if (err.status === 429 || err.message?.includes('429')) {
       return "bro i'm literally being spammed rn 😭 give me a sec";
     }
     if (err.status === 500 || err.message?.includes('500')) {
       return "my brain just crashed bestie, try again in a sec 💀";
     }
-    return `DEBUG: ${err.status} — ${err.message}`;
+    return "something went sideways on my end, not you 😅 try again?";
   }
 }
 
