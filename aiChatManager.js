@@ -14,6 +14,7 @@ const openai = new OpenAI({
   apiKey: process.env.BAZAARLINK_API_KEY,
   baseURL: 'https://bazaarlink.ai/api/v1',
 });
+console.log('🤖 AI client initialized — key present:', !!process.env.BAZAARLINK_API_KEY);
 
 // ─────────────────────────────────────────
 // SCHEMAS
@@ -324,14 +325,16 @@ async function generateAIResponse(userId, username, userMessage, guildData = {})
     return botReply;
 
   } catch (err) {
-    console.error('AI Chat error:', err);
+    console.error('AI Chat error status:', err.status);
+    console.error('AI Chat error message:', err.message);
+    console.error('AI Chat full error:', JSON.stringify(err, null, 2));
     if (err.status === 429 || err.message?.includes('429')) {
       return "bro i'm literally being spammed rn 😭 give me a sec";
     }
     if (err.status === 500 || err.message?.includes('500')) {
       return "my brain just crashed bestie, try again in a sec 💀";
     }
-    return "something went sideways on my end, not you 😅 try again?";
+    return `DEBUG ERROR: ${err.status} — ${err.message}`;
   }
 }
 
