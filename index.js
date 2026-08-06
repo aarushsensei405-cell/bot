@@ -105,6 +105,7 @@ const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY || '1518439159189213225';
 const LEVEL_UP_CHANNEL_ID = process.env.LEVEL_UP_CHANNEL || '1432277463366504484';
 const RULES_CHANNEL_ID = process.env.RULES_CHANNEL || '1432277447440597028';
 const EVENTS_CHANNEL_ID = process.env.EVENTS_CHANNEL || '1432277447440597028';
+const MC_STATUS_CHANNEL_ID = process.env.MC_STATUS_CHANNEL || '1534750975972081815';
 
 const SHOP_COMPLETED_USER_ID = process.env.SHOP_COMPLETED_USER || '1519764530425495643';
 const SERVER_OWNER_ID = process.env.SERVER_OWNER || '885470207332728832';
@@ -465,6 +466,15 @@ const AFK = mongoose.models.AFK || mongoose.model('AFK', AFKSchema);
 const Invite = mongoose.models.Invite || mongoose.model('Invite', InviteSchema);
 const Application = mongoose.models.Application || mongoose.model('Application', ApplicationSchema);
 const Rulebook = mongoose.models.Rulebook || mongoose.model('Rulebook', RulebookSchema);
+
+const MCStatusConfigSchema = new mongoose.Schema({
+  guildId:   { type: String, required: true, unique: true },
+  channelId: String,
+  messageId: String,
+  serverStart: { type: Date, default: null }, // when we first detected the server online
+  lastOnline:  { type: Date, default: null },
+});
+const MCStatusConfig = mongoose.models.MCStatusConfig || mongoose.model('MCStatusConfig', MCStatusConfigSchema);
 
 // ─────────────────────────────────────────
 // DEFAULT RULEBOOKS - AmethMC Branded
@@ -1084,6 +1094,128 @@ async function getMCServerStatus(host, port = 25565) {
     return data;
   } catch {
     return null;
+  }
+}
+
+// ─────────────────────────────────────────
+// MC LIVE STATUS EMBED
+// ─────────────────────────────────────────
+const MC_STATUS_IP   = '138.252.100.153';
+const MC_STATUS_PORT = 25565;
+
+function formatUptime(ms) {
+  const totalSecs = Math.floor(ms / 1000);
+  const d = Math.floor(totalSecs / 86400);
+  const h = Math.floor((totalSecs % 86400) / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  const parts = [];
+  if (d > 0) parts.push(`${d}d`);
+  if (h > 0) parts.push(`${h}h`);
+  if (m > 0) parts.push(`${m}m`);
+  return parts.length > 0 ? parts.join(' ') : 'Just started';
+}
+
+function buildMCStatusEmbed(status, uptimeMs) {
+  const online = status?.online === true;
+  const players = status?.players?.online ?? 0;
+  const maxPlayers = status?.players?.max ?? 0;
+  const version = status?.version || 'Unknown';
+  const motd = status?.motd?.clean || 'AmethMC SMP';
+  const playerList = status?.players?.list?.map(p => `> \`${p.name}\``).join('\n') || null;
+
+  // Build player bar
+  const barLength = 20;
+  const filled = maxPlayers > 0 ? Math.round((players / maxPlayers) * barLength) : 0;
+  const bar = '█'.repeat(filled) + '░'.repeat(barLength - filled);
+
+  if (!online) {
+    return new EmbedBuilder()
+      .setColor(0x2b2d31)
+      .setTitle('⚫ AmethMC — Server Status')
+      .setDescription([
+        '```',
+        '  STATUS   │  OFFLINE',
+        '  IP       │  play.amethmc.fun',
+        '```',
+        '',
+        '> 🔴 The server is currently **offline** or unreachable.',
+        '> Check back soon — it may be restarting!',
+      ].join('\n'))
+      .setFooter({ text: '🔄 Auto-refreshes every 30 seconds' })
+      .setTimestamp();
+  }
+
+  return new EmbedBuilder()
+    .setColor(0x57f287)
+    .setTitle('🟢 AmethMC — Server Status')
+    .setDescription([
+      '```',
+      `  STATUS   │  ONLINE ✅`,
+      `  IP       │  play.amethmc.fun`,
+      `  PORT     │  25565`,
+      `  VERSION  │  ${version}`,
+      '```',
+    ].join('\n'))
+    .addFields(
+      {
+        name: '👥 Players Online',
+        value: [
+          `**${players} / ${maxPlayers}**`,
+          `\`[${bar}]\``,
+        ].join('\n'),
+        inline: true,
+      },
+      {
+        name: '⏱️ Server Uptime',
+        value: uptimeMs ? `**${formatUptime(uptimeMs)}**` : '**Unknown**',
+        inline: true,
+      },
+      {
+        name: '📡 MOTD',
+        value: `*${motd.trim()}*`,
+        inline: false,
+      },
+      ...(playerList ? [{
+        name: '🎮 Currently Playing',
+        value: playerList.slice(0, 1024),
+        inline: false,
+      }] : []),
+    )
+    .setFooter({ text: '🔄 Auto-refreshes every 30 seconds • play.amethmc.fun' })
+    .setTimestamp();
+}
+
+async function updateMCStatus(client) {
+  try {
+    const config = await MCStatusConfig.findOne({ guildId: GUILD_ID });
+    if (!config?.channelId || !config?.messageId) return;
+
+    const status = await getMCServerStatus(MC_STATUS_IP, MC_STATUS_PORT);
+    const now = new Date();
+
+    // Track uptime — reset serverStart if was offline, set if newly online
+    if (status?.online) {
+      if (!config.serverStart) config.serverStart = now;
+      config.lastOnline = now;
+    } else {
+      config.serverStart = null;
+    }
+    await config.save();
+
+    const uptimeMs = status?.online && config.serverStart
+      ? now.getTime() - new Date(config.serverStart).getTime()
+      : null;
+
+    const embed = buildMCStatusEmbed(status, uptimeMs);
+
+    const channel = await client.channels.fetch(config.channelId).catch(() => null);
+    if (!channel) return;
+    const message = await channel.messages.fetch(config.messageId).catch(() => null);
+    if (!message) return;
+
+    await message.edit({ embeds: [embed] });
+  } catch (err) {
+    console.error('MC status update error:', err.message);
   }
 }
 
@@ -1931,9 +2063,38 @@ client.once('ready', async () => {
   setInterval(() => checkBirthdays(client), 3600000);
   setInterval(() => checkReminders(client), 30000);
   setInterval(() => checkTempBans(client), 60000);
-  setInterval(() => checkEvents(client), 60000); // check events every minute
+  setInterval(() => checkEvents(client), 60000);
+  setInterval(() => updateMCStatus(client), 30000); // ping MC server every 30s
   checkBirthdays(client);
   checkEvents(client);
+  updateMCStatus(client); // run immediately on startup
+
+  // Auto-post MC status panel on first run if not configured yet
+  const mcConfig = await MCStatusConfig.findOne({ guildId: GUILD_ID });
+  if (!mcConfig?.messageId) {
+    try {
+      const statusChannel = await client.channels.fetch(MC_STATUS_CHANNEL_ID).catch(() => null);
+      if (statusChannel) {
+        const status = await getMCServerStatus(MC_STATUS_IP, MC_STATUS_PORT);
+        const embed = buildMCStatusEmbed(status, null);
+        const msg = await statusChannel.send({ embeds: [embed] });
+        await MCStatusConfig.findOneAndUpdate(
+          { guildId: GUILD_ID },
+          {
+            guildId: GUILD_ID,
+            channelId: statusChannel.id,
+            messageId: msg.id,
+            serverStart: status?.online ? new Date() : null,
+            lastOnline:  status?.online ? new Date() : null,
+          },
+          { upsert: true }
+        );
+        console.log('✅ MC status panel auto-posted to channel', MC_STATUS_CHANNEL_ID);
+      }
+    } catch (err) {
+      console.error('❌ Could not auto-post MC status panel:', err.message);
+    }
+  }
 });
 
 // ─────────────────────────────────────────
@@ -4031,6 +4192,37 @@ client.on('interactionCreate', async interaction => {
       return interaction.editReply({ embeds: [embed] });
     }
 
+    // ── SERVERSTATUSPANEL COMMAND ──
+    if (commandName === 'serverstatuspanel') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
+        return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+
+      await interaction.deferReply({ ephemeral: true });
+
+      const channel = interaction.options.getChannel('channel') || interaction.guild.channels.cache.get(MC_STATUS_CHANNEL_ID) || interaction.channel;
+
+      // Get initial status
+      const status = await getMCServerStatus(MC_STATUS_IP, MC_STATUS_PORT);
+      const embed = buildMCStatusEmbed(status, null);
+
+      const msg = await channel.send({ embeds: [embed] });
+
+      // Save or update config
+      await MCStatusConfig.findOneAndUpdate(
+        { guildId: GUILD_ID },
+        {
+          guildId: GUILD_ID,
+          channelId: channel.id,
+          messageId: msg.id,
+          serverStart: status?.online ? new Date() : null,
+          lastOnline: status?.online ? new Date() : null,
+        },
+        { upsert: true }
+      );
+
+      return interaction.editReply({ content: `✅ Live server status panel posted in <#${channel.id}>! It will auto-update every 30 seconds.` });
+    }
+
     // ── MCPLAYER COMMAND ──
     if (commandName === 'mcplayer') {
       const username = interaction.options.getString('username');
@@ -6097,6 +6289,8 @@ const commandsList = [
       .addStringOption(o => o.setName('event_id').setDescription('Event ID e.g. EVT-ABC123').setRequired(true))
     ),
   new SlashCommandBuilder().setName('serverstatus').setDescription('Check if the AmethMC Minecraft server is online'),
+  new SlashCommandBuilder().setName('serverstatuspanel').setDescription('Post a live auto-updating server status embed (admin only)')
+    .addChannelOption(o => o.setName('channel').setDescription('Channel to post in (default: current)').setRequired(false)),
   new SlashCommandBuilder().setName('mcplayer').setDescription('Look up a Minecraft player by username')
     .addStringOption(o => o.setName('username').setDescription('Minecraft username').setRequired(true)),
   new SlashCommandBuilder().setName('embed').setDescription('Post a custom embed (admin only)')
