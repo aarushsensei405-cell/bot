@@ -477,6 +477,135 @@ const MCStatusConfigSchema = new mongoose.Schema({
 const MCStatusConfig = mongoose.models.MCStatusConfig || mongoose.model('MCStatusConfig', MCStatusConfigSchema);
 
 // ─────────────────────────────────────────
+// ACHIEVEMENT SYSTEM
+// ─────────────────────────────────────────
+const AchievementSchema = new mongoose.Schema({
+  userId:   { type: String, required: true },
+  guildId:  String,
+  key:      String,  // achievement key
+  unlockedAt: { type: Date, default: Date.now },
+});
+AchievementSchema.index({ userId: 1, key: 1 }, { unique: true });
+const Achievement = mongoose.models.Achievement || mongoose.model('Achievement', AchievementSchema);
+
+// All achievement definitions
+const ACHIEVEMENTS = [
+  // Messages
+  { key: 'first_message',    emoji: '💬', title: 'First Words',        desc: 'Send your first message',             check: u => u.messages >= 1,    reward: 10  },
+  { key: 'chatter_100',      emoji: '🗣️',  title: 'Chatterbox',         desc: 'Send 100 messages',                   check: u => u.messages >= 100,  reward: 25  },
+  { key: 'chatter_500',      emoji: '📢',  title: 'Loudmouth',          desc: 'Send 500 messages',                   check: u => u.messages >= 500,  reward: 75  },
+  { key: 'chatter_1000',     emoji: '🎙️', title: 'Server Legend',       desc: 'Send 1,000 messages',                 check: u => u.messages >= 1000, reward: 200 },
+  // Coins
+  { key: 'first_coin',       emoji: '🪙',  title: 'First Coin',         desc: 'Earn your first coin',                check: u => u.coins >= 1,       reward: 5   },
+  { key: 'coins_100',        emoji: '💰',  title: 'Getting Rich',       desc: 'Accumulate 100 coins',                check: u => u.coins >= 100,     reward: 20  },
+  { key: 'coins_500',        emoji: '💎',  title: 'Amethyst Hoarder',   desc: 'Accumulate 500 coins',                check: u => u.coins >= 500,     reward: 50  },
+  { key: 'coins_2000',       emoji: '👑',  title: 'Diamond Tier',       desc: 'Accumulate 2,000 coins',              check: u => u.coins >= 2000,    reward: 150 },
+  // Invites
+  { key: 'first_invite',     emoji: '📨',  title: 'Recruiter',          desc: 'Invite your first member',            check: u => u.invites >= 1,     reward: 30  },
+  { key: 'invites_5',        emoji: '🏆',  title: 'Squad Builder',      desc: 'Invite 5 members',                    check: u => u.invites >= 5,     reward: 100 },
+  { key: 'invites_10',       emoji: '🌟',  title: 'Community Pillar',   desc: 'Invite 10 members',                   check: u => u.invites >= 10,    reward: 300 },
+  // Voice
+  { key: 'voice_30',         emoji: '🎤',  title: 'Voice Active',       desc: 'Spend 30 minutes in voice chat',      check: u => u.voiceMinutes >= 30,  reward: 20  },
+  { key: 'voice_300',        emoji: '🎧',  title: 'VC Veteran',         desc: 'Spend 5 hours in voice chat',         check: u => u.voiceMinutes >= 300, reward: 75  },
+  { key: 'voice_1000',       emoji: '📡',  title: 'Always Online',      desc: 'Spend 1,000 minutes in voice chat',   check: u => u.voiceMinutes >= 1000, reward: 200 },
+  // XP / Level
+  { key: 'level_5',          emoji: '⭐',  title: 'Rising Star',        desc: 'Reach Level 5',                       check: u => u.level >= 5,       reward: 50  },
+  { key: 'level_10',         emoji: '🌠',  title: 'Dedicated Member',   desc: 'Reach Level 10',                      check: u => u.level >= 10,      reward: 150 },
+  { key: 'level_25',         emoji: '🚀',  title: 'Top Tier',           desc: 'Reach Level 25',                      check: u => u.level >= 25,      reward: 500 },
+  // Purchases
+  { key: 'first_purchase',   emoji: '🛒',  title: 'First Purchase',     desc: 'Make your first shop purchase',       check: async (u) => {
+    const count = await mongoose.models.Purchase?.countDocuments({ userId: u.userId }) ?? 0;
+    return count >= 1;
+  }, reward: 25 },
+  { key: 'purchases_5',      emoji: '🛍️',  title: 'Regular Shopper',    desc: 'Make 5 shop purchases',               check: async (u) => {
+    const count = await mongoose.models.Purchase?.countDocuments({ userId: u.userId }) ?? 0;
+    return count >= 5;
+  }, reward: 100 },
+  // Trivia
+  { key: 'trivia_first',     emoji: '🧠',  title: 'Brainiac',           desc: 'Answer your first trivia question correctly', check: async (u) => {
+    const count = await Achievement.countDocuments({ userId: u.userId, key: 'trivia_first' });
+    return count === 0; // will be granted manually on first correct answer
+  }, reward: 15, manual: true },
+  { key: 'trivia_10',        emoji: '🎓',  title: 'Trivia Master',      desc: 'Answer 10 trivia questions correctly', check: () => false, reward: 100, manual: true },
+];
+
+const ACHIEVEMENT_MAP = Object.fromEntries(ACHIEVEMENTS.map(a => [a.key, a]));
+
+async function checkAchievements(userId, username, client) {
+  try {
+    const user = await getUser(userId);
+    const unlocked = await Achievement.find({ userId }).lean();
+    const unlockedKeys = new Set(unlocked.map(a => a.key));
+
+    for (const ach of ACHIEVEMENTS) {
+      if (ach.manual) continue;
+      if (unlockedKeys.has(ach.key)) continue;
+
+      const earned = await Promise.resolve(ach.check(user));
+      if (!earned) continue;
+
+      // Grant achievement
+      await Achievement.create({ userId, guildId: GUILD_ID, key: ach.key }).catch(() => {});
+
+      // Award bonus coins
+      if (ach.reward > 0) {
+        user.coins += ach.reward;
+        await user.save();
+      }
+
+      // DM the user
+      try {
+        const discordUser = await client.users.fetch(userId);
+        await discordUser.send([
+          `🏆 **Achievement Unlocked!**`,
+          ``,
+          `${ach.emoji} **${ach.title}**`,
+          `> ${ach.desc}`,
+          ``,
+          `🪙 **+${ach.reward} bonus coins** added to your balance!`,
+          `💳 New balance: **${user.coins} coins**`,
+        ].join('\n'));
+      } catch { /* DMs closed */ }
+
+      console.log(`🏆 ${username} unlocked achievement: ${ach.title}`);
+    }
+  } catch (err) {
+    console.error('Achievement check error:', err.message);
+  }
+}
+
+async function grantManualAchievement(userId, username, key, client) {
+  try {
+    const ach = ACHIEVEMENT_MAP[key];
+    if (!ach) return;
+    const already = await Achievement.findOne({ userId, key });
+    if (already) return;
+
+    await Achievement.create({ userId, guildId: GUILD_ID, key }).catch(() => {});
+
+    const user = await getUser(userId);
+    if (ach.reward > 0) {
+      user.coins += ach.reward;
+      await user.save();
+    }
+
+    try {
+      const discordUser = await client.users.fetch(userId);
+      await discordUser.send([
+        `🏆 **Achievement Unlocked!**`,
+        ``,
+        `${ach.emoji} **${ach.title}**`,
+        `> ${ach.desc}`,
+        ``,
+        `🪙 **+${ach.reward} bonus coins** added to your balance!`,
+      ].join('\n'));
+    } catch { /* DMs closed */ }
+  } catch (err) {
+    console.error('Grant achievement error:', err.message);
+  }
+}
+
+// ─────────────────────────────────────────
 // DEFAULT RULEBOOKS - AmethMC Branded
 // ─────────────────────────────────────────
 const DEFAULT_RULEBOOKS = {
@@ -2153,12 +2282,44 @@ function checkSpam(message) {
 // ─────────────────────────────────────────
 // ACTIVE SESSIONS
 // ─────────────────────────────────────────
-const activeSessions = new Map();
+const activeSessions  = new Map();
 const pendingFeedback = new Map();
-const pollVotes = new Map();
-const xpCooldown = new Map();
-const coinsCooldown = new Map();
-const voiceTracking = new Map();
+const pollVotes       = new Map();
+const xpCooldown      = new Map();
+const coinsCooldown   = new Map();
+const voiceTracking   = new Map();
+const activeTriviaGames = new Map(); // channelId -> game state
+
+// ─────────────────────────────────────────
+// TRIVIA QUESTIONS — Minecraft themed
+// ─────────────────────────────────────────
+const TRIVIA_QUESTIONS = [
+  { q: 'What is the maximum number of blocks you can fall without dying with Feather Falling IV boots?', a: 0, choices: ['103', '75', '52', '128'], reward: 20 },
+  { q: 'Which mob drops a music disc when killed by a skeleton?', a: 1, choices: ['Enderman', 'Creeper', 'Zombie', 'Spider'], reward: 15 },
+  { q: 'How many blocks of obsidian are needed to build a Nether portal?', a: 2, choices: ['12', '8', '10', '14'], reward: 15 },
+  { q: 'What item is required to tame a wolf?', a: 0, choices: ['Bone', 'Raw Beef', 'Fish', 'Bread'], reward: 10 },
+  { q: 'What is the rarest ore in vanilla Minecraft?', a: 1, choices: ['Diamond', 'Ancient Debris', 'Emerald', 'Gold'], reward: 20 },
+  { q: 'How many eyes of ender are needed to activate the End portal?', a: 2, choices: ['10', '8', '12', '16'], reward: 15 },
+  { q: 'What biome do you find Mooshrooms in?', a: 0, choices: ['Mushroom Fields', 'Dark Forest', 'Swamp', 'Taiga'], reward: 15 },
+  { q: 'What is the blast resistance of obsidian?', a: 1, choices: ['1,000', '1,200', '800', '600'], reward: 25 },
+  { q: 'Which enchantment allows you to walk on water by freezing it?', a: 2, choices: ['Depth Strider', 'Aqua Affinity', 'Frost Walker', 'Ice Stride'], reward: 20 },
+  { q: 'What do you feed a baby turtle to make it grow faster?', a: 0, choices: ['Seagrass', 'Kelp', 'Fish', 'Algae'], reward: 15 },
+  { q: 'What is the maximum level of the Efficiency enchantment?', a: 3, choices: ['III', 'IV', 'VI', 'V'], reward: 15 },
+  { q: 'How many bookshelves are needed to get a level 30 enchantment?', a: 1, choices: ['12', '15', '18', '10'], reward: 20 },
+  { q: 'Which mob can pick up and wear armor?', a: 0, choices: ['Zombie', 'Skeleton', 'Creeper', 'Enderman'], reward: 10 },
+  { q: 'What is the spawn condition for a Warden?', a: 2, choices: ['Night time in caves', 'Below Y=0', 'Activating sculk shriekers 3 times', 'Breaking ancient debris'], reward: 25 },
+  { q: 'What is the name of the final boss in Minecraft?', a: 1, choices: ['The Wither', 'The Ender Dragon', 'Elder Guardian', 'The Warden'], reward: 10 },
+  { q: 'How many wool blocks are needed to craft a bed?', a: 0, choices: ['3', '4', '2', '6'], reward: 10 },
+  { q: 'What fuel burns the longest in a furnace?', a: 3, choices: ['Coal', 'Charcoal', 'Blaze Rod', 'Lava Bucket'], reward: 20 },
+  { q: 'Which biome has the highest elevation in Minecraft?', a: 1, choices: ['Mountains', 'Jagged Peaks', 'Badlands', 'Stony Peaks'], reward: 20 },
+  { q: 'What do dolphins lead you to when you feed them raw fish?', a: 2, choices: ['Shipwrecks', 'Ocean Monuments', 'Buried Treasure', 'Coral Reefs'], reward: 20 },
+  { q: 'How much XP does killing the Ender Dragon give on first kill?', a: 0, choices: ['12,000', '5,000', '8,000', '20,000'], reward: 25 },
+  { q: 'What item do you need to respawn the Ender Dragon?', a: 1, choices: ['Eye of Ender', 'End Crystal', 'Dragon Egg', 'Chorus Fruit'], reward: 20 },
+  { q: 'What is Notch\'s real full name?', a: 2, choices: ['Marcus Alexson', 'Carl Persson', 'Markus Persson', 'Notch Persson'], reward: 15 },
+  { q: 'What year was Minecraft officially released?', a: 0, choices: ['2011', '2009', '2010', '2012'], reward: 15 },
+  { q: 'How many slots does a shulker box have?', a: 1, choices: ['18', '27', '36', '9'], reward: 15 },
+  { q: 'What material is needed to craft a beacon?', a: 3, choices: ['Diamond', 'Netherite', 'End Stone', 'Nether Star'], reward: 20 },
+];
 
 const STAR_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
 const recentJoins = [];
@@ -2221,6 +2382,8 @@ client.on('guildMemberAdd', async member => {
         await storedInvite.save();
         
         console.log(`Awarded ${COINS_PER_INVITE} coins to ${invite.inviter.tag} for inviting ${member.user.tag}`);
+        // Check achievements after invite
+        checkAchievements(inviterId, invite.inviter.tag, client).catch(() => {});
         try {
           const inviter = await client.users.fetch(inviterId);
           await inviter.send(`🎉 **You earned ${COINS_PER_INVITE} Amethyst Coins!**\n\n${member.user.tag} joined using your invite link! 🏆`);
@@ -2429,6 +2592,8 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         user.voiceMinutes += elapsedMinutes;
         await user.save();
         console.log(`Awarded ${coinsToAdd} coins to ${member.user.tag} for ${elapsedMinutes} minutes in voice chat`);
+        // Check achievements after VC session
+        checkAchievements(userId, member.user.tag, client).catch(() => {});
       }
       voiceTracking.delete(userId);
     }
@@ -2725,6 +2890,8 @@ client.on('messageCreate', async message => {
       } else {
         await user.save();
       }
+      // Check achievements after coins/messages update
+      checkAchievements(message.author.id, message.author.tag, client).catch(() => {});
     }
 
     const culturalPatterns = [
@@ -4223,9 +4390,53 @@ client.on('interactionCreate', async interaction => {
       return interaction.editReply({ content: `✅ Live server status panel posted in <#${channel.id}>! It will auto-update every 30 seconds.` });
     }
 
+    // ── ACHIEVEMENTS COMMAND ──
+    if (commandName === 'achievements') {
+      const target = interaction.options.getUser('user') || interaction.user;
+      const unlocked = await Achievement.find({ userId: target.id }).lean();
+      const unlockedKeys = new Set(unlocked.map(a => a.key));
+      const totalAchs = ACHIEVEMENTS.filter(a => !a.manual || unlockedKeys.has(a.key)).length;
+      const unlockedCount = unlocked.length;
+
+      // Split into unlocked and locked
+      const unlockedList = ACHIEVEMENTS.filter(a => unlockedKeys.has(a.key));
+      const lockedList   = ACHIEVEMENTS.filter(a => !unlockedKeys.has(a.key) && !a.manual);
+
+      // Progress bar
+      const barLen = 20;
+      const filled = Math.round((unlockedCount / ACHIEVEMENTS.length) * barLen);
+      const bar = '█'.repeat(filled) + '░'.repeat(barLen - filled);
+
+      const unlockedStr = unlockedList.length > 0
+        ? unlockedList.map(a => `${a.emoji} **${a.title}** — *${a.desc}* (+${a.reward} coins)`).join('\n')
+        : '*None yet — start chatting, inviting, and exploring!*';
+
+      const lockedStr = lockedList.length > 0
+        ? lockedList.slice(0, 8).map(a => `🔒 ~~${a.title}~~ — *${a.desc}*`).join('\n')
+          + (lockedList.length > 8 ? `\n*...and ${lockedList.length - 8} more*` : '')
+        : '*All achievements unlocked! 🎉*';
+
+      const embed = new EmbedBuilder()
+        .setColor(COLORS.primary)
+        .setTitle(`🏆 ${target.username}'s Achievements`)
+        .setThumbnail(target.displayAvatarURL({ size: 256 }))
+        .setDescription([
+          `**Progress:** \`[${bar}]\` ${unlockedCount} / ${ACHIEVEMENTS.length}`,
+          '',
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        ].join('\n'))
+        .addFields(
+          { name: `✅ Unlocked (${unlockedList.length})`, value: unlockedStr.slice(0, 1024), inline: false },
+          { name: `🔒 Locked (${lockedList.length})`,    value: lockedStr.slice(0, 1024),   inline: false },
+        )
+        .setFooter({ text: 'Earn achievements by chatting, inviting, shopping & more!' })
+        .setTimestamp();
+
+      return interaction.reply({ embeds: [embed], ephemeral: target.id !== interaction.user.id });
+    }
+
     // ── MCPLAYER COMMAND ──
-    if (commandName === 'mcplayer') {
-      const username = interaction.options.getString('username');
+    if (commandName === 'mcplayer') {      const username = interaction.options.getString('username');
       await interaction.deferReply();
       try {
         const profile = await fetchJSON(`https://api.mojang.com/users/profiles/minecraft/${encodeURIComponent(username)}`);
@@ -4248,6 +4459,190 @@ client.on('interactionCreate', async interaction => {
       } catch (err) {
         return interaction.editReply(`❌ Could not look up **${username}**. The player may not exist or the Mojang API may be down.`);
       }
+    }
+
+    // ── MCSTATS COMMAND ──
+    if (commandName === 'mcstats') {
+      const username = interaction.options.getString('username');
+      await interaction.deferReply();
+
+      try {
+        // Step 1 — resolve UUID from Mojang
+        const profile = await fetchJSON(
+          `https://api.mojang.com/users/profiles/minecraft/${encodeURIComponent(username)}`
+        );
+        if (!profile?.id) {
+          return interaction.editReply(`❌ Player **${username}** not found. Check the spelling and try again.`);
+        }
+
+        const uuid      = profile.id;
+        const formatted = `${uuid.slice(0,8)}-${uuid.slice(8,12)}-${uuid.slice(12,16)}-${uuid.slice(16,20)}-${uuid.slice(20)}`;
+        const skinHead  = `https://mc-heads.net/avatar/${uuid}/128`;
+        const skinFull  = `https://mc-heads.net/body/${uuid}/128`;
+
+        // Step 2 — fetch stats from mcsrvstat playerinfo endpoint
+        // NOTE: Full stats (kills, deaths, playtime) require a server-side plugin
+        // that exposes a REST API (e.g. StatsAPI, Plan, or a custom plugin).
+        // Currently showing data available from the Mojang API + skin services.
+        // To add real stats, set MC_STATS_API_URL in your .env and uncomment below.
+        let statsFields = [];
+
+        if (process.env.MC_STATS_API_URL) {
+          try {
+            // Plan plugin API — https://github.com/plan-player-analytics/Plan
+            console.log(`[mcstats] Fetching: ${process.env.MC_STATS_API_URL}/v1/player?player=${encodeURIComponent(username)}`);
+            const planData = await fetchJSON(
+              `${process.env.MC_STATS_API_URL}/v1/player?player=${encodeURIComponent(username)}`
+            );
+            console.log(`[mcstats] Response:`, JSON.stringify(planData).slice(0, 500));
+
+            const t = planData?.data;
+            const s = planData?.data?.kill_data;
+
+            if (t) {
+              const playtimeMs  = t.playtime ?? t.playtime_millis ?? 0;
+              const hrs         = Math.floor(playtimeMs / 3600000);
+              const mins        = Math.floor((playtimeMs % 3600000) / 60000);
+              const playtimeStr = playtimeMs > 0 ? `${hrs}h ${mins}m` : 'N/A';
+              const kills       = s?.player_kills ?? t?.player_kill_count ?? t?.kills ?? 0;
+              const deaths      = s?.deaths ?? t?.deaths ?? t?.death_count ?? 0;
+              const mobKills    = s?.mob_kills ?? t?.mob_kill_count ?? 'N/A';
+              const sessions    = t?.session_count ?? t?.sessions ?? 'N/A';
+              const lastSeen    = t?.last_seen   ? `<t:${Math.floor(new Date(t.last_seen).getTime()/1000)}:R>`   : 'N/A';
+              const registered  = t?.registered  ? `<t:${Math.floor(new Date(t.registered).getTime()/1000)}:D>` : 'N/A';
+              const kd          = deaths > 0 ? (kills / deaths).toFixed(2) : `${kills}`;
+
+              statsFields = [
+                { name: 'Kills',       value: `${kills}`,       inline: true },
+                { name: 'Deaths',      value: `${deaths}`,      inline: true },
+                { name: 'K/D Ratio',   value: kd,               inline: true },
+                { name: 'Playtime',    value: playtimeStr,       inline: true },
+                { name: 'Mob Kills',   value: `${mobKills}`,    inline: true },
+                { name: 'Sessions',    value: `${sessions}`,    inline: true },
+                { name: 'Last Seen',   value: lastSeen,         inline: true },
+                { name: 'Registered',  value: registered,       inline: true },
+              ];
+            }
+          } catch (planErr) {
+            console.error('[mcstats] Plan API error:', planErr.message);
+          }
+        }
+
+        // Step 3 — check if player is currently online on the server
+        const serverStatus = await getMCServerStatus(MC_STATUS_IP, MC_STATUS_PORT);
+        const onlineNow = serverStatus?.players?.list?.some(
+          p => p.name?.toLowerCase() === username.toLowerCase()
+        ) ?? false;
+
+        const embed = new EmbedBuilder()
+          .setColor(onlineNow ? 0x57f287 : COLORS.primary)
+          .setTitle(`⛏️ ${profile.name} — MC Stats`)
+          .setThumbnail(skinHead)
+          .setImage(skinFull)
+          .setDescription([
+            onlineNow
+              ? '🟢 **Currently online on AmethMC!**'
+              : '⚫ Currently offline',
+            '',
+            '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+          ].join('\n'))
+          .addFields(
+            { name: '👤 Username', value: `\`${profile.name}\``, inline: true },
+            { name: '🆔 UUID',     value: `\`${formatted}\``,    inline: false },
+            ...statsFields,
+          )
+          .setFooter({
+            text: statsFields.length === 0
+              ? '⚠️ Detailed stats require a server plugin — contact admin to enable'
+              : 'Stats from AmethMC server',
+          })
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [embed] });
+
+      } catch (err) {
+        console.error('mcstats error:', err.message);
+        return interaction.editReply(`❌ Could not fetch stats for **${username}**. Try again later.`);
+      }
+    }
+
+    // ── TRIVIA COMMAND ──
+    if (commandName === 'trivia') {
+      const channelId = interaction.channelId;
+
+      if (activeTriviaGames.has(channelId)) {
+        return interaction.reply({ content: '⚠️ A trivia game is already active in this channel! Answer the current question first.', ephemeral: true });
+      }
+
+      // Pick a random question
+      const qIndex   = Math.floor(Math.random() * TRIVIA_QUESTIONS.length);
+      const question = TRIVIA_QUESTIONS[qIndex];
+
+      // Shuffle choices while keeping track of correct answer
+      const shuffled = question.choices
+        .map((text, i) => ({ text, correct: i === question.a }))
+        .sort(() => Math.random() - 0.5);
+
+      const correctIndex = shuffled.findIndex(c => c.correct);
+      const LETTER = ['A', 'B', 'C', 'D'];
+      const STYLES = [ButtonStyle.Primary, ButtonStyle.Success, ButtonStyle.Danger, ButtonStyle.Secondary];
+
+      // Store game state
+      activeTriviaGames.set(channelId, {
+        userId:       interaction.user.id, // who started it (anyone can answer)
+        correctIndex,
+        question:     question.q,
+        choices:      shuffled.map(c => c.text),
+        reward:       question.reward,
+        answered:     new Set(),           // track who already answered
+        startedAt:    Date.now(),
+      });
+
+      const row = new ActionRowBuilder().addComponents(
+        shuffled.map((c, i) =>
+          new ButtonBuilder()
+            .setCustomId(`trivia_answer:${channelId}:${i}`)
+            .setLabel(`${LETTER[i]}. ${c.text}`)
+            .setStyle(STYLES[i])
+        )
+      );
+
+      const embed = new EmbedBuilder()
+        .setColor(0xf0b429)
+        .setTitle('🧠 AmethMC Trivia!')
+        .setDescription([
+          `**${question.q}**`,
+          '',
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+          shuffled.map((c, i) => `${LETTER[i]}. ${c.text}`).join('\n'),
+          '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        ].join('\n'))
+        .addFields({ name: '🪙 Reward', value: `**${question.reward} coins** for a correct answer!`, inline: true })
+        .setFooter({ text: 'First correct answer wins! • 30 second time limit' })
+        .setTimestamp();
+
+      await interaction.reply({ embeds: [embed], components: [row] });
+
+      // Auto-expire after 30 seconds
+      setTimeout(async () => {
+        const game = activeTriviaGames.get(channelId);
+        if (!game) return;
+        activeTriviaGames.delete(channelId);
+
+        const correct = game.choices[game.correctIndex];
+        const expireEmbed = new EmbedBuilder()
+          .setColor(0x4f545c)
+          .setTitle('⏰ Trivia — Time\'s Up!')
+          .setDescription(`Nobody answered in time!\n\n✅ The correct answer was: **${correct}**`)
+          .setTimestamp();
+
+        try {
+          const ch = await client.channels.fetch(channelId).catch(() => null);
+          if (ch) await ch.send({ embeds: [expireEmbed] });
+        } catch { /* ignore */ }
+      }, 30000);
+
+      return;
     }
 
     // ── ANNOUNCE COMMAND ──
@@ -5458,6 +5853,82 @@ client.on('interactionCreate', async interaction => {
 
   // ── BUTTONS ──
   if (interaction.isButton()) {
+    // ── TRIVIA ANSWER ──
+    if (interaction.customId.startsWith('trivia_answer:')) {
+      const parts     = interaction.customId.split(':');
+      const channelId = parts[1];
+      const chosen    = parseInt(parts[2]);
+      const game      = activeTriviaGames.get(channelId);
+
+      if (!game) {
+        return interaction.reply({ content: '⏰ This trivia question has already expired!', ephemeral: true });
+      }
+
+      // One answer per user
+      if (game.answered.has(interaction.user.id)) {
+        return interaction.reply({ content: '⚠️ You already answered this question!', ephemeral: true });
+      }
+      game.answered.add(interaction.user.id);
+
+      const correct       = game.choices[game.correctIndex];
+      const isCorrect     = chosen === game.correctIndex;
+      const LETTER        = ['A', 'B', 'C', 'D'];
+
+      if (isCorrect) {
+        // Remove game so no one else can win
+        activeTriviaGames.delete(channelId);
+
+        // Award coins
+        const user = await getUser(interaction.user.id);
+        user.username = interaction.user.tag;
+        user.coins += game.reward;
+        await user.save();
+
+        // Check achievements
+        await grantManualAchievement(interaction.user.id, interaction.user.tag, 'trivia_first', client);
+
+        // Update trivia wins count for trivia_10 achievement
+        const wins = (await Achievement.countDocuments({ userId: interaction.user.id, key: { $in: ['trivia_first', 'trivia_10'] } }));
+        if (wins >= 10) {
+          await grantManualAchievement(interaction.user.id, interaction.user.tag, 'trivia_10', client);
+        }
+
+        const winEmbed = new EmbedBuilder()
+          .setColor(0x57f287)
+          .setTitle('🧠 Trivia — Correct Answer!')
+          .setDescription([
+            `🎉 <@${interaction.user.id}> got it right!`,
+            '',
+            `✅ **${LETTER[chosen]}. ${correct}**`,
+            '',
+            `🪙 **+${game.reward} coins** added to your balance!`,
+            `💳 New balance: **${user.coins} coins**`,
+          ].join('\n'))
+          .setTimestamp();
+
+        // Disable all buttons
+        const disabledRow = new ActionRowBuilder().addComponents(
+          game.choices.map((c, i) =>
+            new ButtonBuilder()
+              .setCustomId(`trivia_done:${i}`)
+              .setLabel(`${LETTER[i]}. ${c}`)
+              .setStyle(i === game.correctIndex ? ButtonStyle.Success : ButtonStyle.Secondary)
+              .setDisabled(true)
+          )
+        );
+
+        await interaction.update({ components: [disabledRow] });
+        await interaction.followUp({ embeds: [winEmbed] });
+        return;
+      } else {
+        // Wrong answer — tell them quietly, game continues for others
+        return interaction.reply({
+          content: `❌ Wrong! You answered **${LETTER[chosen]}. ${game.choices[chosen]}**.\nThe game continues for other members!`,
+          ephemeral: true,
+        });
+      }
+    }
+
     // ── REACTION ROLES BUTTONS ──
     if (interaction.customId === 'rr_open_menu' || interaction.customId.startsWith('rr_btn_')) {
       return handleRRInteraction(interaction);
@@ -6293,6 +6764,11 @@ const commandsList = [
     .addChannelOption(o => o.setName('channel').setDescription('Channel to post in (default: current)').setRequired(false)),
   new SlashCommandBuilder().setName('mcplayer').setDescription('Look up a Minecraft player by username')
     .addStringOption(o => o.setName('username').setDescription('Minecraft username').setRequired(true)),
+  new SlashCommandBuilder().setName('mcstats').setDescription('View a Minecraft player\'s stats on AmethMC')
+    .addStringOption(o => o.setName('username').setDescription('Minecraft username').setRequired(true)),
+  new SlashCommandBuilder().setName('achievements').setDescription('View your unlocked achievements (or another member\'s)')
+    .addUserOption(o => o.setName('user').setDescription('Member to check (default: yourself)').setRequired(false)),
+  new SlashCommandBuilder().setName('trivia').setDescription('Start a Minecraft trivia question — first correct answer wins coins!'),
   new SlashCommandBuilder().setName('embed').setDescription('Post a custom embed (admin only)')
     .addStringOption(o => o.setName('title').setDescription('Embed title').setRequired(false))
     .addStringOption(o => o.setName('description').setDescription('Embed description').setRequired(false))
