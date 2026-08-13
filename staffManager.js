@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────
-// GOLDENHEART SMP — STAFF MANAGER MODULE
-// Standalone file — MongoDB backed
+// AMETHMC — STAFF MANAGER MODULE
+// Role-based — reads directly from Discord roles
+// Auto-updates live panel on role changes
 // ─────────────────────────────────────────
 const {
   SlashCommandBuilder,
@@ -10,141 +11,159 @@ const {
 const mongoose = require('mongoose');
 
 // ─────────────────────────────────────────
-// ROLE DEFINITIONS (order = display order)
+// DISCORD ROLE ID → STAFF ROLE MAPPING
+// These are your actual Discord role IDs
 // ─────────────────────────────────────────
-const STAFF_ROLES = {
-  owner: { label: 'Owner', emoji: '👑', color: 0xffd700 },
-  admin: { label: 'Admin', emoji: '🛡️', color: 0xed4245 },
-  moderator: { label: 'Moderator', emoji: '🔨', color: 0x5865f2 },
-  event_manager: { label: 'Event Manager', emoji: '🎉', color: 0xeb459e },
-  helper: { label: 'Helper', emoji: '🤝', color: 0x57f287 },
-  chat_mod: { label: 'Chat Mod', emoji: '💬', color: 0xf0b429 },
-  mc_chat_mod: { label: 'MC Chat Mod', emoji: '⛏️', color: 0x3dd68c },
-  dev_manager: { label: 'Helping Developer & Manager', emoji: '🧑‍💻', color: 0x9b59b6 },
-};
-
-const ROLE_ORDER = [
-  'owner', 'admin', 'moderator', 'event_manager',
-  'helper', 'chat_mod', 'mc_chat_mod', 'dev_manager',
+const DISCORD_ROLE_MAP = [
+  { roleId: '1432277402763137087', label: 'Owner',                    emoji: '👑', color: 0xffd700 },
+  { roleId: '1432277402763137087', label: 'Owner',                    emoji: '👑', color: 0xffd700 },
+  { roleId: '1508415936632324266', label: 'Admin',                    emoji: '🛡️', color: 0xed4245 },
+  { roleId: '1432277404046331984', label: 'Moderator',                emoji: '🔨', color: 0x5865f2 },
+  { roleId: '1519698770026168420', label: 'Event Manager',            emoji: '🎉', color: 0xeb459e },
+  { roleId: '1432274922788622368', label: 'Helper',                   emoji: '🤝', color: 0x57f287 },
+  { roleId: '1432277404864483390', label: 'Chat Moderator',           emoji: '💬', color: 0xf0b429 },
+  { roleId: '1433055763051446272', label: 'MC Chat Moderator',        emoji: '⛏️', color: 0x3dd68c },
+  { roleId: '1432273598198054912', label: 'Developer & Manager',      emoji: '🧑‍💻', color: 0x9b59b6 },
 ];
 
-const ROLE_CHOICES = ROLE_ORDER.map(key => ({
-  name: `${STAFF_ROLES[key].emoji} ${STAFF_ROLES[key].label}`,
-  value: key,
-}));
+// Remove duplicate (first two are the same ID — deduplicate)
+const STAFF_ROLE_DEFS = DISCORD_ROLE_MAP.filter(
+  (v, i, a) => a.findIndex(t => t.roleId === v.roleId) === i
+);
 
 // ─────────────────────────────────────────
-// MONGODB SCHEMA / MODEL
+// LIVE PANEL SCHEMA — stores the message to edit
 // ─────────────────────────────────────────
-const StaffMemberSchema = new mongoose.Schema({
-  userId: { type: String, required: true },
-  role: { type: String, required: true, enum: ROLE_ORDER },
-  addedBy: String,
-  addedAt: { type: Date, default: Date.now },
+const StaffPanelSchema = new mongoose.Schema({
+  guildId:   { type: String, required: true, unique: true },
+  channelId: String,
+  messageId: String,
 });
-// One user can hold multiple roles, but not the SAME role twice
-StaffMemberSchema.index({ userId: 1, role: 1 }, { unique: true });
-
-const StaffMember = mongoose.models.StaffMember || mongoose.model('StaffMember', StaffMemberSchema);
+const StaffPanel = mongoose.models.StaffPanel || mongoose.model('StaffPanel', StaffPanelSchema);
 
 // ─────────────────────────────────────────
-// DB HELPERS
+// BUILD EMBED — reads live from guild roles
 // ─────────────────────────────────────────
-async function addStaffMember(userId, role, addedBy) {
-  return StaffMember.findOneAndUpdate(
-    { userId, role },
-    { userId, role, addedBy, addedAt: new Date() },
-    { upsert: true, new: true }
-  );
-}
-
-async function removeStaffMember(userId, role) {
-  const res = await StaffMember.deleteOne({ userId, role });
-  return res.deletedCount > 0;
-}
-
-async function getAllStaff() {
-  return StaffMember.find({}).lean();
-}
-
-async function getStaffByRole(role) {
-  return StaffMember.find({ role }).lean();
-}
-
-// ─────────────────────────────────────────
-// EMBED BUILDER
-// ─────────────────────────────────────────
-function buildStaffEmbed(staffList, guild) {
-  const grouped = {};
-  for (const key of ROLE_ORDER) grouped[key] = [];
-  for (const entry of staffList) {
-    if (grouped[entry.role]) grouped[entry.role].push(entry.userId);
-  }
+async function buildStaffEmbed(guild) {
+  // Fetch all members so role cache is complete
+  await guild.members.fetch().catch(() => {});
 
   const embed = new EmbedBuilder()
-    .setColor(0xf0b429)
-    .setTitle('🏰 GoldenHeart SMP — Staff Team')
+    .setColor(0x9b59b6)
+    .setTitle('💎 AmethMC — Staff Team')
     .setDescription([
-      '> Meet the team that keeps GoldenHeart SMP running smoothly!',
-      '> Have a question or an issue? Reach out to the right team below.',
+      '> Meet the team that keeps **AmethMC** running smoothly!',
+      '> Need help? Reach out to the right team below.',
       '',
       '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
     ].join('\n'))
-    .setThumbnail(guild?.iconURL({ dynamic: true, size: 256 }) || null)
-    .setFooter({ text: `GoldenHeart SMP • ${staffList.length} staff member${staffList.length !== 1 ? 's' : ''} • Updated` })
+    .setThumbnail(guild.iconURL({ dynamic: true, size: 256 }) || null)
     .setTimestamp();
 
-  let hasAny = false;
-  for (const key of ROLE_ORDER) {
-    const ids = grouped[key];
-    if (ids.length === 0) continue;
-    hasAny = true;
-    const meta = STAFF_ROLES[key];
-    const mentions = ids.map(id => `<@${id}>`).join('\n');
+  let totalStaff = 0;
+
+  for (const def of STAFF_ROLE_DEFS) {
+    const role = guild.roles.cache.get(def.roleId);
+    if (!role) continue;
+
+    // Get all members with this role (filter bots)
+    const members = role.members.filter(m => !m.user.bot);
+    if (members.size === 0) continue;
+
+    totalStaff += members.size;
+    const mentions = members.map(m => `<@${m.id}>`).join('\n');
+
     embed.addFields({
-      name: `${meta.emoji}  ${meta.label}`,
+      name: `${def.emoji}  ${def.label}`,
       value: mentions,
       inline: true,
     });
   }
 
-  if (!hasAny) {
+  if (embed.data.fields?.length === 0) {
     embed.addFields({
-      name: '📋 No staff configured yet',
-      value: 'Use `/addstaff` to add the first staff member!',
+      name: '📋 No staff found',
+      value: 'No members have been assigned any staff roles yet.',
       inline: false,
     });
   }
 
+  embed.setFooter({ text: `AmethMC • ${totalStaff} staff member${totalStaff !== 1 ? 's' : ''} • Last updated` });
   return embed;
 }
 
 // ─────────────────────────────────────────
-// SLASH COMMAND DEFINITIONS (export & merge into your commandsList)
+// UPDATE LIVE PANEL — edits the pinned message
+// ─────────────────────────────────────────
+async function updateStaffPanel(client, guildId) {
+  try {
+    const panelData = await StaffPanel.findOne({ guildId });
+    if (!panelData?.channelId || !panelData?.messageId) return;
+
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return;
+
+    const channel = await client.channels.fetch(panelData.channelId).catch(() => null);
+    if (!channel) return;
+
+    const message = await channel.messages.fetch(panelData.messageId).catch(() => null);
+    if (!message) return;
+
+    const embed = await buildStaffEmbed(guild);
+    await message.edit({ embeds: [embed] });
+    console.log('✅ Staff panel updated');
+  } catch (err) {
+    console.error('Staff panel update error:', err.message);
+  }
+}
+
+// ─────────────────────────────────────────
+// SLASH COMMAND DEFINITIONS
 // ─────────────────────────────────────────
 const staffCommandsData = [
   new SlashCommandBuilder()
     .setName('staff')
-    .setDescription('📋 View the GoldenHeart SMP staff team'),
+    .setDescription('View the AmethMC staff team'),
 
   new SlashCommandBuilder()
-    .setName('addstaff')
-    .setDescription('➕ Add or update a staff member (Admin only)')
-    .addUserOption(o => o.setName('user').setDescription('The user to add as staff').setRequired(true))
-    .addStringOption(o => o.setName('role').setDescription('Staff role to assign').setRequired(true).addChoices(...ROLE_CHOICES)),
-
-  new SlashCommandBuilder()
-    .setName('removestaff')
-    .setDescription('➖ Remove a staff member from a role (Admin only)')
-    .addUserOption(o => o.setName('user').setDescription('The user to remove').setRequired(true))
-    .addStringOption(o => o.setName('role').setDescription('Staff role to remove').setRequired(true).addChoices(...ROLE_CHOICES)),
+    .setName('staffpanel')
+    .setDescription('Post a live auto-updating staff panel (Admin only)')
+    .addChannelOption(o =>
+      o.setName('channel')
+        .setDescription('Channel to post the panel in (default: current)')
+        .setRequired(false)
+    ),
 ];
 
 // ─────────────────────────────────────────
-// INIT — wires up interactionCreate listener
-// Call this once in your main file after client is ready
+// INIT
 // ─────────────────────────────────────────
 function initStaffManager(client) {
+
+  // ── Listen for role changes and auto-update panel ──
+  client.on('guildMemberUpdate', async (oldMember, newMember) => {
+    if (newMember.guild.id !== newMember.guild.id) return;
+
+    // Check if any staff role was added or removed
+    const staffRoleIds = new Set(STAFF_ROLE_DEFS.map(d => d.roleId));
+    const oldRoles = new Set(oldMember.roles.cache.keys());
+    const newRoles = new Set(newMember.roles.cache.keys());
+
+    let staffRoleChanged = false;
+    for (const id of staffRoleIds) {
+      if (oldRoles.has(id) !== newRoles.has(id)) {
+        staffRoleChanged = true;
+        break;
+      }
+    }
+
+    if (staffRoleChanged) {
+      console.log(`[StaffManager] Role change detected for ${newMember.user.tag} — updating panel`);
+      await updateStaffPanel(client, newMember.guild.id);
+    }
+  });
+
+  // ── Slash commands ──
   client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -152,93 +171,47 @@ function initStaffManager(client) {
     if (interaction.commandName === 'staff') {
       await interaction.deferReply();
       try {
-        const staffList = await getAllStaff();
-        const embed = buildStaffEmbed(staffList, interaction.guild);
+        const embed = await buildStaffEmbed(interaction.guild);
         return interaction.editReply({ embeds: [embed] });
       } catch (err) {
-        console.error('Staff list fetch error:', err);
+        console.error('Staff list error:', err);
         return interaction.editReply('❌ Failed to load staff list.');
       }
     }
 
-    // ── /addstaff ──
-    if (interaction.commandName === 'addstaff') {
+    // ── /staffpanel ──
+    if (interaction.commandName === 'staffpanel') {
       if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-        return interaction.reply({ content: '❌ Only admins can use this command.', ephemeral: true });
+        return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
       }
 
-      const target = interaction.options.getUser('user');
-      const roleKey = interaction.options.getString('role');
-      const meta = STAFF_ROLES[roleKey];
+      await interaction.deferReply({ ephemeral: true });
 
-      if (!meta) return interaction.reply({ content: '❌ Invalid role.', ephemeral: true });
-      if (target.bot) return interaction.reply({ content: '❌ Bots cannot be staff members.', ephemeral: true });
+      const channel = interaction.options.getChannel('channel') || interaction.channel;
+      const embed   = await buildStaffEmbed(interaction.guild);
+      const msg     = await channel.send({ embeds: [embed] });
 
-      try {
-        await addStaffMember(target.id, roleKey, interaction.user.id);
+      // Save panel location
+      await StaffPanel.findOneAndUpdate(
+        { guildId: interaction.guild.id },
+        { guildId: interaction.guild.id, channelId: channel.id, messageId: msg.id },
+        { upsert: true }
+      );
 
-        const embed = new EmbedBuilder()
-          .setTitle('✅ Staff Member Added')
-          .setColor(0x57f287)
-          .setDescription(`<@${target.id}> has been added as **${meta.emoji} ${meta.label}**!`)
-          .addFields(
-            { name: '👤 User', value: `${target.tag}`, inline: true },
-            { name: '🏷️ Role', value: `${meta.emoji} ${meta.label}`, inline: true },
-            { name: '👮 Added By', value: `<@${interaction.user.id}>`, inline: true },
-          )
-          .setThumbnail(target.displayAvatarURL({ dynamic: true }))
-          .setTimestamp();
-
-        return interaction.reply({ embeds: [embed] });
-      } catch (err) {
-        console.error('Add staff error:', err);
-        return interaction.reply({ content: '❌ Failed to add staff member. They may already hold this role.', ephemeral: true });
-      }
-    }
-
-    // ── /removestaff ──
-    if (interaction.commandName === 'removestaff') {
-      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-        return interaction.reply({ content: '❌ Only admins can use this command.', ephemeral: true });
-      }
-
-      const target = interaction.options.getUser('user');
-      const roleKey = interaction.options.getString('role');
-      const meta = STAFF_ROLES[roleKey];
-
-      try {
-        const removed = await removeStaffMember(target.id, roleKey);
-        if (!removed) {
-          return interaction.reply({ content: `⚠️ <@${target.id}> doesn't hold the **${meta.label}** role.`, ephemeral: true });
-        }
-
-        const embed = new EmbedBuilder()
-          .setTitle('🗑️ Staff Member Removed')
-          .setColor(0xed4245)
-          .setDescription(`<@${target.id}> has been removed from **${meta.emoji} ${meta.label}**.`)
-          .addFields({ name: '👮 Removed By', value: `<@${interaction.user.id}>`, inline: true })
-          .setTimestamp();
-
-        return interaction.reply({ embeds: [embed] });
-      } catch (err) {
-        console.error('Remove staff error:', err);
-        return interaction.reply({ content: '❌ Failed to remove staff member.', ephemeral: true });
-      }
+      return interaction.editReply({
+        content: `✅ Staff panel posted in <#${channel.id}>! It will auto-update whenever a staff role is assigned or removed.`,
+      });
     }
   });
 
-  console.log('✅ Staff Manager initialized');
+  console.log('✅ Staff Manager initialized (Discord role-based, live panel)');
 }
 
 module.exports = {
   initStaffManager,
   staffCommandsData,
-  STAFF_ROLES,
-  ROLE_ORDER,
-  StaffMember,
-  addStaffMember,
-  removeStaffMember,
-  getAllStaff,
-  getStaffByRole,
+  STAFF_ROLE_DEFS,
+  StaffPanel,
   buildStaffEmbed,
+  updateStaffPanel,
 };
