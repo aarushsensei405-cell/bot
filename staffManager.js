@@ -74,7 +74,7 @@ async function buildStaffEmbed(guild) {
     const mentions = members.map(m => `<@${m.id}>`).join('\n');
 
     embed.addFields({
-      name: `${def.emoji}  ${def.label}`,
+      name: `${def.emoji}  <@&${def.roleId}>`,
       value: mentions,
       inline: true,
     });
