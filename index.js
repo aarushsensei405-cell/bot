@@ -28,7 +28,7 @@ const https = require('https');
 const http = require('http');
 const mongoose = require('mongoose');
 const { initWelcomeManager, welcomeCommandsData } = require('./welcomeManager');
-const { initStaffManager, staffCommandsData } = require('./staffManager');
+const { initStaffManager, handleStaffInteraction, staffCommandsData } = require('./staffManager');
 const { casinoCommandsData, handleCasinoInteraction } = require('./casinoManager');
 const { rrCommandsData, handleRRSetup, handleRRInteraction } = require('./reactionRolesManager');
 const { aiChatCommandsData, handleAIInteraction, handleAIMessage } = require('./aiChatManager');
@@ -3077,6 +3077,10 @@ client.on('messageCreate', async message => {
 // INTERACTION CREATE HANDLER
 // ─────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
+  // ── STAFF MANAGER ── (must be first)
+  const staffHandled = await handleStaffInteraction(interaction, client);
+  if (staffHandled) return;
+
   // ── MODALS ──
   if (interaction.isModalSubmit()) {
     if (interaction.customId.startsWith('edit_price_modal:')) {
@@ -4465,6 +4469,7 @@ client.on('interactionCreate', async interaction => {
     if (commandName === 'mcstats') {
       const username = interaction.options.getString('username');
       await interaction.deferReply();
+      console.log(`[mcstats] MC_STATS_API_URL = "${process.env.MC_STATS_API_URL}"`);
 
       try {
         // Step 1 — resolve UUID from Mojang
