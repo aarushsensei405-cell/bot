@@ -219,7 +219,8 @@ const staffCommandsData = [
 ];
 
 // ─────────────────────────────────────────
-// INIT
+// INIT — only wires guildMemberUpdate
+// All interactions handled via handleStaffInteraction
 // ─────────────────────────────────────────
 function initStaffManager(client) {
 
@@ -241,452 +242,323 @@ function initStaffManager(client) {
     }
   });
 
-  // ── Interactions ──────────────────────────────────────────────────────────
-  client.on('interactionCreate', async interaction => {
+  console.log('✅ Staff Manager initialized — fully customizable live panel');
+}
 
-    // ── SLASH COMMANDS ──
-    if (interaction.isChatInputCommand()) {
+// ─────────────────────────────────────────
+// HANDLE STAFF INTERACTION
+// Called from index.js interactionCreate
+// Returns true if it handled the interaction
+// ─────────────────────────────────────────
+async function handleStaffInteraction(interaction, client) {
 
-      // /staff
-      if (interaction.commandName === 'staff') {
-        await interaction.deferReply();
-        try {
-          const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
-          const embed  = await buildStaffEmbed(interaction.guild, config);
-          return interaction.editReply({ embeds: [embed] });
-        } catch (err) {
-          console.error('Staff fetch error:', err);
-          return interaction.editReply('❌ Failed to load staff list.');
-        }
-      }
+  // ── SLASH COMMANDS ──
+  if (interaction.isChatInputCommand()) {
 
-      // /staffpanel
-      if (interaction.commandName === 'staffpanel') {
-        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
-          return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
-
-        await interaction.deferReply({ ephemeral: true });
-
-        const channel = interaction.options.getChannel('channel') || interaction.channel;
-
-        // Get or create config with default roles
-        let config = await StaffPanel.findOne({ guildId: interaction.guild.id });
-        if (!config) {
-          config = new StaffPanel({
-            guildId: interaction.guild.id,
-            roles:   DEFAULT_ROLES,
-          });
-        }
-
-        const embed = await buildStaffEmbed(interaction.guild, config);
-        const msg   = await channel.send({ embeds: [embed] });
-
-        config.channelId = channel.id;
-        config.messageId = msg.id;
-        await config.save();
-
-        return interaction.editReply({
-          content: `✅ Staff panel posted in <#${channel.id}>!\nIt auto-updates when roles change.\nUse \`/staffconfig\` to customize it.`,
-        });
-      }
-
-      // /staffconfig
-      if (interaction.commandName === 'staffconfig') {
-        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator))
-          return interaction.reply({ content: '❌ Admins only.', ephemeral: true });
-
-        let config = await StaffPanel.findOne({ guildId: interaction.guild.id });
-        if (!config) {
-          config = new StaffPanel({ guildId: interaction.guild.id, roles: DEFAULT_ROLES });
-          await config.save();
-        }
-
-        const menuEmbed = buildConfigMenuEmbed(config);
-        const rows      = buildConfigButtons();
-        return interaction.reply({ embeds: [menuEmbed], components: rows, ephemeral: true });
-      }
-    }
-
-    // ── BUTTONS ──
-    if (interaction.isButton()) {
-
-      // guard — only admins
-      if (!interaction.member?.permissions?.has(PermissionFlagsBits.Administrator)) return;
-
-      const id = interaction.customId;
-
-      // ── Preview ──
-      if (id === 'sp_preview') {
+    // /staff
+    if (interaction.commandName === 'staff') {
+      await interaction.deferReply();
+      try {
         const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
         const embed  = await buildStaffEmbed(interaction.guild, config);
-        return interaction.reply({ embeds: [embed], ephemeral: true });
+        await interaction.editReply({ embeds: [embed] });
+      } catch (err) {
+        console.error('Staff fetch error:', err);
+        await interaction.editReply('❌ Failed to load staff list.');
       }
-
-      // ── Toggle member count ──
-      if (id === 'sp_toggle_count') {
-        const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
-        config.showMemberCount = !config.showMemberCount;
-        await config.save();
-        await updateStaffPanel(client, interaction.guild.id);
-        const menuEmbed = buildConfigMenuEmbed(config);
-        return interaction.update({ embeds: [menuEmbed], components: buildConfigButtons() });
-      }
-
-      // ── Modals for text fields ──
-      if (['sp_edit_title', 'sp_edit_description', 'sp_edit_color', 'sp_edit_footer'].includes(id)) {
-        const fieldMap = {
-          sp_edit_title:       { label: 'Panel Title',       customId: 'val_title',       style: TextInputStyle.Short,     placeholder: '💎 AmethMC — Staff Team' },
-          sp_edit_description: { label: 'Panel Description', customId: 'val_description', style: TextInputStyle.Paragraph, placeholder: '> Meet the team...' },
-          sp_edit_color:       { label: 'Embed Color (hex)', customId: 'val_color',        style: TextInputStyle.Short,     placeholder: '9b59b6' },
-          sp_edit_footer:      { label: 'Footer Text',       customId: 'val_footer',       style: TextInputStyle.Short,     placeholder: 'AmethMC Staff Team' },
-        };
-        const f = fieldMap[id];
-        const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
-
-        const currentVal = {
-          val_title:       config?.title       || '',
-          val_description: config?.description || '',
-          val_color:       config?.color       || '9b59b6',
-          val_footer:      config?.footerText  || '',
-        }[f.customId];
-
-        const modal = new ModalBuilder()
-          .setCustomId(`sp_modal_${f.customId}`)
-          .setTitle(f.label);
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId(f.customId)
-              .setLabel(f.label)
-              .setStyle(f.style)
-              .setValue(currentVal)
-              .setPlaceholder(f.placeholder)
-              .setRequired(true)
-          )
-        );
-        return interaction.showModal(modal);
-      }
-
-      // ── Add Role modal ──
-      if (id === 'sp_add_role') {
-        const modal = new ModalBuilder()
-          .setCustomId('sp_modal_add_role')
-          .setTitle('➕ Add Staff Role');
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId('add_role_id')
-              .setLabel('Role ID')
-              .setStyle(TextInputStyle.Short)
-              .setPlaceholder('e.g. 1432277402763137087')
-              .setRequired(true)
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId('add_role_emoji')
-              .setLabel('Emoji')
-              .setStyle(TextInputStyle.Short)
-              .setPlaceholder('e.g. 👑')
-              .setRequired(true)
-              .setMaxLength(10)
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId('add_role_display')
-              .setLabel('Custom Display Name (leave blank for role name)')
-              .setStyle(TextInputStyle.Short)
-              .setRequired(false)
-              .setPlaceholder('e.g. Server Owner')
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId('add_role_showas')
-              .setLabel('Show members as: mention / username / tag')
-              .setStyle(TextInputStyle.Short)
-              .setPlaceholder('mention')
-              .setRequired(true)
-              .setMaxLength(10)
-          ),
-        );
-        return interaction.showModal(modal);
-      }
-
-      // ── Edit Role — show select menu of current roles ──
-      if (id === 'sp_edit_role') {
-        const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
-        if (!config?.roles?.length)
-          return interaction.reply({ content: '⚠️ No roles configured yet. Use ➕ Add Role first.', ephemeral: true });
-
-        const options = config.roles.sort((a,b) => a.order - b.order).map((r, i) => {
-          const role = interaction.guild.roles.cache.get(r.roleId);
-          return new StringSelectMenuOptionBuilder()
-            .setLabel(`${r.emoji} ${role?.name || r.roleId}`)
-            .setDescription(`Show as: ${r.showAs}${r.displayName ? ` | Label: ${r.displayName}` : ''}`)
-            .setValue(`edit_${i}`);
-        });
-
-        const row = new ActionRowBuilder().addComponents(
-          new StringSelectMenuBuilder()
-            .setCustomId('sp_select_edit_role')
-            .setPlaceholder('Select a role to edit...')
-            .addOptions(options)
-        );
-        return interaction.reply({ content: '✏️ Select the role you want to edit:', components: [row], ephemeral: true });
-      }
-
-      // ── Remove Role — show select menu ──
-      if (id === 'sp_remove_role') {
-        const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
-        if (!config?.roles?.length)
-          return interaction.reply({ content: '⚠️ No roles configured.', ephemeral: true });
-
-        const options = config.roles.sort((a,b) => a.order - b.order).map((r, i) => {
-          const role = interaction.guild.roles.cache.get(r.roleId);
-          return new StringSelectMenuOptionBuilder()
-            .setLabel(`${r.emoji} ${role?.name || r.roleId}`)
-            .setValue(`remove_${i}`);
-        });
-
-        const row = new ActionRowBuilder().addComponents(
-          new StringSelectMenuBuilder()
-            .setCustomId('sp_select_remove_role')
-            .setPlaceholder('Select a role to remove...')
-            .addOptions(options)
-        );
-        return interaction.reply({ content: '➖ Select the role to remove:', components: [row], ephemeral: true });
-      }
-
-      // ── Reorder — show modal ──
-      if (id === 'sp_reorder_role') {
-        const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
-        if (!config?.roles?.length)
-          return interaction.reply({ content: '⚠️ No roles configured.', ephemeral: true });
-
-        const currentOrder = config.roles
-          .sort((a,b) => a.order - b.order)
-          .map((r, i) => {
-            const role = interaction.guild.roles.cache.get(r.roleId);
-            return `${i + 1}. ${role?.name || r.roleId}`;
-          }).join('\n');
-
-        const modal = new ModalBuilder()
-          .setCustomId('sp_modal_reorder')
-          .setTitle('🔀 Reorder Roles');
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId('new_order')
-              .setLabel('Enter role IDs in order (one per line)')
-              .setStyle(TextInputStyle.Paragraph)
-              .setPlaceholder(config.roles.map(r => r.roleId).join('\n'))
-              .setValue(config.roles.sort((a,b) => a.order - b.order).map(r => r.roleId).join('\n'))
-              .setRequired(true)
-          )
-        );
-        return interaction.showModal(modal);
-      }
+      return true;
     }
 
-    // ── SELECT MENUS ──
-    if (interaction.isStringSelectMenu()) {
-
-      // Edit role selection
-      if (interaction.customId === 'sp_select_edit_role') {
-        const index = parseInt(interaction.values[0].replace('edit_', ''));
-        const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
-        const sorted = config.roles.sort((a,b) => a.order - b.order);
-        const def = sorted[index];
-        if (!def) return interaction.reply({ content: '❌ Role not found.', ephemeral: true });
-
-        const modal = new ModalBuilder()
-          .setCustomId(`sp_modal_edit_role_${index}`)
-          .setTitle('✏️ Edit Staff Role');
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId('edit_emoji')
-              .setLabel('Emoji')
-              .setStyle(TextInputStyle.Short)
-              .setValue(def.emoji || '👤')
-              .setRequired(true)
-              .setMaxLength(10)
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId('edit_display')
-              .setLabel('Custom Display Name (blank = use Discord role name)')
-              .setStyle(TextInputStyle.Short)
-              .setValue(def.displayName || '')
-              .setRequired(false)
-              .setPlaceholder('e.g. Server Owner')
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId('edit_showas')
-              .setLabel('Show as: mention / username / tag')
-              .setStyle(TextInputStyle.Short)
-              .setValue(def.showAs || 'mention')
-              .setRequired(true)
-              .setMaxLength(10)
-          ),
-        );
-        return interaction.showModal(modal);
+    // /staffpanel
+    if (interaction.commandName === 'staffpanel') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        await interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+        return true;
       }
-
-      // Remove role selection
-      if (interaction.customId === 'sp_select_remove_role') {
-        const index  = parseInt(interaction.values[0].replace('remove_', ''));
-        const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
-        const sorted = config.roles.sort((a,b) => a.order - b.order);
-        const def    = sorted[index];
-        if (!def) return interaction.reply({ content: '❌ Role not found.', ephemeral: true });
-
-        const role = interaction.guild.roles.cache.get(def.roleId);
-        config.roles = config.roles.filter(r => r.roleId !== def.roleId);
-        await config.save();
-        await updateStaffPanel(client, interaction.guild.id);
-
-        const menuEmbed = buildConfigMenuEmbed(config);
-        return interaction.update({ content: `✅ Removed **${role?.name || def.roleId}** from the panel.`, embeds: [menuEmbed], components: buildConfigButtons() });
+      await interaction.deferReply({ ephemeral: true });
+      const channel = interaction.options.getChannel('channel') || interaction.channel;
+      let config = await StaffPanel.findOne({ guildId: interaction.guild.id });
+      if (!config) {
+        config = new StaffPanel({ guildId: interaction.guild.id, roles: DEFAULT_ROLES });
       }
+      const embed = await buildStaffEmbed(interaction.guild, config);
+      const msg   = await channel.send({ embeds: [embed] });
+      config.channelId = channel.id;
+      config.messageId = msg.id;
+      await config.save();
+      await interaction.editReply({
+        content: `✅ Staff panel posted in <#${channel.id}>!\nIt auto-updates when roles change.\nUse \`/staffconfig\` to customize it.`,
+      });
+      return true;
     }
 
-    // ── MODALS ──
-    if (interaction.isModalSubmit()) {
-
-      // Title
-      if (interaction.customId === 'sp_modal_val_title') {
-        const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
-        config.title = interaction.fields.getTextInputValue('val_title');
-        await config.save();
-        await updateStaffPanel(client, interaction.guild.id);
-        const menuEmbed = buildConfigMenuEmbed(config);
-        return interaction.update({ embeds: [menuEmbed], components: buildConfigButtons() });
+    // /staffconfig
+    if (interaction.commandName === 'staffconfig') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        await interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+        return true;
       }
-
-      // Description
-      if (interaction.customId === 'sp_modal_val_description') {
-        const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
-        config.description = interaction.fields.getTextInputValue('val_description');
+      let config = await StaffPanel.findOne({ guildId: interaction.guild.id });
+      if (!config) {
+        config = new StaffPanel({ guildId: interaction.guild.id, roles: DEFAULT_ROLES });
         await config.save();
-        await updateStaffPanel(client, interaction.guild.id);
-        const menuEmbed = buildConfigMenuEmbed(config);
-        return interaction.update({ embeds: [menuEmbed], components: buildConfigButtons() });
       }
-
-      // Color
-      if (interaction.customId === 'sp_modal_val_color') {
-        const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
-        const raw    = interaction.fields.getTextInputValue('val_color').replace('#', '');
-        if (!/^[0-9a-fA-F]{6}$/.test(raw))
-          return interaction.reply({ content: '❌ Invalid hex color. Use format like `9b59b6`.', ephemeral: true });
-        config.color = raw;
-        await config.save();
-        await updateStaffPanel(client, interaction.guild.id);
-        const menuEmbed = buildConfigMenuEmbed(config);
-        return interaction.update({ embeds: [menuEmbed], components: buildConfigButtons() });
-      }
-
-      // Footer
-      if (interaction.customId === 'sp_modal_val_footer') {
-        const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
-        config.footerText = interaction.fields.getTextInputValue('val_footer');
-        await config.save();
-        await updateStaffPanel(client, interaction.guild.id);
-        const menuEmbed = buildConfigMenuEmbed(config);
-        return interaction.update({ embeds: [menuEmbed], components: buildConfigButtons() });
-      }
-
-      // Add Role
-      if (interaction.customId === 'sp_modal_add_role') {
-        const roleId  = interaction.fields.getTextInputValue('add_role_id').trim();
-        const emoji   = interaction.fields.getTextInputValue('add_role_emoji').trim();
-        const display = interaction.fields.getTextInputValue('add_role_display').trim();
-        const showAs  = ['mention','username','tag'].includes(
-          interaction.fields.getTextInputValue('add_role_showas').trim().toLowerCase()
-        ) ? interaction.fields.getTextInputValue('add_role_showas').trim().toLowerCase() : 'mention';
-
-        // Validate role exists
-        const discordRole = interaction.guild.roles.cache.get(roleId);
-        if (!discordRole)
-          return interaction.reply({ content: `❌ Role ID \`${roleId}\` not found in this server.`, ephemeral: true });
-
-        const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
-        if (!config)
-          return interaction.reply({ content: '❌ Run `/staffpanel` first to create a panel.', ephemeral: true });
-
-        // Check duplicate
-        if (config.roles.some(r => r.roleId === roleId))
-          return interaction.reply({ content: `⚠️ <@&${roleId}> is already in the panel.`, ephemeral: true });
-
-        config.roles.push({
-          roleId,
-          emoji,
-          displayName: display,
-          showAs,
-          order: config.roles.length,
-        });
-        await config.save();
-        await updateStaffPanel(client, interaction.guild.id);
-
-        const menuEmbed = buildConfigMenuEmbed(config);
-        return interaction.update({ content: `✅ Added <@&${roleId}> to the panel!`, embeds: [menuEmbed], components: buildConfigButtons() });
-      }
-
-      // Edit Role
-      if (interaction.customId.startsWith('sp_modal_edit_role_')) {
-        const index  = parseInt(interaction.customId.replace('sp_modal_edit_role_', ''));
-        const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
-        const sorted = config.roles.sort((a,b) => a.order - b.order);
-        const def    = sorted[index];
-        if (!def) return interaction.reply({ content: '❌ Role not found.', ephemeral: true });
-
-        const emoji   = interaction.fields.getTextInputValue('edit_emoji').trim();
-        const display = interaction.fields.getTextInputValue('edit_display').trim();
-        const showAs  = ['mention','username','tag'].includes(
-          interaction.fields.getTextInputValue('edit_showas').trim().toLowerCase()
-        ) ? interaction.fields.getTextInputValue('edit_showas').trim().toLowerCase() : 'mention';
-
-        // Update the matching role entry
-        const roleEntry = config.roles.find(r => r.roleId === def.roleId);
-        if (roleEntry) {
-          roleEntry.emoji       = emoji;
-          roleEntry.displayName = display;
-          roleEntry.showAs      = showAs;
-        }
-        config.markModified('roles');
-        await config.save();
-        await updateStaffPanel(client, interaction.guild.id);
-
-        const menuEmbed = buildConfigMenuEmbed(config);
-        return interaction.update({ embeds: [menuEmbed], components: buildConfigButtons() });
-      }
-
-      // Reorder
-      if (interaction.customId === 'sp_modal_reorder') {
-        const input  = interaction.fields.getTextInputValue('new_order');
-        const lines  = input.split('\n').map(l => l.trim()).filter(Boolean);
-        const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
-
-        lines.forEach((roleId, i) => {
-          const entry = config.roles.find(r => r.roleId === roleId);
-          if (entry) entry.order = i;
-        });
-        config.markModified('roles');
-        await config.save();
-        await updateStaffPanel(client, interaction.guild.id);
-
-        const menuEmbed = buildConfigMenuEmbed(config);
-        return interaction.update({ embeds: [menuEmbed], components: buildConfigButtons() });
-      }
+      const menuEmbed = buildConfigMenuEmbed(config);
+      const rows      = buildConfigButtons();
+      await interaction.reply({ embeds: [menuEmbed], components: rows, ephemeral: true });
+      return true;
     }
-  });
 
-  console.log('✅ Staff Manager initialized — fully customizable live panel');
+    return false;
+  }
+
+  // ── BUTTONS ──
+  if (interaction.isButton() && interaction.customId.startsWith('sp_')) {
+    if (!interaction.member?.permissions?.has(PermissionFlagsBits.Administrator)) {
+      await interaction.reply({ content: '❌ Admins only.', ephemeral: true });
+      return true;
+    }
+
+    const id = interaction.customId;
+
+    if (id === 'sp_preview') {
+      const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
+      const embed  = await buildStaffEmbed(interaction.guild, config);
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+      return true;
+    }
+
+    if (id === 'sp_toggle_count') {
+      const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
+      config.showMemberCount = !config.showMemberCount;
+      await config.save();
+      await updateStaffPanel(client, interaction.guild.id);
+      await interaction.update({ embeds: [buildConfigMenuEmbed(config)], components: buildConfigButtons() });
+      return true;
+    }
+
+    if (['sp_edit_title','sp_edit_description','sp_edit_color','sp_edit_footer'].includes(id)) {
+      const fieldMap = {
+        sp_edit_title:       { label: 'Panel Title',       customId: 'val_title',       style: TextInputStyle.Short,     placeholder: '💎 AmethMC — Staff Team' },
+        sp_edit_description: { label: 'Panel Description', customId: 'val_description', style: TextInputStyle.Paragraph, placeholder: '> Meet the team...' },
+        sp_edit_color:       { label: 'Embed Color (hex)', customId: 'val_color',       style: TextInputStyle.Short,     placeholder: '9b59b6' },
+        sp_edit_footer:      { label: 'Footer Text',       customId: 'val_footer',      style: TextInputStyle.Short,     placeholder: 'AmethMC Staff Team' },
+      };
+      const f      = fieldMap[id];
+      const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
+      const currentVal = {
+        val_title:       config?.title       || '',
+        val_description: config?.description || '',
+        val_color:       config?.color       || '9b59b6',
+        val_footer:      config?.footerText  || '',
+      }[f.customId];
+
+      const modal = new ModalBuilder().setCustomId(`sp_modal_${f.customId}`).setTitle(f.label);
+      modal.addComponents(new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId(f.customId).setLabel(f.label).setStyle(f.style)
+          .setValue(currentVal).setPlaceholder(f.placeholder).setRequired(true)
+      ));
+      await interaction.showModal(modal);
+      return true;
+    }
+
+    if (id === 'sp_add_role') {
+      const modal = new ModalBuilder().setCustomId('sp_modal_add_role').setTitle('➕ Add Staff Role');
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('add_role_id').setLabel('Role ID').setStyle(TextInputStyle.Short).setPlaceholder('e.g. 1432277402763137087').setRequired(true)),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('add_role_emoji').setLabel('Emoji').setStyle(TextInputStyle.Short).setPlaceholder('e.g. 👑').setRequired(true).setMaxLength(10)),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('add_role_display').setLabel('Custom Display Name (blank = use role name)').setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder('e.g. Server Owner')),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('add_role_showas').setLabel('Show members as: mention / username / tag').setStyle(TextInputStyle.Short).setPlaceholder('mention').setRequired(true).setMaxLength(10)),
+      );
+      await interaction.showModal(modal);
+      return true;
+    }
+
+    if (id === 'sp_edit_role') {
+      const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
+      if (!config?.roles?.length) {
+        await interaction.reply({ content: '⚠️ No roles configured yet. Use ➕ Add Role first.', ephemeral: true });
+        return true;
+      }
+      const options = config.roles.sort((a,b) => a.order - b.order).map((r, i) => {
+        const role = interaction.guild.roles.cache.get(r.roleId);
+        return new StringSelectMenuOptionBuilder()
+          .setLabel(`${r.emoji} ${role?.name || r.roleId}`.slice(0, 100))
+          .setDescription(`Show as: ${r.showAs}${r.displayName ? ` | Label: ${r.displayName}` : ''}`.slice(0, 100))
+          .setValue(`edit_${i}`);
+      });
+      await interaction.reply({ content: '✏️ Select the role to edit:', components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId('sp_select_edit_role').setPlaceholder('Select a role...').addOptions(options))], ephemeral: true });
+      return true;
+    }
+
+    if (id === 'sp_remove_role') {
+      const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
+      if (!config?.roles?.length) {
+        await interaction.reply({ content: '⚠️ No roles configured.', ephemeral: true });
+        return true;
+      }
+      const options = config.roles.sort((a,b) => a.order - b.order).map((r, i) => {
+        const role = interaction.guild.roles.cache.get(r.roleId);
+        return new StringSelectMenuOptionBuilder()
+          .setLabel(`${r.emoji} ${role?.name || r.roleId}`.slice(0, 100))
+          .setValue(`remove_${i}`);
+      });
+      await interaction.reply({ content: '➖ Select the role to remove:', components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId('sp_select_remove_role').setPlaceholder('Select a role...').addOptions(options))], ephemeral: true });
+      return true;
+    }
+
+    if (id === 'sp_reorder_role') {
+      const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
+      if (!config?.roles?.length) {
+        await interaction.reply({ content: '⚠️ No roles configured.', ephemeral: true });
+        return true;
+      }
+      const modal = new ModalBuilder().setCustomId('sp_modal_reorder').setTitle('🔀 Reorder Roles');
+      modal.addComponents(new ActionRowBuilder().addComponents(
+        new TextInputBuilder().setCustomId('new_order').setLabel('Paste role IDs in order (one per line)').setStyle(TextInputStyle.Paragraph)
+          .setValue(config.roles.sort((a,b) => a.order - b.order).map(r => r.roleId).join('\n')).setRequired(true)
+      ));
+      await interaction.showModal(modal);
+      return true;
+    }
+
+    return false;
+  }
+
+  // ── SELECT MENUS ──
+  if (interaction.isStringSelectMenu()) {
+
+    if (interaction.customId === 'sp_select_edit_role') {
+      const index  = parseInt(interaction.values[0].replace('edit_', ''));
+      const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
+      const def    = config.roles.sort((a,b) => a.order - b.order)[index];
+      if (!def) { await interaction.reply({ content: '❌ Role not found.', ephemeral: true }); return true; }
+
+      const modal = new ModalBuilder().setCustomId(`sp_modal_edit_role_${index}`).setTitle('✏️ Edit Staff Role');
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('edit_emoji').setLabel('Emoji').setStyle(TextInputStyle.Short).setValue(def.emoji || '👤').setRequired(true).setMaxLength(10)),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('edit_display').setLabel('Custom Display Name (blank = Discord role name)').setStyle(TextInputStyle.Short).setValue(def.displayName || '').setRequired(false).setPlaceholder('e.g. Server Owner')),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('edit_showas').setLabel('Show as: mention / username / tag').setStyle(TextInputStyle.Short).setValue(def.showAs || 'mention').setRequired(true).setMaxLength(10)),
+      );
+      await interaction.showModal(modal);
+      return true;
+    }
+
+    if (interaction.customId === 'sp_select_remove_role') {
+      const index  = parseInt(interaction.values[0].replace('remove_', ''));
+      const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
+      const def    = config.roles.sort((a,b) => a.order - b.order)[index];
+      if (!def) { await interaction.reply({ content: '❌ Role not found.', ephemeral: true }); return true; }
+
+      const role = interaction.guild.roles.cache.get(def.roleId);
+      config.roles = config.roles.filter(r => r.roleId !== def.roleId);
+      await config.save();
+      await updateStaffPanel(client, interaction.guild.id);
+      await interaction.update({ content: `✅ Removed **${role?.name || def.roleId}** from the panel.`, embeds: [buildConfigMenuEmbed(config)], components: buildConfigButtons() });
+      return true;
+    }
+
+    return false;
+  }
+
+  // ── MODALS ──
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('sp_modal')) {
+
+    if (interaction.customId === 'sp_modal_val_title') {
+      const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
+      config.title = interaction.fields.getTextInputValue('val_title');
+      await config.save(); await updateStaffPanel(client, interaction.guild.id);
+      await interaction.update({ embeds: [buildConfigMenuEmbed(config)], components: buildConfigButtons() });
+      return true;
+    }
+
+    if (interaction.customId === 'sp_modal_val_description') {
+      const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
+      config.description = interaction.fields.getTextInputValue('val_description');
+      await config.save(); await updateStaffPanel(client, interaction.guild.id);
+      await interaction.update({ embeds: [buildConfigMenuEmbed(config)], components: buildConfigButtons() });
+      return true;
+    }
+
+    if (interaction.customId === 'sp_modal_val_color') {
+      const raw = interaction.fields.getTextInputValue('val_color').replace('#', '');
+      if (!/^[0-9a-fA-F]{6}$/.test(raw)) {
+        await interaction.reply({ content: '❌ Invalid hex. Use e.g. `9b59b6`.', ephemeral: true });
+        return true;
+      }
+      const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
+      config.color = raw; await config.save(); await updateStaffPanel(client, interaction.guild.id);
+      await interaction.update({ embeds: [buildConfigMenuEmbed(config)], components: buildConfigButtons() });
+      return true;
+    }
+
+    if (interaction.customId === 'sp_modal_val_footer') {
+      const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
+      config.footerText = interaction.fields.getTextInputValue('val_footer');
+      await config.save(); await updateStaffPanel(client, interaction.guild.id);
+      await interaction.update({ embeds: [buildConfigMenuEmbed(config)], components: buildConfigButtons() });
+      return true;
+    }
+
+    if (interaction.customId === 'sp_modal_add_role') {
+      const roleId  = interaction.fields.getTextInputValue('add_role_id').trim();
+      const emoji   = interaction.fields.getTextInputValue('add_role_emoji').trim();
+      const display = interaction.fields.getTextInputValue('add_role_display').trim();
+      const showAs  = ['mention','username','tag'].includes(interaction.fields.getTextInputValue('add_role_showas').trim().toLowerCase())
+        ? interaction.fields.getTextInputValue('add_role_showas').trim().toLowerCase() : 'mention';
+
+      const discordRole = interaction.guild.roles.cache.get(roleId);
+      if (!discordRole) { await interaction.reply({ content: `❌ Role ID \`${roleId}\` not found.`, ephemeral: true }); return true; }
+
+      const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
+      if (!config) { await interaction.reply({ content: '❌ Run `/staffpanel` first.', ephemeral: true }); return true; }
+      if (config.roles.some(r => r.roleId === roleId)) { await interaction.reply({ content: `⚠️ <@&${roleId}> is already in the panel.`, ephemeral: true }); return true; }
+
+      config.roles.push({ roleId, emoji, displayName: display, showAs, order: config.roles.length });
+      await config.save(); await updateStaffPanel(client, interaction.guild.id);
+      await interaction.update({ content: `✅ Added <@&${roleId}>!`, embeds: [buildConfigMenuEmbed(config)], components: buildConfigButtons() });
+      return true;
+    }
+
+    if (interaction.customId.startsWith('sp_modal_edit_role_')) {
+      const index  = parseInt(interaction.customId.replace('sp_modal_edit_role_', ''));
+      const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
+      const def    = config.roles.sort((a,b) => a.order - b.order)[index];
+      if (!def) { await interaction.reply({ content: '❌ Role not found.', ephemeral: true }); return true; }
+
+      const entry = config.roles.find(r => r.roleId === def.roleId);
+      if (entry) {
+        entry.emoji       = interaction.fields.getTextInputValue('edit_emoji').trim();
+        entry.displayName = interaction.fields.getTextInputValue('edit_display').trim();
+        entry.showAs      = ['mention','username','tag'].includes(interaction.fields.getTextInputValue('edit_showas').trim().toLowerCase())
+          ? interaction.fields.getTextInputValue('edit_showas').trim().toLowerCase() : 'mention';
+      }
+      config.markModified('roles');
+      await config.save(); await updateStaffPanel(client, interaction.guild.id);
+      await interaction.update({ embeds: [buildConfigMenuEmbed(config)], components: buildConfigButtons() });
+      return true;
+    }
+
+    if (interaction.customId === 'sp_modal_reorder') {
+      const lines  = interaction.fields.getTextInputValue('new_order').split('\n').map(l => l.trim()).filter(Boolean);
+      const config = await StaffPanel.findOne({ guildId: interaction.guild.id });
+      lines.forEach((roleId, i) => { const e = config.roles.find(r => r.roleId === roleId); if (e) e.order = i; });
+      config.markModified('roles');
+      await config.save(); await updateStaffPanel(client, interaction.guild.id);
+      await interaction.update({ embeds: [buildConfigMenuEmbed(config)], components: buildConfigButtons() });
+      return true;
+    }
+
+    return false;
+  }
+
+  return false;
 }
 
 module.exports = {
   initStaffManager,
+  handleStaffInteraction,
   staffCommandsData,
   StaffPanel,
   buildStaffEmbed,
