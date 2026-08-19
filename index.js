@@ -32,6 +32,7 @@ const { initStaffManager, handleStaffInteraction, staffCommandsData } = require(
 const { casinoCommandsData, handleCasinoInteraction } = require('./casinoManager');
 const { rrCommandsData, handleRRSetup, handleRRInteraction } = require('./reactionRolesManager');
 const { aiChatCommandsData, handleAIInteraction, handleAIMessage } = require('./aiChatManager');
+const cron = require('node-cron');
 require('dotenv').config();
 
 // ─────────────────────────────────────────
@@ -445,6 +446,63 @@ const RulebookSchema = new mongoose.Schema({
   }],
 });
 
+// ── NEW FEATURE SCHEMAS ──
+const LinkBlockerSchema = new mongoose.Schema({
+  guildId: { type: String, required: true, unique: true },
+  enabled: { type: Boolean, default: true },
+  whitelistedRoles: [String],
+  whitelistedChannels: [String],
+  warnMessage: { type: String, default: '⚠️ Links are not allowed in this server!' }
+});
+
+const DailyTriviaConfigSchema = new mongoose.Schema({
+  guildId: { type: String, required: true, unique: true },
+  channelId: String,
+  postTime: { type: String, default: '12:00' },
+  enabled: { type: Boolean, default: false },
+  timezone: { type: String, default: 'America/New_York' }
+});
+
+const DailyTriviaAnswerSchema = new mongoose.Schema({
+  messageId: String,
+  guildId: String,
+  userId: String,
+  username: String,
+  answers: [Number],
+  score: Number,
+  submittedAt: { type: Date, default: Date.now }
+});
+
+const TriviaBattleStatsSchema = new mongoose.Schema({
+  userId: { type: String, required: true, unique: true },
+  username: String,
+  wins: { type: Number, default: 0 },
+  losses: { type: Number, default: 0 },
+  draws: { type: Number, default: 0 },
+  totalScore: { type: Number, default: 0 },
+  lastPlayed: Date
+});
+
+const MinigameConfigSchema = new mongoose.Schema({
+  guildId: { type: String, required: true, unique: true },
+  channelId: String,
+  enabled: { type: Boolean, default: false }
+});
+
+const MinigameStatsSchema = new mongoose.Schema({
+  userId: { type: String, required: true },
+  guildId: { type: String, required: true },
+  username: String,
+  mathWins: { type: Number, default: 0 },
+  wordWins: { type: Number, default: 0 },
+  memoryWins: { type: Number, default: 0 },
+  reactionWins: { type: Number, default: 0 },
+  totalWins: { type: Number, default: 0 },
+  coinsEarned: { type: Number, default: 0 },
+  lastPlayed: Date
+});
+MinigameStatsSchema.index({ userId: 1, guildId: 1 }, { unique: true });
+
 // ─────────────────────────────────────────
 // MONGODB MODELS
 // ─────────────────────────────────────────
@@ -466,6 +524,12 @@ const AFK = mongoose.models.AFK || mongoose.model('AFK', AFKSchema);
 const Invite = mongoose.models.Invite || mongoose.model('Invite', InviteSchema);
 const Application = mongoose.models.Application || mongoose.model('Application', ApplicationSchema);
 const Rulebook = mongoose.models.Rulebook || mongoose.model('Rulebook', RulebookSchema);
+const LinkBlocker = mongoose.models.LinkBlocker || mongoose.model('LinkBlocker', LinkBlockerSchema);
+const DailyTriviaConfig = mongoose.models.DailyTriviaConfig || mongoose.model('DailyTriviaConfig', DailyTriviaConfigSchema);
+const DailyTriviaAnswer = mongoose.models.DailyTriviaAnswer || mongoose.model('DailyTriviaAnswer', DailyTriviaAnswerSchema);
+const TriviaBattleStats = mongoose.models.TriviaBattleStats || mongoose.model('TriviaBattleStats', TriviaBattleStatsSchema);
+const MinigameConfig = mongoose.models.MinigameConfig || mongoose.model('MinigameConfig', MinigameConfigSchema);
+const MinigameStats = mongoose.models.MinigameStats || mongoose.model('MinigameStats', MinigameStatsSchema);
 
 const MCStatusConfigSchema = new mongoose.Schema({
   guildId:   { type: String, required: true, unique: true },
@@ -2180,6 +2244,26 @@ client.once('ready', async () => {
   
   await initializeRulebooks();
   initStaffManager(client);
+
+  // ── Initialize new features ──
+  // Link blocker (messageCreate listener added below)
+  console.log('✅ Link Blocker initialized');
+  
+  // Daily Trivia cron job
+  cron.schedule('0 * * * *', async () => {
+    const configs = await DailyTriviaConfig.find({ enabled: true });
+    const currentHour = new Date().getHours();
+    const currentMinute = new Date().getMinutes();
+    for (const config of configs) {
+      const [hour, minute] = config.postTime.split(':').map(Number);
+      if (currentHour === hour && currentMinute === 0) {
+        await postDailyTrivia(client, config.guildId, config.channelId);
+      }
+    }
+  });
+  console.log('✅ Daily Trivia initialized');
+  console.log('✅ Trivia Battle initialized');
+  console.log('✅ Minigame Manager initialized');
   
   const giveaways = await Giveaway.find({ ended: false });
   const now = Date.now();
@@ -2825,6 +2909,26 @@ client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
   if (message.guild) {
+    // ── LINK BLOCKER ──
+    const linkConfig = await LinkBlocker.findOne({ guildId: message.guild.id });
+    if (linkConfig && linkConfig.enabled) {
+      if (!linkConfig.whitelistedChannels.includes(message.channel.id)) {
+        if (!message.member.roles.cache.some(r => linkConfig.whitelistedRoles.includes(r.id))) {
+          if (URL_REGEX.test(message.content)) {
+            try {
+              await message.delete();
+              const warning = await message.channel.send(linkConfig.warnMessage);
+              setTimeout(() => warning.delete().catch(() => {}), 5000);
+              console.log(`[LinkBlocker] Deleted link from ${message.author.tag}`);
+            } catch (err) {
+              console.error('[LinkBlocker] Failed to delete message:', err);
+            }
+            return; // Stop processing if link was blocked
+          }
+        }
+      }
+    }
+
     const msg = message.content.toLowerCase();
     const content = message.content;
 
@@ -3298,6 +3402,376 @@ client.on('interactionCreate', async interaction => {
     // ── AI CHAT COMMANDS ──
     if (commandName.startsWith('ai')) {
       return handleAIInteraction(interaction, client, getUser, getLevelFromXP);
+    }
+
+    // ── LINK BLOCKER COMMANDS ──
+    if (commandName === 'linkblocker') {
+      if (!interaction.member.permissions.has('ManageGuild')) {
+        return interaction.reply({ content: '❌ You need Manage Server permission', ephemeral: true });
+      }
+      const sub = interaction.options.getSubcommand();
+      let config = await LinkBlocker.findOne({ guildId: interaction.guild.id });
+      if (!config) config = new LinkBlocker({ guildId: interaction.guild.id });
+
+      switch (sub) {
+        case 'enable':
+          config.enabled = true;
+          await config.save();
+          await interaction.reply({ content: '✅ Link blocking enabled', ephemeral: true });
+          break;
+        case 'disable':
+          config.enabled = false;
+          await config.save();
+          await interaction.reply({ content: '🔓 Link blocking disabled', ephemeral: true });
+          break;
+        case 'whitelist-role': {
+          const role = interaction.options.getRole('role');
+          if (!config.whitelistedRoles.includes(role.id)) {
+            config.whitelistedRoles.push(role.id);
+            await config.save();
+          }
+          await interaction.reply({ content: `✅ ${role} can now post links`, ephemeral: true });
+          break;
+        }
+        case 'remove-role': {
+          const role = interaction.options.getRole('role');
+          config.whitelistedRoles = config.whitelistedRoles.filter(id => id !== role.id);
+          await config.save();
+          await interaction.reply({ content: `❌ ${role} removed from whitelist`, ephemeral: true });
+          break;
+        }
+        case 'whitelist-channel': {
+          const channel = interaction.options.getChannel('channel');
+          if (!config.whitelistedChannels.includes(channel.id)) {
+            config.whitelistedChannels.push(channel.id);
+            await config.save();
+          }
+          await interaction.reply({ content: `✅ Links allowed in ${channel}`, ephemeral: true });
+          break;
+        }
+        case 'remove-channel': {
+          const channel = interaction.options.getChannel('channel');
+          config.whitelistedChannels = config.whitelistedChannels.filter(id => id !== channel.id);
+          await config.save();
+          await interaction.reply({ content: `❌ ${channel} removed from whitelist`, ephemeral: true });
+          break;
+        }
+        case 'set-message': {
+          const msg = interaction.options.getString('message');
+          config.warnMessage = msg;
+          await config.save();
+          await interaction.reply({ content: `✅ Warning message updated`, ephemeral: true });
+          break;
+        }
+        case 'status': {
+          const status = [
+            `**Link Blocker Status**`,
+            `Enabled: ${config.enabled ? '✅' : '❌'}`,
+            ``,
+            `**Whitelisted Roles:** ${config.whitelistedRoles.length ? config.whitelistedRoles.map(id => `<@&${id}>`).join(', ') : 'None'}`,
+            `**Whitelisted Channels:** ${config.whitelistedChannels.length ? config.whitelistedChannels.map(id => `<#${id}>`).join(', ') : 'None'}`,
+            ``,
+            `**Warning Message:** ${config.warnMessage}`
+          ].join('\n');
+          await interaction.reply({ content: status, ephemeral: true });
+          break;
+        }
+      }
+      return;
+    }
+
+    // ── DAILY TRIVIA COMMANDS ──
+    if (commandName === 'dailytrivia') {
+      if (!interaction.member.permissions.has('ManageGuild')) {
+        return interaction.reply({ content: '❌ You need Manage Server permission', ephemeral: true });
+      }
+      const sub = interaction.options.getSubcommand();
+      let config = await DailyTriviaConfig.findOne({ guildId: interaction.guild.id });
+      if (!config) config = new DailyTriviaConfig({ guildId: interaction.guild.id });
+
+      switch (sub) {
+        case 'setup': {
+          const channel = interaction.options.getChannel('channel');
+          config.channelId = channel.id;
+          await config.save();
+          await interaction.reply({ content: `✅ Daily trivia will post in ${channel}`, ephemeral: true });
+          break;
+        }
+        case 'settime': {
+          const time = interaction.options.getString('time');
+          if (!/^\d{1,2}:\d{2}$/.test(time)) {
+            await interaction.reply({ content: '❌ Invalid time format. Use HH:MM (e.g., 14:30)', ephemeral: true });
+            return;
+          }
+          config.postTime = time;
+          await config.save();
+          await interaction.reply({ content: `✅ Daily trivia will post at ${time} (24h format)`, ephemeral: true });
+          break;
+        }
+        case 'enable': {
+          if (!config.channelId) {
+            await interaction.reply({ content: '❌ Set a channel first with `/dailytrivia setup`', ephemeral: true });
+            return;
+          }
+          config.enabled = true;
+          await config.save();
+          await interaction.reply({ content: `✅ Daily trivia enabled! Will post at ${config.postTime}`, ephemeral: true });
+          break;
+        }
+        case 'disable': {
+          config.enabled = false;
+          await config.save();
+          await interaction.reply({ content: '🔕 Daily trivia disabled', ephemeral: true });
+          break;
+        }
+        case 'test': {
+          if (!config.channelId) {
+            await interaction.reply({ content: '❌ Set a channel first with `/dailytrivia setup`', ephemeral: true });
+            return;
+          }
+          await postDailyTrivia(interaction.client, interaction.guild.id, config.channelId);
+          await interaction.reply({ content: '✅ Test trivia posted!', ephemeral: true });
+          break;
+        }
+        case 'status': {
+          const status = [
+            `**Daily Trivia Configuration**`,
+            ``,
+            `Enabled: ${config.enabled ? '✅' : '❌'}`,
+            `Channel: ${config.channelId ? `<#${config.channelId}>` : 'Not set'}`,
+            `Post Time: ${config.postTime} (24h format)`,
+            ``,
+            `📊 **Question Pool:** ${HARD_TRIVIA_QUESTIONS.length} hard questions`,
+            `📅 **Daily Posts:** 5 random questions per day`
+          ].join('\n');
+          await interaction.reply({ content: status, ephemeral: true });
+          break;
+        }
+      }
+      return;
+    }
+
+    // ── TRIVIA BATTLE COMMANDS ──
+    if (commandName === 'queue') {
+      const guildId = interaction.guild.id;
+      const userId = interaction.user.id;
+      if (!triviaQueue.has(guildId)) triviaQueue.set(guildId, []);
+      const queue = triviaQueue.get(guildId);
+
+      if (queue.includes(userId)) {
+        await interaction.reply({ content: '⚠️ You are already in the queue!', ephemeral: true });
+        return;
+      }
+
+      queue.push(userId);
+
+      if (queue.length >= 2) {
+        const player1 = queue.shift();
+        const player2 = queue.shift();
+        await interaction.reply({ content: `🎮 Match found! <@${player1}> vs <@${player2}>\n\nCheck your DMs for the trivia battle!`, ephemeral: false });
+        await startTriviaBattle(interaction.client, player1, player2, guildId);
+      } else {
+        await interaction.reply({ content: '🔍 You have been added to the queue! Waiting for an opponent...\n\nYou will receive a DM when a match is found.', ephemeral: true });
+      }
+      return;
+    }
+
+    if (commandName === 'leavequeue') {
+      const guildId = interaction.guild.id;
+      const userId = interaction.user.id;
+      if (!triviaQueue.has(guildId)) {
+        await interaction.reply({ content: '❌ You are not in the queue.', ephemeral: true });
+        return;
+      }
+      const queue = triviaQueue.get(guildId);
+      const index = queue.indexOf(userId);
+      if (index === -1) {
+        await interaction.reply({ content: '❌ You are not in the queue.', ephemeral: true });
+        return;
+      }
+      queue.splice(index, 1);
+      await interaction.reply({ content: '✅ You have left the trivia battle queue.', ephemeral: true });
+      return;
+    }
+
+    if (commandName === 'triviabattlestats') {
+      const user = interaction.options.getUser('user') || interaction.user;
+      const stats = await TriviaBattleStats.findOne({ userId: user.id });
+      if (!stats) {
+        await interaction.reply({ content: `📊 ${user.tag} has not played any trivia battles yet!`, ephemeral: true });
+        return;
+      }
+      const totalGames = stats.wins + stats.losses + stats.draws;
+      const winRate = totalGames > 0 ? ((stats.wins / totalGames) * 100).toFixed(1) : '0.0';
+      const embed = new EmbedBuilder()
+        .setTitle(`🎮 Trivia Battle Stats - ${user.tag}`)
+        .setThumbnail(user.displayAvatarURL({ dynamic: true }))
+        .addFields(
+          { name: '🏆 Wins', value: stats.wins.toString(), inline: true },
+          { name: '💔 Losses', value: stats.losses.toString(), inline: true },
+          { name: '🤝 Draws', value: stats.draws.toString(), inline: true },
+          { name: '📊 Total Games', value: totalGames.toString(), inline: true },
+          { name: '📈 Win Rate', value: `${winRate}%`, inline: true },
+          { name: '⭐ Total Score', value: stats.totalScore.toString(), inline: true }
+        )
+        .setColor('#ffcc00')
+        .setTimestamp();
+      await interaction.reply({ embeds: [embed] });
+      return;
+    }
+
+    if (commandName === 'trivialeaderboard') {
+      const topPlayers = await TriviaBattleStats.find().sort({ wins: -1, totalScore: -1 }).limit(10).lean();
+      if (topPlayers.length === 0) {
+        await interaction.reply({ content: '📊 No trivia battles have been played yet!', ephemeral: true });
+        return;
+      }
+      const embed = new EmbedBuilder()
+        .setTitle('🏆 Trivia Battle Leaderboard')
+        .setDescription(
+          topPlayers.map((player, i) => {
+            const totalGames = player.wins + player.losses + player.draws;
+            const winRate = totalGames > 0 ? ((player.wins / totalGames) * 100).toFixed(1) : '0.0';
+            return `**${i + 1}.** ${player.username}\n` +
+                   `   🏆 ${player.wins}W | 💔 ${player.losses}L | 🤝 ${player.draws}D | 📈 ${winRate}%`;
+          }).join('\n\n')
+        )
+        .setColor('#ffcc00')
+        .setTimestamp();
+      await interaction.reply({ embeds: [embed] });
+      return;
+    }
+
+    // ── MINIGAME COMMANDS ──
+    if (commandName === 'minigame') {
+      if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        await interaction.reply({ content: '❌ You need Manage Server permission', ephemeral: true });
+        return;
+      }
+      const sub = interaction.options.getSubcommand();
+      let config = await MinigameConfig.findOne({ guildId: interaction.guild.id });
+      if (!config) config = new MinigameConfig({ guildId: interaction.guild.id });
+
+      switch (sub) {
+        case 'setchannel': {
+          const channel = interaction.options.getChannel('channel');
+          config.channelId = channel.id;
+          await config.save();
+          await interaction.reply({ content: `✅ Minigames will be hosted in ${channel}`, ephemeral: true });
+          break;
+        }
+        case 'enable': {
+          if (!config.channelId) {
+            await interaction.reply({ content: '❌ Set a channel first with `/minigame setchannel`', ephemeral: true });
+            return;
+          }
+          config.enabled = true;
+          await config.save();
+          await interaction.reply({ content: '✅ Minigames enabled!', ephemeral: true });
+          break;
+        }
+        case 'disable': {
+          config.enabled = false;
+          await config.save();
+          await interaction.reply({ content: '🔕 Minigames disabled', ephemeral: true });
+          break;
+        }
+        case 'status': {
+          const status = [
+            `**Minigame Configuration**`,
+            ``,
+            `Enabled: ${config.enabled ? '✅' : '❌'}`,
+            `Channel: ${config.channelId ? `<#${config.channelId}>` : 'Not set'}`,
+            ``,
+            `**Available Games:**`,
+            `🧮 Math Challenge`,
+            `📝 Word Scramble`,
+            `🧠 Memory Test`,
+            `⚡ Reaction Speed`
+          ].join('\n');
+          await interaction.reply({ content: status, ephemeral: true });
+          break;
+        }
+      }
+      return;
+    }
+
+    if (commandName === 'play') {
+      const config = await MinigameConfig.findOne({ guildId: interaction.guild.id });
+      if (!config || !config.enabled || !config.channelId) {
+        await interaction.reply({ content: '❌ Minigames are not enabled on this server!', ephemeral: true });
+        return;
+      }
+      const gameType = interaction.options.getString('game');
+      const guildId = interaction.guild.id;
+      const userId = interaction.user.id;
+
+      if (!minigameQueues.has(guildId)) {
+        minigameQueues.set(guildId, { math: [], word: [], memory: [], reaction: [] });
+      }
+      const queues = minigameQueues.get(guildId);
+      const queue = queues[gameType];
+
+      if (queue.includes(userId)) {
+        await interaction.reply({ content: '⚠️ You are already in this queue!', ephemeral: true });
+        return;
+      }
+      queue.push(userId);
+
+      if (queue.length >= 2) {
+        const player1 = queue.shift();
+        const player2 = queue.shift();
+        await interaction.reply({ content: `🎮 Match found! <@${player1}> vs <@${player2}>\n\nHead to <#${config.channelId}> to play!`, ephemeral: false });
+        await startMinigameMatch(interaction.client, player1, player2, guildId, gameType);
+      } else {
+        const gameNames = { math: 'Math Challenge', word: 'Word Scramble', memory: 'Memory Test', reaction: 'Reaction Speed' };
+        await interaction.reply({ content: `🔍 You joined the **${gameNames[gameType]}** queue! Waiting for an opponent...`, ephemeral: true });
+      }
+      return;
+    }
+
+    if (commandName === 'minigamestats') {
+      const user = interaction.options.getUser('user') || interaction.user;
+      const stats = await MinigameStats.findOne({ userId: user.id, guildId: interaction.guild.id });
+      if (!stats) {
+        await interaction.reply({ content: `📊 ${user.tag} hasn't played any minigames yet!`, ephemeral: true });
+        return;
+      }
+      const embed = new EmbedBuilder()
+        .setTitle(`🎮 Minigame Stats - ${user.tag}`)
+        .setThumbnail(user.displayAvatarURL({ dynamic: true }))
+        .addFields(
+          { name: '🏆 Total Wins', value: stats.totalWins.toString(), inline: true },
+          { name: '🪙 Coins Earned', value: stats.coinsEarned.toString(), inline: true },
+          { name: '📅 Last Played', value: stats.lastPlayed ? `<t:${Math.floor(stats.lastPlayed.getTime() / 1000)}:R>` : 'Never', inline: true },
+          { name: '🧮 Math Wins', value: stats.mathWins.toString(), inline: true },
+          { name: '📝 Word Wins', value: stats.wordWins.toString(), inline: true },
+          { name: '🧠 Memory Wins', value: stats.memoryWins.toString(), inline: true },
+          { name: '⚡ Reaction Wins', value: stats.reactionWins.toString(), inline: true }
+        )
+        .setColor('#00ff00')
+        .setTimestamp();
+      await interaction.reply({ embeds: [embed] });
+      return;
+    }
+
+    if (commandName === 'minigameleaderboard') {
+      const topPlayers = await MinigameStats.find({ guildId: interaction.guild.id }).sort({ totalWins: -1 }).limit(10).lean();
+      if (topPlayers.length === 0) {
+        await interaction.reply({ content: '📊 No minigames have been played yet!', ephemeral: true });
+        return;
+      }
+      const embed = new EmbedBuilder()
+        .setTitle('🏆 Minigame Leaderboard')
+        .setDescription(
+          topPlayers.map((player, i) => 
+            `**${i + 1}.** ${player.username} - ${player.totalWins} wins 🏆 | ${player.coinsEarned} 🪙`
+          ).join('\n')
+        )
+        .setColor('#00ff00')
+        .setTimestamp();
+      await interaction.reply({ embeds: [embed] });
+      return;
     }
 
     // ── SHOP COMMANDS ──
@@ -4952,6 +5426,17 @@ client.on('interactionCreate', async interaction => {
         setTimeout(() => endGiveaway(client, giveaway), ms);
         return interaction.reply({ content: `✅ Giveaway started in <#${channel.id}>!`, ephemeral: true });
       }
+      if (sub === 'end') {
+        if (!hasModPermission(interaction.member))
+          return interaction.reply({ content: '❌ No permission.', ephemeral: true });
+        
+        const messageId = interaction.options.getString('message_id');
+        const giveaway = await Giveaway.findOne({ messageId });
+        if (!giveaway) return interaction.reply({ content: '❌ Giveaway not found.', ephemeral: true });
+        if (giveaway.ended) return interaction.reply({ content: '❌ This giveaway has already ended.', ephemeral: true });
+        await endGiveaway(client, giveaway);
+        return interaction.reply({ content: '✅ Giveaway ended!', ephemeral: true });
+      }
       if (sub === 'reroll') {
         if (!hasModPermission(interaction.member))
           return interaction.reply({ content: '❌ No permission.', ephemeral: true });
@@ -5934,6 +6419,24 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
+    // ── TRIVIA BATTLE BUTTONS ──
+    if (interaction.customId.startsWith('triviabattle_')) {
+      const parts = interaction.customId.split('_');
+      const matchId = `${parts[1]}_${parts[2]}_${parts[3]}_${parts[4]}`;
+      const answerIndex = parseInt(parts[5]);
+      await handleTriviaBattleAnswer(interaction, matchId, answerIndex);
+      return;
+    }
+
+    // ── MINIGAME BUTTONS ──
+    if (interaction.customId.startsWith('minigame_')) {
+      const parts = interaction.customId.split('_');
+      const gameId = `${parts[1]}_${parts[2]}_${parts[3]}_${parts[4]}`;
+      const answerIndex = parseInt(parts[5]);
+      await handleMinigameAnswer(interaction, gameId, answerIndex);
+      return;
+    }
+
     // ── REACTION ROLES BUTTONS ──
     if (interaction.customId === 'rr_open_menu' || interaction.customId.startsWith('rr_btn_')) {
       return handleRRInteraction(interaction);
@@ -6623,6 +7126,499 @@ const categoryChoices = Object.keys(SHOP_CATEGORIES).map(key => {
   return { name: `${category.emoji} ${category.name}`, value: key };
 });
 
+// ═════════════════════════════════════════════════════════════════════════════
+// NEW FEATURES - LINK BLOCKER, DAILY TRIVIA, TRIVIA BATTLES, MINIGAMES
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────
+// LINK BLOCKER SYSTEM
+// ─────────────────────────────────────────
+const URL_REGEX = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|([a-zA-Z0-9-]+\.(com|net|org|io|gg|tv|me|co|xyz|app|dev)[^\s]*)/gi;
+
+// Initialize in messageCreate (added below)
+
+// ─────────────────────────────────────────
+// DAILY TRIVIA SYSTEM
+// ─────────────────────────────────────────
+const HARD_TRIVIA_QUESTIONS = [
+  { question: "In Minecraft's code, what is the internal ID name for the Dragon Egg block?", answers: ["dragon_egg", "ender_dragon_egg", "boss_egg", "end_egg"], correct: 0 },
+  { question: "What is the exact light level required to prevent hostile mob spawning?", answers: ["7", "8", "9", "10"], correct: 1 },
+  { question: "Which enchantment is mutually exclusive with Infinity on a bow?", answers: ["Flame", "Power", "Mending", "Punch"], correct: 2 },
+  { question: "What is the maximum number of bookshelves that affect an enchanting table?", answers: ["12", "15", "18", "20"], correct: 1 },
+  { question: "In which version was the Wither first introduced?", answers: ["1.3.1", "1.4.2", "1.5.1", "1.2.5"], correct: 1 },
+  { question: "What is the blast resistance value of Obsidian?", answers: ["1000", "1200", "1500", "1800"], correct: 1 },
+  { question: "How many unique banner patterns can be crafted in vanilla Minecraft (excluding loom)?", answers: ["6", "8", "10", "12"], correct: 0 },
+  { question: "What is the internal game tick speed in Minecraft (ticks per second)?", answers: ["10", "15", "20", "25"], correct: 2 },
+  { question: "Which potion effect increases mining speed but also causes arm shaking?", answers: ["Haste", "Speed", "Strength", "Hero of the Village"], correct: 0 },
+  { question: "What is the maximum stack size for Ender Pearls?", answers: ["16", "32", "64", "1"], correct: 0 },
+  { question: "In the End, how many End Gateways spawn after defeating the dragon?", answers: ["20", "16", "12", "24"], correct: 0 },
+  { question: "What is the exact hunger restoration value of a Cooked Porkchop?", answers: ["6", "7", "8", "9"], correct: 2 },
+  { question: "Which dimension has a build height limit of 256 blocks in versions before 1.18?", answers: ["Overworld only", "All dimensions", "Overworld and End", "Overworld and Nether"], correct: 1 },
+  { question: "What is the rarity color of Netherite items in the game code?", answers: ["Purple (Epic)", "Gold (Legendary)", "Aqua (Rare)", "Red (Unique)"], correct: 0 },
+  { question: "How many ancient debris blocks spawn per chunk on average in the Nether?", answers: ["1-2", "1.7", "2-3", "3-4"], correct: 1 },
+  { question: "What is the exact probability of a zombie spawning as a baby zombie?", answers: ["5%", "10%", "15%", "20%"], correct: 0 },
+  { question: "Which data value represents the 'sunflower' in the double plant block ID?", answers: ["0", "1", "2", "3"], correct: 0 },
+  { question: "What is the spawn weight of diamonds in ore generation (pre-1.18)?", answers: ["0.5", "1", "1.5", "2"], correct: 1 },
+  { question: "How many different wood types can be used to craft a single crafting table?", answers: ["Any 4 of the same type", "Any 4 mixed types", "Only oak", "Only oak or spruce"], correct: 1 },
+  { question: "What is the numerical ID of the achievement 'The End'?", answers: ["Achievement system was removed", "27", "33", "42"], correct: 0 },
+  { question: "How many seconds does it take for a item to despawn after being dropped?", answers: ["60", "120", "180", "300"], correct: 3 },
+  { question: "What is the radius (in blocks) of a beacon's maximum range at full power?", answers: ["40", "50", "60", "70"], correct: 1 },
+  { question: "Which ore generates at the highest average Y-level in 1.18+?", answers: ["Iron", "Coal", "Copper", "Gold"], correct: 1 },
+  { question: "What is the cooldown time (in seconds) for an Ender Pearl after use?", answers: ["0.5", "1", "1.5", "2"], correct: 1 },
+  { question: "How many eyes of ender are mathematically needed to guarantee finding a stronghold?", answers: ["12", "15", "Infinite (probability based)", "8"], correct: 2 },
+  { question: "What is the exact durability value of a Diamond Pickaxe?", answers: ["1461", "1562", "1200", "1800"], correct: 1 },
+  { question: "Which mob has the highest health points in vanilla Minecraft?", answers: ["Ender Dragon", "Wither", "Warden", "Elder Guardian"], correct: 0 },
+  { question: "What is the speed multiplier of Soul Speed III on soul soil?", answers: ["1.5x", "1.8x", "2.0x", "2.5x"], correct: 1 },
+  { question: "How many pixels tall is a single Minecraft block in the game's texture resolution?", answers: ["8", "16", "32", "64"], correct: 1 },
+  { question: "What is the maximum number of item frames that can be placed on a single block?", answers: ["1", "4", "6", "8"], correct: 2 }
+];
+
+global.dailyTriviaCache = new Map();
+
+function getRandomTriviaQuestions(count = 5) {
+  const shuffled = [...HARD_TRIVIA_QUESTIONS].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+}
+
+async function postDailyTrivia(client, guildId, channelId) {
+  try {
+    const channel = await client.channels.fetch(channelId).catch(() => null);
+    if (!channel) return;
+
+    const questions = getRandomTriviaQuestions(5);
+    
+    const embed = new EmbedBuilder()
+      .setTitle('🧠 DAILY HARDEST TRIVIA')
+      .setColor('#ff6b6b')
+      .setDescription(
+        `**Test your Minecraft knowledge with 5 of the hardest questions!**\n\n` +
+        `React with your answers using the number emojis.\n` +
+        `First correct answer for each question wins!\n\n` +
+        `─────────────────────────────`
+      )
+      .setFooter({ text: '🏆 Good luck!' })
+      .setTimestamp();
+
+    questions.forEach((q, i) => {
+      const answerText = q.answers.map((a, j) => `${['1️⃣', '2️⃣', '3️⃣', '4️⃣'][j]} ${a}`).join('\n');
+      embed.addFields({ name: `Question ${i + 1}`, value: `**${q.question}**\n\n${answerText}`, inline: false });
+    });
+
+    const message = await channel.send({ embeds: [embed] });
+    await message.react('1️⃣');
+    await message.react('2️⃣');
+    await message.react('3️⃣');
+    await message.react('4️⃣');
+
+    global.dailyTriviaCache.set(message.id, {
+      guildId,
+      questions,
+      postedAt: Date.now(),
+      winners: []
+    });
+
+    console.log(`[DailyTrivia] Posted daily trivia in ${channel.name}`);
+  } catch (err) {
+    console.error('[DailyTrivia] Failed to post:', err);
+  }
+}
+
+// ─────────────────────────────────────────
+// TRIVIA BATTLE SYSTEM
+// ─────────────────────────────────────────
+const BATTLE_TRIVIA_QUESTIONS = [
+  { question: "What material is required to craft a beacon?", answers: ["Nether Star", "Diamond", "Emerald", "Gold Block"], correct: 0 },
+  { question: "How many obsidian blocks are needed for a full Nether Portal frame?", answers: ["10", "12", "14", "16"], correct: 2 },
+  { question: "Which mob drops Blaze Rods?", answers: ["Magma Cube", "Blaze", "Ghast", "Wither Skeleton"], correct: 1 },
+  { question: "What enchantment allows you to walk faster on ice?", answers: ["Frost Walker", "Depth Strider", "Feather Falling", "Soul Speed"], correct: 0 },
+  { question: "How many End Portal frames are in a Stronghold?", answers: ["9", "10", "11", "12"], correct: 3 },
+  { question: "Which biome has the most generated structures?", answers: ["Desert", "Plains", "Forest", "Ocean"], correct: 0 },
+  { question: "What is the crafting recipe shape for a ladder?", answers: ["3x3 grid", "2x3 vertical", "3x2 horizontal", "Diagonal pattern"], correct: 1 },
+  { question: "How many hearts of health does an Iron Golem have?", answers: ["50", "75", "100", "125"], correct: 2 },
+  { question: "Which food item gives the best saturation?", answers: ["Steak", "Golden Carrot", "Suspicious Stew", "Pumpkin Pie"], correct: 1 },
+  { question: "What level should you mine at for the most diamonds (1.18+)?", answers: ["Y: -64", "Y: -59", "Y: 12", "Y: -16"], correct: 1 },
+  { question: "How many stages of growth does wheat have?", answers: ["6", "7", "8", "9"], correct: 2 },
+  { question: "Which block cannot be moved by pistons?", answers: ["Chest", "Obsidian", "Furnace", "Crafting Table"], correct: 1 },
+  { question: "What is the spawn rate of a pink sheep?", answers: ["0.164%", "1%", "5%", "10%"], correct: 0 },
+  { question: "How many emeralds does a full beacon pyramid require?", answers: ["164", "244", "1476", "1640"], correct: 2 },
+  { question: "Which potion effect does the Elder Guardian give you?", answers: ["Mining Fatigue", "Weakness", "Slowness", "Nausea"], correct: 0 },
+  { question: "What is the maximum enchantment level in vanilla survival?", answers: ["30", "35", "39", "50"], correct: 2 },
+  { question: "How many different music discs exist in Minecraft?", answers: ["12", "13", "15", "16"], correct: 2 },
+  { question: "Which dimension has the ID '1' in the game code?", answers: ["Overworld", "Nether", "End", "None"], correct: 2 },
+  { question: "What is the crafting recipe for a shield?", answers: ["6 planks + 1 iron", "5 planks + 1 iron", "6 iron + 1 plank", "4 planks + 1 iron"], correct: 0 },
+  { question: "How many ancient debris do you need for a full Netherite armor set?", answers: ["16", "20", "24", "36"], correct: 2 }
+];
+
+const triviaQueue = new Map();
+const activeTriviaBattles = new Map();
+
+function getRandomBattleQuestions(count = 5) {
+  const shuffled = [...BATTLE_TRIVIA_QUESTIONS].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+}
+
+async function startTriviaBattle(client, player1Id, player2Id, guildId) {
+  const matchId = `${player1Id}_${player2Id}_${Date.now()}`;
+  const questions = getRandomBattleQuestions(5);
+  
+  const match = {
+    matchId, guildId,
+    player1: { id: player1Id, answers: [], score: 0 },
+    player2: { id: player2Id, answers: [], score: 0 },
+    questions, currentQuestion: 0, startedAt: Date.now(), phase: 'active'
+  };
+
+  activeTriviaBattles.set(matchId, match);
+
+  try {
+    const user1 = await client.users.fetch(player1Id);
+    const user2 = await client.users.fetch(player2Id);
+    await sendBattleQuestionToBoth(client, match, user1, user2);
+  } catch (err) {
+    console.error('[TriviaBattle] Failed to start match:', err);
+    activeTriviaBattles.delete(matchId);
+  }
+}
+
+async function sendBattleQuestionToBoth(client, match, user1, user2) {
+  const questionData = match.questions[match.currentQuestion];
+  const questionNum = match.currentQuestion + 1;
+
+  const embed = new EmbedBuilder()
+    .setTitle(`🎮 Trivia Battle - Question ${questionNum}/5`)
+    .setDescription(`**${questionData.question}**\n\n` + questionData.answers.map((ans, i) => `**${i + 1}.** ${ans}`).join('\n'))
+    .setColor('#ffcc00')
+    .setFooter({ text: 'Click a button to answer!' });
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`triviabattle_${match.matchId}_0`).setLabel('1').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`triviabattle_${match.matchId}_1`).setLabel('2').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`triviabattle_${match.matchId}_2`).setLabel('3').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`triviabattle_${match.matchId}_3`).setLabel('4').setStyle(ButtonStyle.Primary)
+  );
+
+  try {
+    await user1.send({ embeds: [embed], components: [row] });
+    await user2.send({ embeds: [embed], components: [row] });
+  } catch (err) {
+    console.error('[TriviaBattle] Failed to send question:', err);
+  }
+}
+
+async function handleTriviaBattleAnswer(interaction, matchId, answerIndex) {
+  const match = activeTriviaBattles.get(matchId);
+  if (!match || match.phase !== 'active') {
+    await interaction.reply({ content: '❌ This match is no longer active.', ephemeral: true });
+    return;
+  }
+
+  const userId = interaction.user.id;
+  let player;
+  if (match.player1.id === userId) player = match.player1;
+  else if (match.player2.id === userId) player = match.player2;
+  else {
+    await interaction.reply({ content: '❌ You are not in this match.', ephemeral: true });
+    return;
+  }
+
+  if (player.answers[match.currentQuestion] !== undefined) {
+    await interaction.reply({ content: '⚠️ You already answered this question!', ephemeral: true });
+    return;
+  }
+
+  const questionData = match.questions[match.currentQuestion];
+  const isCorrect = answerIndex === questionData.correct;
+  
+  player.answers[match.currentQuestion] = answerIndex;
+  if (isCorrect) player.score++;
+
+  await interaction.reply({
+    content: isCorrect ? '✅ Correct!' : `❌ Wrong! Correct answer: **${questionData.answers[questionData.correct]}**`,
+    ephemeral: true
+  });
+
+  if (match.player1.answers[match.currentQuestion] !== undefined && match.player2.answers[match.currentQuestion] !== undefined) {
+    match.currentQuestion++;
+    if (match.currentQuestion < match.questions.length) {
+      const user1 = await interaction.client.users.fetch(match.player1.id);
+      const user2 = await interaction.client.users.fetch(match.player2.id);
+      setTimeout(() => sendBattleQuestionToBoth(interaction.client, match, user1, user2), 2000);
+    } else {
+      await endTriviaBattle(interaction.client, match);
+    }
+  }
+}
+
+async function endTriviaBattle(client, match) {
+  match.phase = 'completed';
+  const user1 = await client.users.fetch(match.player1.id);
+  const user2 = await client.users.fetch(match.player2.id);
+  const p1Score = match.player1.score;
+  const p2Score = match.player2.score;
+
+  let result;
+  if (p1Score > p2Score) {
+    result = `🏆 **${user1.tag}** wins!`;
+    await updateBattleStats(match.player1.id, user1.tag, 'win', p1Score);
+    await updateBattleStats(match.player2.id, user2.tag, 'loss', p2Score);
+  } else if (p2Score > p1Score) {
+    result = `🏆 **${user2.tag}** wins!`;
+    await updateBattleStats(match.player2.id, user2.tag, 'win', p2Score);
+    await updateBattleStats(match.player1.id, user1.tag, 'loss', p1Score);
+  } else {
+    result = `🤝 **It's a draw!**`;
+    await updateBattleStats(match.player1.id, user1.tag, 'draw', p1Score);
+    await updateBattleStats(match.player2.id, user2.tag, 'draw', p2Score);
+  }
+
+  const finalEmbed = new EmbedBuilder()
+    .setTitle('🎮 Trivia Battle Results')
+    .setDescription(result)
+    .addFields(
+      { name: `${user1.tag}`, value: `Score: ${p1Score}/5`, inline: true },
+      { name: `${user2.tag}`, value: `Score: ${p2Score}/5`, inline: true }
+    )
+    .setColor(p1Score > p2Score ? '#00ff00' : p2Score > p1Score ? '#ff0000' : '#ffcc00')
+    .setTimestamp();
+
+  try {
+    await user1.send({ embeds: [finalEmbed] });
+    await user2.send({ embeds: [finalEmbed] });
+  } catch (err) {
+    console.error('[TriviaBattle] Failed to send results:', err);
+  }
+
+  activeTriviaBattles.delete(match.matchId);
+}
+
+async function updateBattleStats(userId, username, result, score) {
+  let stats = await TriviaBattleStats.findOne({ userId });
+  if (!stats) stats = new TriviaBattleStats({ userId, username });
+  if (result === 'win') stats.wins++;
+  else if (result === 'loss') stats.losses++;
+  else if (result === 'draw') stats.draws++;
+  stats.totalScore += score;
+  stats.lastPlayed = new Date();
+  stats.username = username;
+  await stats.save();
+}
+
+// ─────────────────────────────────────────
+// MINIGAME SYSTEM
+// ─────────────────────────────────────────
+const GAME_TYPES = { MATH: 'math', WORD: 'word', MEMORY: 'memory', REACTION: 'reaction' };
+const WORD_POOL = ['minecraft', 'diamond', 'creeper', 'enderman', 'nether', 'portal', 'redstone', 'enchant', 'pickaxe', 'crafting', 'furnace', 'beacon', 'dragon', 'obsidian', 'emerald', 'village', 'skeleton', 'zombie', 'stronghold', 'treasure', 'adventure', 'survival', 'creative', 'builder'];
+const minigameQueues = new Map();
+const activeMinigames = new Map();
+
+function generateMathGame() {
+  const operations = ['+', '-', '*'];
+  const op = operations[Math.floor(Math.random() * operations.length)];
+  let num1, num2, answer;
+  switch (op) {
+    case '+': num1 = Math.floor(Math.random() * 50) + 10; num2 = Math.floor(Math.random() * 50) + 10; answer = num1 + num2; break;
+    case '-': num1 = Math.floor(Math.random() * 50) + 30; num2 = Math.floor(Math.random() * 30) + 5; answer = num1 - num2; break;
+    case '*': num1 = Math.floor(Math.random() * 12) + 2; num2 = Math.floor(Math.random() * 12) + 2; answer = num1 * num2; break;
+  }
+  const wrongAnswers = [answer + Math.floor(Math.random() * 10) + 1, answer - Math.floor(Math.random() * 10) - 1, answer + Math.floor(Math.random() * 5) + 5].filter(a => a !== answer);
+  const allAnswers = [answer, ...wrongAnswers].sort(() => Math.random() - 0.5).slice(0, 4);
+  return { question: `What is ${num1} ${op} ${num2}?`, answers: allAnswers.map(a => a.toString()), correct: allAnswers.indexOf(answer) };
+}
+
+function generateWordGame() {
+  const word = WORD_POOL[Math.floor(Math.random() * WORD_POOL.length)];
+  const scrambled = word.split('').sort(() => Math.random() - 0.5).join('');
+  const wrongWords = WORD_POOL.filter(w => w !== word && w.length === word.length).sort(() => Math.random() - 0.5).slice(0, 3);
+  const allAnswers = [word, ...wrongWords].sort(() => Math.random() - 0.5);
+  return { question: `Unscramble this Minecraft word: **${scrambled.toUpperCase()}**`, answers: allAnswers, correct: allAnswers.indexOf(word) };
+}
+
+function generateMemoryGame() {
+  const emojis = ['🔴', '🔵', '🟢', '🟡', '🟣', '🟠'];
+  const length = Math.floor(Math.random() * 2) + 4;
+  const sequence = Array(length).fill(0).map(() => emojis[Math.floor(Math.random() * emojis.length)]);
+  const correctAnswer = sequence.join('');
+  const wrongAnswers = [];
+  for (let i = 0; i < 3; i++) {
+    const wrong = [...sequence];
+    const changes = Math.floor(Math.random() * 2) + 1;
+    for (let j = 0; j < changes; j++) {
+      const pos = Math.floor(Math.random() * wrong.length);
+      wrong[pos] = emojis[Math.floor(Math.random() * emojis.length)];
+    }
+    wrongAnswers.push(wrong.join(''));
+  }
+  const allAnswers = [correctAnswer, ...wrongAnswers].sort(() => Math.random() - 0.5);
+  return { question: `Memorize this sequence:\n\n${sequence.join(' ')}\n\n*Wait 5 seconds then select the correct sequence!*`, answers: allAnswers, correct: allAnswers.indexOf(correctAnswer), showDelay: 5000 };
+}
+
+function generateReactionGame() {
+  const emojis = ['⚡', '🔥', '💎', '⭐', '🎯', '🎮', '🏆', '👑'];
+  const target = emojis[Math.floor(Math.random() * emojis.length)];
+  const options = [target];
+  const remaining = emojis.filter(e => e !== target);
+  while (options.length < 4) {
+    const random = remaining[Math.floor(Math.random() * remaining.length)];
+    if (!options.includes(random)) options.push(random);
+  }
+  options.sort(() => Math.random() - 0.5);
+  return { question: `⚡ QUICK! Click the **${target}** emoji!`, answers: options, correct: options.indexOf(target), isReaction: true };
+}
+
+async function startMinigameMatch(client, player1Id, player2Id, guildId, gameType) {
+  const gameId = `${gameType}_${player1Id}_${player2Id}_${Date.now()}`;
+  let gameData;
+  switch (gameType) {
+    case GAME_TYPES.MATH: gameData = generateMathGame(); break;
+    case GAME_TYPES.WORD: gameData = generateWordGame(); break;
+    case GAME_TYPES.MEMORY: gameData = generateMemoryGame(); break;
+    case GAME_TYPES.REACTION: gameData = generateReactionGame(); break;
+    default: gameData = generateMathGame();
+  }
+
+  const game = {
+    gameId, guildId, gameType,
+    player1: { id: player1Id, answered: false, correct: false, time: null },
+    player2: { id: player2Id, answered: false, correct: false, time: null },
+    gameData, startedAt: Date.now(), phase: 'active'
+  };
+
+  activeMinigames.set(gameId, game);
+
+  try {
+    const config = await MinigameConfig.findOne({ guildId });
+    if (!config || !config.channelId) return;
+
+    const channel = await client.channels.fetch(config.channelId);
+    const embed = new EmbedBuilder()
+      .setTitle(`🎮 Minigame: ${gameType.toUpperCase()} BATTLE`)
+      .setDescription(`<@${player1Id}> vs <@${player2Id}>\n\n${gameData.question}`)
+      .setColor('#00ff00')
+      .setFooter({ text: 'First correct answer wins!' });
+
+    const row = new ActionRowBuilder().addComponents(
+      gameData.answers.map((ans, i) => 
+        new ButtonBuilder()
+          .setCustomId(`minigame_${gameId}_${i}`)
+          .setLabel(gameData.isReaction ? ans : `${i + 1}`)
+          .setStyle(ButtonStyle.Primary)
+      )
+    );
+
+    if (gameData.showDelay) {
+      const msg = await channel.send({ embeds: [embed] });
+      setTimeout(async () => {
+        const answerEmbed = EmbedBuilder.from(embed).setDescription(`<@${player1Id}> vs <@${player2Id}>\n\nSelect the correct sequence!`).addFields(gameData.answers.map((ans, i) => ({ name: `Option ${i + 1}`, value: ans, inline: false })));
+        await msg.edit({ embeds: [answerEmbed], components: [row] });
+      }, gameData.showDelay);
+    } else {
+      if (!gameData.isReaction) embed.addFields(gameData.answers.map((ans, i) => ({ name: `${i + 1}`, value: ans, inline: true })));
+      await channel.send({ embeds: [embed], components: [row] });
+    }
+  } catch (err) {
+    console.error('[Minigame] Failed to start match:', err);
+    activeMinigames.delete(gameId);
+  }
+}
+
+async function handleMinigameAnswer(interaction, gameId, answerIndex) {
+  const game = activeMinigames.get(gameId);
+  if (!game || game.phase !== 'active') {
+    await interaction.reply({ content: '❌ This game is no longer active.', ephemeral: true });
+    return;
+  }
+
+  const userId = interaction.user.id;
+  let player;
+  if (game.player1.id === userId) player = game.player1;
+  else if (game.player2.id === userId) player = game.player2;
+  else {
+    await interaction.reply({ content: '❌ You are not in this game.', ephemeral: true });
+    return;
+  }
+
+  if (player.answered) {
+    await interaction.reply({ content: '⚠️ You already answered!', ephemeral: true });
+    return;
+  }
+
+  player.answered = true;
+  player.time = Date.now() - game.startedAt;
+  player.correct = answerIndex === game.gameData.correct;
+
+  await interaction.reply({ content: player.correct ? '✅ Correct!' : '❌ Wrong!', ephemeral: true });
+
+  if ((game.player1.answered && game.player2.answered) || player.correct) {
+    await endMinigame(interaction.client, game);
+  }
+}
+
+async function endMinigame(client, game) {
+  game.phase = 'completed';
+  const user1 = await client.users.fetch(game.player1.id);
+  const user2 = await client.users.fetch(game.player2.id);
+  let winner, loser, result;
+
+  if (game.player1.correct && !game.player2.correct) {
+    winner = game.player1; loser = game.player2;
+    result = `🏆 <@${game.player1.id}> wins!`;
+  } else if (game.player2.correct && !game.player1.correct) {
+    winner = game.player2; loser = game.player1;
+    result = `🏆 <@${game.player2.id}> wins!`;
+  } else if (game.player1.correct && game.player2.correct) {
+    if (game.player1.time < game.player2.time) {
+      winner = game.player1; loser = game.player2;
+      result = `🏆 <@${game.player1.id}> wins! (Faster: ${game.player1.time}ms vs ${game.player2.time}ms)`;
+    } else {
+      winner = game.player2; loser = game.player1;
+      result = `🏆 <@${game.player2.id}> wins! (Faster: ${game.player2.time}ms vs ${game.player1.time}ms)`;
+    }
+  } else {
+    result = `❌ Nobody won! Both answered incorrectly.`;
+  }
+
+  if (winner) {
+    await updateMinigameStats(winner.id, user1.id === winner.id ? user1.tag : user2.tag, game.guildId, game.gameType, true);
+    await updateMinigameStats(loser.id, user1.id === loser.id ? user1.tag : user2.tag, game.guildId, game.gameType, false);
+  }
+
+  const config = await MinigameConfig.findOne({ guildId: game.guildId });
+  if (config && config.channelId) {
+    const channel = await client.channels.fetch(config.channelId);
+    const resultEmbed = new EmbedBuilder()
+      .setTitle(`🎮 ${game.gameType.toUpperCase()} Game Results`)
+      .setDescription(result)
+      .setColor(winner ? '#00ff00' : '#ff0000')
+      .setFooter({ text: winner ? `+25 coins to the winner!` : 'Better luck next time!' })
+      .setTimestamp();
+    await channel.send({ embeds: [resultEmbed] });
+  }
+
+  activeMinigames.delete(game.gameId);
+}
+
+async function updateMinigameStats(userId, username, guildId, gameType, won) {
+  let stats = await MinigameStats.findOne({ userId, guildId });
+  if (!stats) stats = new MinigameStats({ userId, guildId, username });
+  if (won) {
+    stats.totalWins++;
+    stats.coinsEarned += 25;
+    switch (gameType) {
+      case GAME_TYPES.MATH: stats.mathWins++; break;
+      case GAME_TYPES.WORD: stats.wordWins++; break;
+      case GAME_TYPES.MEMORY: stats.memoryWins++; break;
+      case GAME_TYPES.REACTION: stats.reactionWins++; break;
+    }
+  }
+  stats.username = username;
+  stats.lastPlayed = new Date();
+  await stats.save();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// END OF NEW FEATURES
+// ═════════════════════════════════════════════════════════════════════════════
+
 const commandsList = [
   // Core commands
   new SlashCommandBuilder().setName('features').setDescription('See all features available to members'),
@@ -6733,6 +7729,9 @@ const commandsList = [
       .addStringOption(o => o.setName('duration').setDescription('Duration e.g. 1h, 30m, 2d').setRequired(true))
       .addIntegerOption(o => o.setName('winners').setDescription('Number of winners (default: 1)').setRequired(false).setMinValue(1).setMaxValue(10))
       .addChannelOption(o => o.setName('channel').setDescription('Channel to post in (default: current)').setRequired(false))
+    )
+    .addSubcommand(sub => sub.setName('end').setDescription('Manually end an active giveaway now')
+      .addStringOption(o => o.setName('message_id').setDescription('The giveaway message ID').setRequired(true))
     )
     .addSubcommand(sub => sub.setName('reroll').setDescription('Reroll a giveaway winner')
       .addStringOption(o => o.setName('message_id').setDescription('The giveaway message ID').setRequired(true))
@@ -6851,6 +7850,65 @@ const commandsList = [
 
   // ── AI CHAT COMMANDS ──
   ...aiChatCommandsData,
+
+  // ── LINK BLOCKER COMMANDS ──
+  ...linkBlockerCommands,
+
+  // ── DAILY TRIVIA COMMANDS ──
+  ...dailyTriviaCommands,
+
+  // ── TRIVIA BATTLE COMMANDS ──
+  ...triviaBattleCommands,
+
+  // ── MINIGAME COMMANDS ──
+  ...minigameCommands,
+
+  // ── CASINO COMMANDS ──
+  ...casinoCommandsData,
+
+  // ── NEW FEATURE COMMANDS ──
+  new SlashCommandBuilder().setName('linkblocker').setDescription('Configure link blocking settings')
+    .addSubcommand(sub => sub.setName('enable').setDescription('Enable link blocking'))
+    .addSubcommand(sub => sub.setName('disable').setDescription('Disable link blocking'))
+    .addSubcommand(sub => sub.setName('whitelist-role').setDescription('Whitelist a role to post links').addRoleOption(o => o.setName('role').setDescription('Role').setRequired(true)))
+    .addSubcommand(sub => sub.setName('remove-role').setDescription('Remove role from whitelist').addRoleOption(o => o.setName('role').setDescription('Role').setRequired(true)))
+    .addSubcommand(sub => sub.setName('whitelist-channel').setDescription('Whitelist a channel to allow links').addChannelOption(o => o.setName('channel').setDescription('Channel').setRequired(true)))
+    .addSubcommand(sub => sub.setName('remove-channel').setDescription('Remove channel from whitelist').addChannelOption(o => o.setName('channel').setDescription('Channel').setRequired(true)))
+    .addSubcommand(sub => sub.setName('set-message').setDescription('Set the warning message').addStringOption(o => o.setName('message').setDescription('Warning text').setRequired(true)))
+    .addSubcommand(sub => sub.setName('status').setDescription('Show current settings')),
+
+  new SlashCommandBuilder().setName('dailytrivia').setDescription('Configure daily trivia system (Admin only)')
+    .addSubcommand(sub => sub.setName('setup').setDescription('Set the channel for daily trivia').addChannelOption(o => o.setName('channel').setDescription('Trivia channel').setRequired(true)))
+    .addSubcommand(sub => sub.setName('settime').setDescription('Set the time to post daily trivia').addStringOption(o => o.setName('time').setDescription('Time in 24h format (HH:MM) e.g. 14:30').setRequired(true)))
+    .addSubcommand(sub => sub.setName('enable').setDescription('Enable daily trivia posting'))
+    .addSubcommand(sub => sub.setName('disable').setDescription('Disable daily trivia posting'))
+    .addSubcommand(sub => sub.setName('test').setDescription('Post a test trivia now'))
+    .addSubcommand(sub => sub.setName('status').setDescription('View current configuration')),
+
+  new SlashCommandBuilder().setName('queue').setDescription('Join the trivia battle queue to find an opponent!'),
+  new SlashCommandBuilder().setName('leavequeue').setDescription('Leave the trivia battle queue'),
+  new SlashCommandBuilder().setName('triviabattlestats').setDescription('View trivia battle statistics')
+    .addUserOption(o => o.setName('user').setDescription('User to check (default: yourself)').setRequired(false)),
+  new SlashCommandBuilder().setName('trivialeaderboard').setDescription('View top trivia battle players'),
+
+  new SlashCommandBuilder().setName('minigame').setDescription('Configure minigame system (Admin only)')
+    .addSubcommand(sub => sub.setName('setchannel').setDescription('Set the minigame channel').addChannelOption(o => o.setName('channel').setDescription('Minigame channel').setRequired(true)))
+    .addSubcommand(sub => sub.setName('enable').setDescription('Enable minigames'))
+    .addSubcommand(sub => sub.setName('disable').setDescription('Disable minigames'))
+    .addSubcommand(sub => sub.setName('status').setDescription('View minigame configuration')),
+
+  new SlashCommandBuilder().setName('play').setDescription('Join a minigame queue!')
+    .addStringOption(o => o.setName('game').setDescription('Game type').setRequired(true)
+      .addChoices(
+        { name: '🧮 Math Challenge', value: 'math' },
+        { name: '📝 Word Scramble', value: 'word' },
+        { name: '🧠 Memory Test', value: 'memory' },
+        { name: '⚡ Reaction Speed', value: 'reaction' }
+      )),
+
+  new SlashCommandBuilder().setName('minigamestats').setDescription('View minigame statistics')
+    .addUserOption(o => o.setName('user').setDescription('User to check').setRequired(false)),
+  new SlashCommandBuilder().setName('minigameleaderboard').setDescription('View top minigame players'),
 ];
 
 const rest = new REST({ version: '10' }).setToken(TOKEN);
