@@ -7851,18 +7851,6 @@ const commandsList = [
   // ── AI CHAT COMMANDS ──
   ...aiChatCommandsData,
 
-  // ── LINK BLOCKER COMMANDS ──
-  ...linkBlockerCommands,
-
-  // ── DAILY TRIVIA COMMANDS ──
-  ...dailyTriviaCommands,
-
-  // ── TRIVIA BATTLE COMMANDS ──
-  ...triviaBattleCommands,
-
-  // ── MINIGAME COMMANDS ──
-  ...minigameCommands,
-
   // ── CASINO COMMANDS ──
   ...casinoCommandsData,
 
